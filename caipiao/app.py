@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -13,6 +14,9 @@ from .ui.main_window import MainWindow
 
 def run() -> int:
     """启动应用程序."""
+    # QtWebEngine（帮助文档渲染）要求在创建 QApplication 前开启 OpenGL 上下文共享。
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
+
     app = QApplication(sys.argv)
     app.setApplicationName("双色球号码生成器")
     app.setApplicationVersion("1.0.0")

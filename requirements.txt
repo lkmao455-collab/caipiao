@@ -6,3 +6,5 @@ xgboost>=2.0.0  # XGBoost 机器学习模型
 numpy>=1.24.0  # 数值计算
 scikit-learn>=1.3.0  # 机器学习工具
 matplotlib>=3.7.0  # 用于生成概率折线图
+markdown>=3.4.0  # 帮助文档 Markdown 渲染
+Pygments>=2.15.0  # Markdown 代码块语法高亮

@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QTabWidget,
-    QTextBrowser,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -54,6 +53,7 @@ from .components.backtest_dialog import BacktestDialog
 from .components.ball_display import TicketRowWidget
 from .components.history_panel import HistoryPanel
 from .components.strategy_panel import StrategyPanel
+from .markdown_view import MarkdownDialog
 from .workers import FetchAllDataThread, FetchLatestDataThread, GenerateTicketsThread
 
 # 周几中文，用于展示开奖日期（weekday(): 周一=0 ... 周日=6）
@@ -718,6 +718,21 @@ class MainWindow(QMainWindow):
         guide_action.setToolTip("打开概率统计与机器学习学习文档（本窗口内查看）。")
         guide_action.triggered.connect(self._show_learning_guide)
         help_menu.addAction(guide_action)
+
+        # 其余帮助文档，统一由内置 Markdown 阅读器渲染显示
+        for label, filename in (
+            ("使用帮助", "help.md"),
+            ("XGBoost 使用教程", "XGBoost_TUTORIAL.md"),
+            ("XGBoost 采样说明", "XGBoost_SAMPLING.md"),
+        ):
+            doc_action = QAction(label, self)
+            doc_action.setToolTip(f"在内置阅读器中查看 {filename}")
+            doc_action.triggered.connect(
+                lambda _checked=False, t=label, f=filename: self._show_doc(t, f)
+            )
+            help_menu.addAction(doc_action)
+
+        help_menu.addSeparator()
         about_action = QAction("关于", self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
@@ -1102,27 +1117,24 @@ class MainWindow(QMainWindow):
         self.settings.sync()
         QMessageBox.information(self, "设置已保存", "设置已保存并生效")
 
-    def _show_learning_guide(self) -> None:
-        """在应用内打开学习文档。"""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("学习文档 - 概率统计与机器学习")
-        dialog.resize(800, 600)
-        layout = QVBoxLayout(dialog)
+    def _docs_dir(self) -> Path:
+        """返回项目 docs 目录."""
+        return Path(__file__).resolve().parents[2] / "docs"
 
-        text_browser = QTextBrowser(dialog)
-        text_browser.setOpenExternalLinks(True)
-        guide_path = Path(__file__).resolve().parents[3] / "docs" / "LEARNING_GUIDE.md"
-        try:
-            content = guide_path.read_text(encoding="utf-8")
-        except Exception:
-            content = "未能加载学习文档。请检查 docs/LEARNING_GUIDE.md 是否存在。"
-        text_browser.setPlainText(content)
-        layout.addWidget(text_browser)
-
-        close_btn = QPushButton("关闭")
-        close_btn.clicked.connect(dialog.close)
-        layout.addWidget(close_btn)
+    def _show_doc(self, title: str, filename: str) -> None:
+        """用内置 Markdown 阅读器打开 docs 目录下的文档."""
+        md_path = self._docs_dir() / filename
+        if not md_path.exists():
+            QMessageBox.warning(self, "文档缺失", f"未找到文档：{md_path}")
+            return
+        dialog = MarkdownDialog(
+            title, md_path, dark=self.settings.dark_theme, parent=self
+        )
         dialog.exec()
+
+    def _show_learning_guide(self) -> None:
+        """在应用内打开学习文档（Markdown 渲染）."""
+        self._show_doc("学习文档 - 概率统计与机器学习", "LEARNING_GUIDE.md")
 
     def _show_backtest_dialog(self) -> None:
         """打开历史回测对话框."""
