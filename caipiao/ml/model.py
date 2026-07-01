@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import pickle
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 import xgboost as xgb
@@ -42,16 +42,27 @@ class LotteryXGBoostModel:
             verbosity=0,
         )
 
-    def fit(self, X: np.ndarray, y_red: np.ndarray, y_blue: np.ndarray) -> None:
+    def fit(
+        self,
+        X: np.ndarray,
+        y_red: np.ndarray,
+        y_blue: np.ndarray,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> None:
         """训练模型.
 
         Args:
             X: 特征矩阵 (samples, features)
             y_red: 红球标签 (samples, 33)
             y_blue: 蓝球标签 (samples, 16)
+            progress_callback: 可选进度回调，签名为 ``callback(current, total)``，
+                每训练完一个分类器调用一次，用于界面进度展示。
         """
         if X.shape[0] == 0:
             raise ValueError("训练数据为空")
+
+        # 总步数 = 33 个红球分类器 + 1 个蓝球多输出分类器
+        total = int(y_red.shape[1]) + 1
 
         # 训练 33 个红球二分类器
         self.red_models = []
@@ -64,6 +75,8 @@ class LotteryXGBoostModel:
             model.set_params(scale_pos_weight=min(scale, 10.0))
             model.fit(X, y_red[:, i])
             self.red_models.append(model)
+            if progress_callback is not None:
+                progress_callback(i + 1, total)
             logger.debug("红球 %02d 模型训练完成", i + 1)
 
         # 训练蓝球多输出分类器
@@ -71,6 +84,8 @@ class LotteryXGBoostModel:
         blue_clf.set_params(scale_pos_weight=5.0)
         self.blue_model = MultiOutputClassifier(blue_clf, n_jobs=2)
         self.blue_model.fit(X, y_blue)
+        if progress_callback is not None:
+            progress_callback(total, total)
 
         self.is_trained = True
         logger.info("XGBoost 模型训练完成")

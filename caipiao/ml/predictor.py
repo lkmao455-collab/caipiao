@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
 from ..data.models import DrawRecord
 from .features import build_features, build_prediction_features
 from .model import LotteryXGBoostModel
+from .model_store import data_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +45,7 @@ class MLPredictor:
 
     def _data_fingerprint(self) -> str:
         """基于记录数量和最新一期生成数据指纹."""
-        if not self.records:
-            return "empty"
-        latest = self.records[-1]
-        return f"{len(self.records)}|{latest.issue}|{latest.draw_date.isoformat()}"
+        return data_fingerprint(self.records)
 
     def _metadata_path(self) -> Optional[Path]:
         if not self.model_path:
@@ -84,12 +82,20 @@ class MLPredictor:
         with meta_path.open("w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    def train(self) -> None:
-        """使用全部历史数据训练模型."""
+    def train(
+        self,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> None:
+        """使用全部历史数据训练模型.
+
+        Args:
+            progress_callback: 可选进度回调 ``callback(current, total)``，
+                透传给底层模型用于界面进度展示。
+        """
         X, y_red, y_blue = build_features(self.records, self.lookback)
         if X.shape[0] == 0:
             raise ValueError("历史数据不足，无法训练模型")
-        self.model.fit(X, y_red, y_blue)
+        self.model.fit(X, y_red, y_blue, progress_callback=progress_callback)
         self._needs_training = False
         if self.model_path:
             self.model.save(self.model_path)

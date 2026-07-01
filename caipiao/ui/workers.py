@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QThread, Signal
 
@@ -73,3 +74,48 @@ class GenerateTicketsThread(QThread):
             self.result_ready.emit(tickets, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
+
+
+class TrainXGBoostThread(QThread):
+    """后台训练 XGBoost 模型的线程.
+
+    通过 ``progress`` 信号回报训练进度（当前/总步数），
+    供界面进度窗口实时展示；训练结束通过 ``result_ready`` 回报结果。
+    """
+
+    result_ready = Signal(object, object)
+    progress = Signal(int, int)
+
+    def __init__(
+        self,
+        records: List[Any],
+        lookback: int = 50,
+        model_path: Optional[Path] = None,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self.records = records
+        self.lookback = lookback
+        self.model_path = model_path
+
+    def run(self) -> None:
+        try:
+            from ..ml.predictor import MLPredictor
+
+            model_path = self.model_path
+            if model_path is None:
+                model_dir = Path.home() / ".caipiao" / "models"
+                model_dir.mkdir(parents=True, exist_ok=True)
+                model_path = model_dir / f"xgboost_lookback{self.lookback}.pkl"
+
+            predictor = MLPredictor(
+                self.records, lookback=self.lookback, model_path=model_path
+            )
+            # 进度回调在本工作线程中被调用，通过信号安全跨线程更新界面
+            predictor.train(progress_callback=self._emit_progress)
+            self.result_ready.emit(True, None)
+        except Exception as exc:  # noqa: BLE001
+            self.result_ready.emit(None, exc)
+
+    def _emit_progress(self, current: int, total: int) -> None:
+        self.progress.emit(current, total)

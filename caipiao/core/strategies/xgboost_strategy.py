@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from ...data.models import DrawRecord
+from ...ml.model_store import compute_lookback, find_current_model, new_model_path
 from ...ml.predictor import MLPredictor
 from ..strategy import GenerationStrategy, StrategyMetadata
 from ..ticket import Ticket
@@ -61,12 +61,10 @@ class XGBoostStrategy(GenerationStrategy):
         # 自动根据历史记录总数确定回看期数：
         # - 尽量使用更长的历史，让模型看到更多统计模式；
         # - 至少保留 100 期作为训练样本，避免样本过少导致训练失败。
-        lookback = max(50, len(records) - 100)
+        lookback = compute_lookback(len(records))
 
-        # 模型缓存到用户目录
-        model_dir = Path.home() / ".caipiao" / "models"
-        model_dir.mkdir(parents=True, exist_ok=True)
-        model_path = model_dir / f"xgboost_lookback{lookback}.pkl"
+        # 优先加载与当前数据匹配的最新模型；不存在则用带时间戳的新路径训练。
+        model_path = find_current_model(records, lookback) or new_model_path(lookback)
 
         predictor = MLPredictor(records, lookback=lookback, model_path=model_path)
         if not predictor.is_ready():

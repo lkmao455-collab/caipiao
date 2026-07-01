@@ -6,8 +6,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtCore import QThread
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QClipboard, QKeySequence
 from PySide6.QtGui import QIcon, QPageSize, QPdfWriter
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
@@ -45,6 +44,7 @@ from ..core.strategies import (
 from ..data.analyzer import LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
 from ..data.repository import DataRepository
+from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
 from ..persistence.settings import AppSettings
 from ..plugins.plugin_manager import PluginManager
@@ -53,8 +53,14 @@ from .components.backtest_dialog import BacktestDialog
 from .components.ball_display import TicketRowWidget
 from .components.history_panel import HistoryPanel
 from .components.strategy_panel import StrategyPanel
+from .components.training_progress_dialog import TrainingProgressDialog
 from .markdown_view import MarkdownDialog
-from .workers import FetchAllDataThread, FetchLatestDataThread, GenerateTicketsThread
+from .workers import (
+    FetchAllDataThread,
+    FetchLatestDataThread,
+    GenerateTicketsThread,
+    TrainXGBoostThread,
+)
 
 # 周几中文，用于展示开奖日期（weekday(): 周一=0 ... 周日=6）
 _WEEKDAY_CN = "一二三四五六日"
@@ -109,6 +115,7 @@ class MainWindow(QMainWindow):
         for attr in (
             "_fetch_thread",
             "_latest_update_thread",
+            "_pretrain_fetch_thread",
             "_xgboost_thread",
             "_generate_thread",
         ):
@@ -424,11 +431,6 @@ class MainWindow(QMainWindow):
         xgb_btn_layout.addStretch()
         layout.addLayout(xgb_btn_layout)
 
-        self.xgboost_progress = QProgressBar()
-        self.xgboost_progress.setRange(0, 0)
-        self.xgboost_progress.setVisible(False)
-        layout.addWidget(self.xgboost_progress)
-
         layout.addStretch()
         self._refresh_data_stats()
         return tab
@@ -539,45 +541,77 @@ class MainWindow(QMainWindow):
         mtime = datetime.fromtimestamp(latest.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         return f"已找到训练好的模型：{latest.name}\n训练时间：{mtime}"
 
+    def _start_training(self, after) -> None:
+        """两段式训练：先联网拉取最新一期数据，再训练带时间戳的新模型.
+
+        全程弹出模态进度窗口，阻止训练期间的无效操作。训练结束后调用
+        ``after(error)``（``error`` 为 None 表示成功），由调用方决定后续动作。
+        """
+        self._train_after = after
+        self._train_dialog = TrainingProgressDialog(self)
+        self._train_dialog.set_stage("正在获取最新开奖数据…")
+        self._train_dialog.show()
+
+        self._pretrain_fetch_thread = FetchLatestDataThread(self)
+        self._pretrain_fetch_thread.result_ready.connect(self._on_pretrain_fetch_done)
+        self._pretrain_fetch_thread.start()
+
+    def _on_pretrain_fetch_done(self, latest, error) -> None:
+        """最新数据拉取完成：更新本地数据后开始训练（离线失败则用本地数据继续）."""
+        if not error and latest is not None:
+            self.data_repository.update([latest])
+            self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+            self.data_status_label.setText(self._data_status_text())
+            self._refresh_data_stats()
+
+        records = self.data_repository.get_all()
+        if len(records) < 100:
+            self._finish_training(ValueError("XGBoost 模型需要至少 100 期历史数据"))
+            return
+
+        lookback = compute_lookback(len(records))
+        model_path = new_model_path(lookback)
+
+        dialog = getattr(self, "_train_dialog", None)
+        if dialog is not None:
+            dialog.set_stage("正在训练模型…")
+
+        self._xgboost_thread = TrainXGBoostThread(
+            records, lookback=lookback, model_path=model_path, parent=self
+        )
+        if dialog is not None:
+            self._xgboost_thread.progress.connect(dialog.set_progress)
+        self._xgboost_thread.result_ready.connect(self._on_training_done)
+        self._xgboost_thread.start()
+
+    def _on_training_done(self, success, error) -> None:
+        self._finish_training(error)
+
+    def _finish_training(self, error) -> None:
+        """关闭进度窗口并回调训练发起方."""
+        dialog = getattr(self, "_train_dialog", None)
+        if dialog is not None:
+            dialog.mark_finished()
+            dialog.close()
+            self._train_dialog = None
+
+        after = getattr(self, "_train_after", None)
+        self._train_after = None
+        if after is not None:
+            after(error)
+
     def _train_xgboost_model(self) -> None:
-        """后台训练 XGBoost 模型."""
+        """点击「训练模型」：拉取最新数据并训练，训练期间弹模态进度窗口."""
         records = self.data_repository.get_all()
         if len(records) < 100:
             QMessageBox.warning(self, "数据不足", "XGBoost 模型需要至少 100 期历史数据")
             return
 
         self.train_xgboost_btn.setEnabled(False)
-        self.xgboost_progress.setVisible(True)
+        self._start_training(after=self._after_button_train)
 
-        class TrainXGBoostThread(QThread):
-            result_ready = Signal(object, object)
-
-            def __init__(self, records, parent=None):
-                super().__init__(parent)
-                self.records = records
-
-            def run(self):
-                try:
-                    from ..ml.predictor import MLPredictor
-
-                    model_dir = Path.home() / ".caipiao" / "models"
-                    model_dir.mkdir(parents=True, exist_ok=True)
-                    model_path = model_dir / "xgboost_lookback50.pkl"
-                    predictor = MLPredictor(
-                        self.records, lookback=50, model_path=model_path
-                    )
-                    predictor.train()
-                    self.result_ready.emit(True, None)
-                except Exception as exc:  # noqa: BLE001
-                    self.result_ready.emit(None, exc)
-
-        self._xgboost_thread = TrainXGBoostThread(records, self)
-        self._xgboost_thread.result_ready.connect(self._on_xgboost_trained)
-        self._xgboost_thread.start()
-
-    def _on_xgboost_trained(self, success, error) -> None:
+    def _after_button_train(self, error) -> None:
         self.train_xgboost_btn.setEnabled(True)
-        self.xgboost_progress.setVisible(False)
         if error:
             QMessageBox.critical(self, "训练失败", f"XGBoost 模型训练失败:\n{error}")
         else:
@@ -600,6 +634,10 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             for f in model_files:
                 f.unlink()
+                # 一并删除对应的元数据文件
+                meta = Path(str(f) + ".meta.json")
+                if meta.exists():
+                    meta.unlink()
             self.xgboost_status_label.setText(self._xgboost_status_text())
 
     def _on_auto_update_changed(self, state: int) -> None:
@@ -773,7 +811,24 @@ class MainWindow(QMainWindow):
                 return
             options["history"] = records
 
-        # XGBoost 首次训练可能耗时较长，使用后台线程避免冻结 UI
+        # XGBoost：若当前数据对应的模型已过期，先（拉取最新数据并）训练，再生成
+        if strategy_id == "xgboost":
+            records = self.data_repository.get_all()
+            lookback = compute_lookback(len(records))
+            if not is_model_current(records, lookback):
+                self.generate_btn.setEnabled(False)
+                self.generate_btn.setText("准备模型...")
+                self._start_training(
+                    after=lambda err: self._after_generate_train(
+                        err, strategy_id, count, options
+                    )
+                )
+                return
+
+        self._launch_generation(strategy_id, count, options)
+
+    def _launch_generation(self, strategy_id, count, options) -> None:
+        """在后台线程启动号码生成（避免耗时策略冻结 UI）."""
         self.generate_btn.setEnabled(False)
         self.generate_btn.setText("生成中...")
 
@@ -782,6 +837,17 @@ class MainWindow(QMainWindow):
         )
         self._generate_thread.result_ready.connect(self._on_generation_finished)
         self._generate_thread.start()
+
+    def _after_generate_train(self, error, strategy_id, count, options) -> None:
+        """生成前的模型训练完成：成功则用最新数据继续生成，失败则提示."""
+        if error:
+            self.generate_btn.setEnabled(True)
+            self.generate_btn.setText("立即生成")
+            QMessageBox.critical(self, "训练失败", f"模型训练失败:\n{error}")
+            return
+        # 训练已把最新数据合并入库，用更新后的数据重新注入历史后再生成
+        options["history"] = self.data_repository.get_all()
+        self._launch_generation(strategy_id, count, options)
 
     def _on_generation_finished(self, tickets, error) -> None:
         """号码生成完成回调."""
