@@ -1,7 +1,10 @@
-"""XGBoost 模型文件的存储与新鲜度管理.
+"""机器学习模型文件的存储与新鲜度管理.
 
 集中管理模型文件的命名、查找与「是否与当前数据匹配」的判断，
 供 UI 训练流程与生成策略共用，避免各处重复实现。
+
+各类模型（XGBoost、LightGBM 等）通过 ``prefix`` 区分文件命名，
+以免不同模型的缓存互相覆盖或指纹串扰。
 """
 
 from __future__ import annotations
@@ -61,19 +64,22 @@ def new_model_path(
     lookback: int,
     directory: Optional[Path] = None,
     when: Optional[datetime] = None,
+    prefix: str = "xgboost",
 ) -> Path:
-    """生成带时间戳的新模型路径：``xgboost_lookback{lookback}_{YYYYMMDD_HHMMSS}.pkl``."""
+    """生成带时间戳的新模型路径：``{prefix}_lookback{lookback}_{YYYYMMDD_HHMMSS}.pkl``."""
     directory = directory or model_dir()
     ts = (when or datetime.now()).strftime("%Y%m%d_%H%M%S")
-    return directory / f"xgboost_lookback{lookback}_{ts}.pkl"
+    return directory / f"{prefix}_lookback{lookback}_{ts}.pkl"
 
 
-def _candidate_models(lookback: int, directory: Path) -> List[Path]:
+def _candidate_models(
+    lookback: int, directory: Path, prefix: str = "xgboost"
+) -> List[Path]:
     """列出该 lookback 的所有候选模型（含旧的无时间戳命名）."""
     if not directory.exists():
         return []
-    candidates = list(directory.glob(f"xgboost_lookback{lookback}_*.pkl"))
-    legacy = directory / f"xgboost_lookback{lookback}.pkl"
+    candidates = list(directory.glob(f"{prefix}_lookback{lookback}_*.pkl"))
+    legacy = directory / f"{prefix}_lookback{lookback}.pkl"
     if legacy.exists():
         candidates.append(legacy)
     return candidates
@@ -83,13 +89,14 @@ def find_current_model(
     records: List[DrawRecord],
     lookback: int,
     directory: Optional[Path] = None,
+    prefix: str = "xgboost",
 ) -> Optional[Path]:
     """返回与当前数据指纹匹配的、最新（按修改时间）的模型路径；无则 None."""
     directory = directory or model_dir()
     fingerprint = data_fingerprint(records)
     matching = [
         p
-        for p in _candidate_models(lookback, directory)
+        for p in _candidate_models(lookback, directory, prefix)
         if _model_fingerprint(p) == fingerprint
     ]
     if not matching:
@@ -101,6 +108,7 @@ def is_model_current(
     records: List[DrawRecord],
     lookback: int,
     directory: Optional[Path] = None,
+    prefix: str = "xgboost",
 ) -> bool:
     """当前数据是否已有匹配的最新模型."""
-    return find_current_model(records, lookback, directory) is not None
+    return find_current_model(records, lookback, directory, prefix) is not None

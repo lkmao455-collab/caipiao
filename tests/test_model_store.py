@@ -55,6 +55,35 @@ def test_new_model_path_naming(tmp_path):
     assert path.parent == tmp_path
 
 
+def test_new_model_path_prefix(tmp_path):
+    path = model_store.new_model_path(
+        50, directory=tmp_path, when=datetime(2025, 7, 1, 9, 3, 53), prefix="lightgbm"
+    )
+    assert path.name == "lightgbm_lookback50_20250701_090353.pkl"
+
+
+def test_find_current_model_isolated_by_prefix(tmp_path):
+    """不同前缀的模型互不干扰：xgboost 的缓存不会被当作 lightgbm 的。"""
+    records = make_records(120)
+    lookback = model_store.compute_lookback(len(records))
+    fp = model_store.data_fingerprint(records)
+
+    # 只写入一个 xgboost 前缀的匹配模型
+    _write_model(tmp_path, lookback, fp, datetime(2025, 6, 1, 0, 0, 0))
+
+    # xgboost 前缀能找到，lightgbm 前缀找不到
+    assert (
+        model_store.find_current_model(records, lookback, directory=tmp_path)
+        is not None
+    )
+    assert (
+        model_store.find_current_model(
+            records, lookback, directory=tmp_path, prefix="lightgbm"
+        )
+        is None
+    )
+
+
 def test_find_current_model_matches_fingerprint(tmp_path):
     records = make_records(120)
     lookback = model_store.compute_lookback(len(records))

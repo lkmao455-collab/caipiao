@@ -3,6 +3,7 @@
 from .balanced_strategy import BalancedStrategy
 from .exclude_include_strategy import ExcludeIncludeStrategy
 from .hot_cold_strategy import HotColdStrategy
+from .lightgbm_strategy import LightGBMStrategy
 from .missing_number_strategy import MissingNumberStrategy
 from .odd_even_strategy import OddEvenStrategy
 from .random_strategy import RandomStrategy
@@ -18,4 +19,5 @@ __all__ = [
     "MissingNumberStrategy",
     "BalancedStrategy",
     "XGBoostStrategy",
+    "LightGBMStrategy",
 ]

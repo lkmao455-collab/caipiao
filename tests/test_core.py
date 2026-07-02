@@ -81,3 +81,26 @@ def test_hot_cold_strategy_with_history():
     history = [Ticket([1, 2, 3, 4, 5, 6], 1) for _ in range(5)]
     tickets = strategy.generate(count=2, options={"mode": "hot", "history": history})
     assert len(tickets) == 2
+
+
+def test_hot_cold_strategy_with_draw_records():
+    """应用实际传入的是官方开奖记录 DrawRecord（红球为 int），需正确统计。"""
+    from datetime import datetime
+
+    from caipiao.data.models import DrawRecord
+
+    strategy = HotColdStrategy()
+    history = [
+        DrawRecord(
+            issue=f"2024{i:03d}",
+            draw_date=datetime(2024, 1, 1),
+            red_balls=[1, 2, 3, 4, 5, 6],
+            blue_ball=1,
+        )
+        for i in range(1, 6)
+    ]
+    tickets = strategy.generate(count=2, options={"mode": "hot", "history": history})
+    assert len(tickets) == 2
+    for t in tickets:
+        assert len(t.red_balls) == 6
+        assert 1 <= t.blue_ball.number <= 16

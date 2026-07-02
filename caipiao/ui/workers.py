@@ -76,11 +76,13 @@ class GenerateTicketsThread(QThread):
             self.result_ready.emit(None, exc)
 
 
-class TrainXGBoostThread(QThread):
-    """后台训练 XGBoost 模型的线程.
+class TrainModelThread(QThread):
+    """后台训练机器学习模型的线程.
 
-    通过 ``progress`` 信号回报训练进度（当前/总步数），
-    供界面进度窗口实时展示；训练结束通过 ``result_ready`` 回报结果。
+    通过 ``model_class`` 指定要训练的模型类型（XGBoost / LightGBM 等），
+    默认与历史行为一致训练 XGBoost。通过 ``progress`` 信号回报训练进度
+    （当前/总步数）供界面进度窗口实时展示；训练结束通过 ``result_ready``
+    回报结果。
     """
 
     result_ready = Signal(object, object)
@@ -91,12 +93,16 @@ class TrainXGBoostThread(QThread):
         records: List[Any],
         lookback: int = 50,
         model_path: Optional[Path] = None,
+        model_class: Optional[type] = None,
+        prefix: str = "xgboost",
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.records = records
         self.lookback = lookback
         self.model_path = model_path
+        self.model_class = model_class
+        self.prefix = prefix
 
     def run(self) -> None:
         try:
@@ -106,11 +112,12 @@ class TrainXGBoostThread(QThread):
             if model_path is None:
                 model_dir = Path.home() / ".caipiao" / "models"
                 model_dir.mkdir(parents=True, exist_ok=True)
-                model_path = model_dir / f"xgboost_lookback{self.lookback}.pkl"
+                model_path = model_dir / f"{self.prefix}_lookback{self.lookback}.pkl"
 
-            predictor = MLPredictor(
-                self.records, lookback=self.lookback, model_path=model_path
-            )
+            kwargs = {"lookback": self.lookback, "model_path": model_path}
+            if self.model_class is not None:
+                kwargs["model_class"] = self.model_class
+            predictor = MLPredictor(self.records, **kwargs)
             # 进度回调在本工作线程中被调用，通过信号安全跨线程更新界面
             predictor.train(progress_callback=self._emit_progress)
             self.result_ready.emit(True, None)

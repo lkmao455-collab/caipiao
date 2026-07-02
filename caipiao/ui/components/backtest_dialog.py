@@ -114,6 +114,16 @@ class BacktestDialog(QDialog):
         actual_layout.addStretch()
         result_layout.addLayout(actual_layout)
 
+        # 训练数据范围说明：明确展示预测所用数据的截止情况，说明不存在数据泄露
+        self.data_scope_label = QLabel()
+        self.data_scope_label.setWordWrap(True)
+        self.data_scope_label.setStyleSheet(
+            "color: #1B5E20; background: #E8F5E9; border: 1px solid #A5D6A7;"
+            " border-radius: 4px; padding: 6px; font-size: 12px;"
+        )
+        self.data_scope_label.setVisible(False)
+        result_layout.addWidget(self.data_scope_label)
+
         # 预测结果
         result_layout.addWidget(QLabel("预测号码（命中数 = 红球命中 + 蓝球命中）:"))
         self.predicted_scroll = QScrollArea()
@@ -186,6 +196,7 @@ class BacktestDialog(QDialog):
             "missing_number",
             "balanced",
             "xgboost",
+            "lightgbm",
         }
         if strategy_id in history_dependent:
             if not history:
@@ -197,6 +208,9 @@ class BacktestDialog(QDialog):
 
         # 显示真实开奖
         self._show_actual(actual)
+
+        # 展示本次预测所用数据的截止情况，明确不存在数据泄露
+        self._show_data_scope(strategy_id, history, target_date, strategy_id in history_dependent)
 
         self.run_btn.setEnabled(False)
         self.run_btn.setText("预测中...")
@@ -229,6 +243,29 @@ class BacktestDialog(QDialog):
             basis=f"期号：{actual.issue}，开奖日期：{date_str}",
         )
         self.actual_layout.addWidget(TicketRowWidget(ticket))
+
+    def _show_data_scope(
+        self, strategy_id, history, target_date, uses_history: bool
+    ) -> None:
+        """展示本次预测所用训练数据的范围，明确不含预测日、无数据泄露."""
+        target_str = target_date.strftime("%Y-%m-%d")
+        if not uses_history:
+            self.data_scope_label.setText(
+                f"该策略不依赖历史开奖数据，预测与 {target_str} 当期结果无关，"
+                "不存在数据泄露。"
+            )
+            self.data_scope_label.setVisible(True)
+            return
+
+        start = min(r.draw_date for r in history)
+        end = max(r.draw_date for r in history)
+        self.data_scope_label.setText(
+            f"✔ 无数据泄露：本次预测仅使用 {target_str} 之前的数据。\n"
+            f"训练数据共 {len(history)} 期，日期范围 "
+            f"{start.strftime('%Y-%m-%d')} 至 {end.strftime('%Y-%m-%d')}"
+            f"（均早于预测日 {target_str}，不含当天及以后）。"
+        )
+        self.data_scope_label.setVisible(True)
 
     def _on_prediction_finished(self, tickets, error, actual) -> None:
         self.run_btn.setEnabled(True)

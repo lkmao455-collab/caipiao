@@ -64,11 +64,13 @@ class HotColdStrategy(GenerationStrategy):
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
 
-        # 统计红球出现频率
+        # 统计红球出现频率。history 既可能是官方开奖记录 DrawRecord
+        # （red_balls 为 int），也可能是 Ticket（red_balls 为 Ball，含 .number），
+        # 两者都要兼容。
         red_counter: Counter = Counter()
-        for ticket in history:
-            for ball in ticket.red_balls:
-                red_counter[ball.number] += 1
+        for record in history:
+            for ball in record.red_balls:
+                red_counter[getattr(ball, "number", ball)] += 1
 
         all_reds = list(range(1, 34))
         if not red_counter:

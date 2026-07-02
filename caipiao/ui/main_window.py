@@ -35,6 +35,7 @@ from ..core.strategies import (
     BalancedStrategy,
     ExcludeIncludeStrategy,
     HotColdStrategy,
+    LightGBMStrategy,
     MissingNumberStrategy,
     OddEvenStrategy,
     RandomStrategy,
@@ -44,6 +45,8 @@ from ..core.strategies import (
 from ..data.analyzer import LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
 from ..data.repository import DataRepository
+from ..ml.lgbm_model import LotteryLightGBMModel
+from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
 from ..persistence.settings import AppSettings
@@ -59,8 +62,15 @@ from .workers import (
     FetchAllDataThread,
     FetchLatestDataThread,
     GenerateTicketsThread,
-    TrainXGBoostThread,
+    TrainModelThread,
 )
+
+# ML 策略的模型新鲜度检测与自动重训配置：strategy_id -> (模型类, 模型文件前缀)。
+# 生成前据此判断已保存模型是否与当前数据匹配，不匹配则自动重新训练。
+ML_MODEL_STRATEGIES = {
+    "xgboost": (LotteryXGBoostModel, "xgboost"),
+    "lightgbm": (LotteryLightGBMModel, "lightgbm"),
+}
 
 # 周几中文，用于展示开奖日期（weekday(): 周一=0 ... 周日=6）
 _WEEKDAY_CN = "一二三四五六日"
@@ -134,6 +144,7 @@ class MainWindow(QMainWindow):
         self.engine.register(MissingNumberStrategy())
         self.engine.register(BalancedStrategy())
         self.engine.register(XGBoostStrategy())
+        self.engine.register(LightGBMStrategy())
 
     def _setup_ui(self) -> None:
         central = QWidget()
@@ -541,13 +552,21 @@ class MainWindow(QMainWindow):
         mtime = datetime.fromtimestamp(latest.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         return f"已找到训练好的模型：{latest.name}\n训练时间：{mtime}"
 
-    def _start_training(self, after) -> None:
+    def _start_training(
+        self, model_class: type, prefix: str, after
+    ) -> None:
         """两段式训练：先联网拉取最新一期数据，再训练带时间戳的新模型.
 
         全程弹出模态进度窗口，阻止训练期间的无效操作。训练结束后调用
         ``after(error)``（``error`` 为 None 表示成功），由调用方决定后续动作。
+
+        Args:
+            model_class: 要训练的模型类（XGBoost / LightGBM 等）。
+            prefix: 模型文件命名前缀，用于区分不同模型的缓存。
         """
         self._train_after = after
+        self._train_model_class = model_class
+        self._train_prefix = prefix
         self._train_dialog = TrainingProgressDialog(self)
         self._train_dialog.set_stage("正在获取最新开奖数据…")
         self._train_dialog.show()
@@ -566,18 +585,25 @@ class MainWindow(QMainWindow):
 
         records = self.data_repository.get_all()
         if len(records) < 100:
-            self._finish_training(ValueError("XGBoost 模型需要至少 100 期历史数据"))
+            self._finish_training(ValueError("模型需要至少 100 期历史数据"))
             return
 
+        model_class = getattr(self, "_train_model_class", LotteryXGBoostModel)
+        prefix = getattr(self, "_train_prefix", "xgboost")
         lookback = compute_lookback(len(records))
-        model_path = new_model_path(lookback)
+        model_path = new_model_path(lookback, prefix=prefix)
 
         dialog = getattr(self, "_train_dialog", None)
         if dialog is not None:
             dialog.set_stage("正在训练模型…")
 
-        self._xgboost_thread = TrainXGBoostThread(
-            records, lookback=lookback, model_path=model_path, parent=self
+        self._xgboost_thread = TrainModelThread(
+            records,
+            lookback=lookback,
+            model_path=model_path,
+            model_class=model_class,
+            prefix=prefix,
+            parent=self,
         )
         if dialog is not None:
             self._xgboost_thread.progress.connect(dialog.set_progress)
@@ -608,7 +634,9 @@ class MainWindow(QMainWindow):
             return
 
         self.train_xgboost_btn.setEnabled(False)
-        self._start_training(after=self._after_button_train)
+        self._start_training(
+            LotteryXGBoostModel, "xgboost", after=self._after_button_train
+        )
 
     def _after_button_train(self, error) -> None:
         self.train_xgboost_btn.setEnabled(True)
@@ -803,6 +831,7 @@ class MainWindow(QMainWindow):
             "missing_number",
             "balanced",
             "xgboost",
+            "lightgbm",
         }
         if strategy_id in history_dependent:
             records = self.data_repository.get_all()
@@ -811,17 +840,21 @@ class MainWindow(QMainWindow):
                 return
             options["history"] = records
 
-        # XGBoost：若当前数据对应的模型已过期，先（拉取最新数据并）训练，再生成
-        if strategy_id == "xgboost":
+        # ML 模型策略（XGBoost / LightGBM）：若当前数据对应的模型已过期，
+        # 先（拉取最新数据并）自动重新训练，再生成。
+        if strategy_id in ML_MODEL_STRATEGIES:
+            model_class, prefix = ML_MODEL_STRATEGIES[strategy_id]
             records = self.data_repository.get_all()
             lookback = compute_lookback(len(records))
-            if not is_model_current(records, lookback):
+            if not is_model_current(records, lookback, prefix=prefix):
                 self.generate_btn.setEnabled(False)
                 self.generate_btn.setText("准备模型...")
                 self._start_training(
+                    model_class,
+                    prefix,
                     after=lambda err: self._after_generate_train(
                         err, strategy_id, count, options
-                    )
+                    ),
                 )
                 return
 
