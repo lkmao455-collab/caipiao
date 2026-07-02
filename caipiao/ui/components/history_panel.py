@@ -223,22 +223,21 @@ class HistoryPanel(QWidget):
 
         rows = []
         for idx, ticket in enumerate(tickets, start=1):
-            reds = " ".join(
-                f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
-                f'text-align:center;border-radius:14px;background:#D32F2F;color:#fff;'
-                f'margin:2px;font-weight:bold;">{b.number:02d}</span>'
-                for b in ticket.red_balls
-            )
-            blue = (
-                f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
-                f'text-align:center;border-radius:14px;background:#1976D2;color:#fff;'
-                f'margin:2px;font-weight:bold;">{ticket.blue_ball.number:02d}</span>'
-            )
+            balls_html = []
+            for gi, rg in enumerate(ticket.render_groups()):
+                if gi > 0:
+                    balls_html.append('<span style="margin:0 6px;color:#999;font-weight:bold;">+</span>')
+                for n in rg.numbers:
+                    balls_html.append(
+                        f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
+                        f'text-align:center;border-radius:14px;background:{rg.color};color:#fff;'
+                        f'margin:2px;font-weight:bold;">{n:0{rg.pad}d}</span>'
+                    )
             rows.append(
                 f"<tr>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;'><b>{idx:02d}.</b></td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{ticket.generated_at.strftime('%Y-%m-%d %H:%M:%S')}</td>"
-                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{reds} {blue}</td>"
+                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{''.join(balls_html)}</td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;color:#666;'>{ticket.strategy_name}</td>"
                 f"</tr>"
             )
@@ -274,7 +273,7 @@ class HistoryPanel(QWidget):
                 </tr>
                 {''.join(rows)}
             </table>
-            <p class="footer">本结果由双色球号码生成器生成，仅供娱乐参考。</p>
+            <p class="footer">本结果由彩票号码生成器生成，仅供娱乐参考。</p>
         </body>
         </html>
         """

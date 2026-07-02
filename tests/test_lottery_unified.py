@@ -1,0 +1,271 @@
+"""多彩种统一层单元测试（福彩3D / 七乐彩 / 快乐8 + 双色球兼容）."""
+
+from datetime import datetime, timedelta
+
+import numpy as np
+import pytest
+
+from caipiao.core.profile import get_profile, list_profiles
+from caipiao.core.strategies.generic import build_strategies, needs_history
+from caipiao.core.ticket import Ticket
+from caipiao.data.analyzer import DrawAnalyzer, LotteryAnalyzer
+from caipiao.data.fetcher import LotteryDataFetcher
+from caipiao.data.models import DrawRecord
+from caipiao.data.repository import DrawRepository
+from caipiao.ml.generic_features import build_features
+from caipiao.ml.generic_model import LotteryGenericModel
+from caipiao.ml.generic_predictor import GenericMLPredictor
+
+
+# --------------------------------------------------------------------------- #
+# Profile
+# --------------------------------------------------------------------------- #
+def test_profile_registry():
+    profiles = list_profiles()
+    assert [p.key for p in profiles] == ["ssq", "3d", "qlc", "kl8"]
+    assert get_profile("3d").primary_group.key == "pos"
+    assert get_profile("kl8").primary_group.effective_pick_max == 10
+
+
+def test_group_constraints():
+    p3d = get_profile("3d")
+    assert p3d.primary_group.allow_repeat
+    assert p3d.primary_group.positional
+    pkl8 = get_profile("kl8")
+    assert pkl8.primary_group.variable_pick
+
+
+# --------------------------------------------------------------------------- #
+# Ticket / DrawRecord 兼容
+# --------------------------------------------------------------------------- #
+def test_ssq_ticket_legacy():
+    t = Ticket([1, 2, 3, 4, 5, 6], 7)
+    assert len(t.red_balls) == 6
+    assert t.blue_ball.number == 7
+    assert t.profile.key == "ssq"
+    d = t.to_dict()
+    assert "red" in d and "blue" in d
+    t2 = Ticket.from_dict(d)
+    assert t == t2
+
+
+def test_3d_ticket_repeatable():
+    t = Ticket(profile="3d", groups={"pos": [4, 4, 5]})
+    assert t.profile.key == "3d"
+    assert t.groups["pos"] == [4, 4, 5]
+    assert t.to_dict()["profile"] == "3d"
+
+
+def test_kl8_ticket_variable_pick():
+    t = Ticket(profile="kl8", groups={"main": [3, 15, 27]})
+    assert t.profile.key == "kl8"
+    assert len(t.groups["main"]) == 3
+
+
+def test_ssq_drawrecord_legacy():
+    r = DrawRecord("2024001", datetime(2024, 1, 1), [1, 2, 3, 4, 5, 6], 7)
+    assert r.red_balls == [1, 2, 3, 4, 5, 6]
+    assert r.blue_ball == 7
+    r2 = DrawRecord.from_dict(r.to_dict())
+    assert r == r2
+
+
+# --------------------------------------------------------------------------- #
+# Fetcher 解析器
+# --------------------------------------------------------------------------- #
+def test_parse_ssq():
+    f = LotteryDataFetcher(profile=get_profile("ssq"))
+    parts = ["2024001", "2024-01-01"] + [str(i) for i in range(1, 7)] + ["7"]
+    rec = f._parse_ssq(parts, "")
+    assert rec is not None
+    assert rec.red_balls == [1, 2, 3, 4, 5, 6]
+    assert rec.blue_ball == 7
+
+
+def test_parse_3d():
+    f = LotteryDataFetcher(profile=get_profile("3d"))
+    parts = ["2026172", "2026-07-01", "4", "4", "5"] + ["0"] * 10
+    rec = f._parse_3d(parts, "")
+    assert rec is not None
+    assert rec.groups["pos"] == [4, 4, 5]
+
+
+def test_parse_qlc():
+    f = LotteryDataFetcher(profile=get_profile("qlc"))
+    parts = ["2024001", "2024-01-01"] + [str(i) for i in range(1, 8)] + ["30"]
+    rec = f._parse_qlc(parts, "")
+    assert rec is not None
+    assert rec.groups["basic"] == list(range(1, 8))
+    assert rec.groups["special"] == [30]
+
+
+def test_parse_kl8():
+    f = LotteryDataFetcher(profile=get_profile("kl8"))
+    parts = ["2026172", "2026-07-01"] + [str(i) for i in range(1, 21)]
+    rec = f._parse_kl8(parts, "")
+    assert rec is not None
+    assert len(rec.groups["main"]) == 20
+
+
+# --------------------------------------------------------------------------- #
+# Repository 下一期推算
+# --------------------------------------------------------------------------- #
+def test_repository_3d_next_daily(tmp_path):
+    repo = DrawRepository(tmp_path / "d.json", profile=get_profile("3d"))
+    repo.update([DrawRecord("2024001", datetime(2024, 1, 1), profile="3d", groups={"pos": [0, 1, 2]})])
+    info = repo.next_period_info()
+    assert info["next_date"] == datetime(2024, 1, 2)
+
+
+def test_repository_qlc_weekdays(tmp_path):
+    repo = DrawRepository(tmp_path / "d.json", profile=get_profile("qlc"))
+    # 2024-01-01 是周一
+    repo.update([DrawRecord("2024001", datetime(2024, 1, 1), profile="qlc", groups={"basic": list(range(1, 8)), "special": [30]})])
+    info = repo.next_period_info()
+    # 周一 -> 周三
+    assert info["next_date"] == datetime(2024, 1, 3)
+
+
+# --------------------------------------------------------------------------- #
+# Analyzer
+# --------------------------------------------------------------------------- #
+def make_ssq_records():
+    return [
+        DrawRecord("2024001", datetime(2024, 1, 1), [1, 2, 3, 4, 5, 6], 7),
+        DrawRecord("2024002", datetime(2024, 1, 3), [1, 2, 3, 10, 11, 12], 8),
+        DrawRecord("2024003", datetime(2024, 1, 5), [13, 14, 15, 16, 17, 18], 9),
+    ]
+
+
+def test_lottery_analyzer_compat():
+    # 旧 API 不变
+    analyzer = LotteryAnalyzer(make_ssq_records())
+    assert analyzer.red_frequency()[1] == 2
+    assert 1 in analyzer.hot_reds(3)
+    assert 7 in analyzer.cold_reds(3)
+    assert dict(analyzer.missing_reds(3))[7] == 3
+
+
+def test_generic_analyzer_3d():
+    records = [
+        DrawRecord(f"2024{i:03d}", datetime(2024, 1, 1) + timedelta(days=i), profile="3d", groups={"pos": [1, 2, 3]})
+        for i in range(1, 6)
+    ]
+    analyzer = DrawAnalyzer(records, get_profile("3d"))
+    freq = analyzer.frequency("pos")
+    assert freq[1] == 5
+    pos_freq = analyzer.positional_frequency()
+    assert 0 in pos_freq
+
+
+def test_generic_analyzer_kl8():
+    records = [
+        DrawRecord(f"2024{i:03d}", datetime(2024, 1, 1) + timedelta(days=i), profile="kl8", groups={"main": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]})
+        for i in range(1, 6)
+    ]
+    analyzer = DrawAnalyzer(records, get_profile("kl8"))
+    assert analyzer.frequency("main")[1] == 5
+    assert len(analyzer.missing("main", 5)) == 80
+
+
+# --------------------------------------------------------------------------- #
+# Generic ML
+# --------------------------------------------------------------------------- #
+def make_ssq_records_ml(count: int = 120):
+    records = []
+    base = datetime(2024, 1, 1)
+    for i in range(count):
+        nums = [(i * 7 + j * 13) % 33 + 1 for j in range(6)]
+        blue = (i * 5 + 3) % 16 + 1
+        records.append(
+            DrawRecord(
+                issue=f"2024{i + 1:03d}",
+                draw_date=base,
+                red_balls=sorted(nums),
+                blue_ball=blue,
+            )
+        )
+    return records
+
+
+def test_generic_features_ssq_shapes():
+    profile = get_profile("ssq")
+    records = make_ssq_records_ml(120)
+    X, y_dict = build_features(records, profile, lookback=50)
+    assert X.shape[0] == 70
+    assert y_dict["red"].shape == (70, 33)
+    assert y_dict["blue"].shape == (70, 16)
+
+
+def test_generic_model_ssq_train_predict():
+    profile = get_profile("ssq")
+    records = make_ssq_records_ml(120)
+    X, y_dict = build_features(records, profile, lookback=50)
+    model = LotteryGenericModel(profile, lookback=50, backend="xgboost")
+    model.fit(X, y_dict)
+    proba = model.predict_proba(X[-1].reshape(1, -1))
+    assert proba["red"].shape == (33,)
+    assert proba["blue"].shape == (16,)
+
+
+def test_generic_predictor_recommend_ssq():
+    profile = get_profile("ssq")
+    records = make_ssq_records_ml(120)
+    predictor = GenericMLPredictor(records, profile, lookback=50)
+    rec = predictor.recommend(group_picks={"red": 6, "blue": 1})
+    assert len(rec["red"]) == 6
+    assert len(rec["blue"]) == 1
+
+
+def test_generic_predictor_recommend_3d():
+    profile = get_profile("3d")
+    records = [
+        DrawRecord(f"2024{i:03d}", datetime(2024, 1, 1) + timedelta(days=i), profile="3d", groups={"pos": [(i + j) % 10 for j in range(3)]})
+        for i in range(120)
+    ]
+    predictor = GenericMLPredictor(records, profile, lookback=50)
+    rec = predictor.recommend()
+    assert len(rec["pos"]) == 3
+    assert all(0 <= n <= 9 for n in rec["pos"])
+
+
+# --------------------------------------------------------------------------- #
+# Generic Strategies
+# --------------------------------------------------------------------------- #
+def test_generic_random_3d():
+    profile = get_profile("3d")
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    tickets = strategies["random_3d"].generate(count=5)
+    assert len(tickets) == 5
+    for t in tickets:
+        assert len(t.groups["pos"]) == 3
+        assert all(0 <= n <= 9 for n in t.groups["pos"])
+
+
+def test_generic_exclude_include_kl8():
+    profile = get_profile("kl8")
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    tickets = strategies["exclude_include_kl8"].generate(
+        count=3,
+        options={"include_main": [1, 2], "exclude_main": [80]},
+    )
+    for t in tickets:
+        nums = t.groups["main"]
+        assert 1 in nums and 2 in nums and 80 not in nums
+
+
+def test_generic_hot_cold_qlc():
+    profile = get_profile("qlc")
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    history = [
+        DrawRecord(f"2024{i:03d}", datetime(2024, 1, 1) + timedelta(days=i), profile="qlc", groups={"basic": list(range(1, 8)), "special": [30]})
+        for i in range(30)
+    ]
+    tickets = strategies["hot_cold_qlc"].generate(count=2, options={"mode": "hot", "history": history})
+    assert len(tickets) == 2
+
+
+def test_needs_history_helper():
+    assert needs_history("hot_cold_3d")
+    assert needs_history("xgboost_kl8")
+    assert not needs_history("random_3d")

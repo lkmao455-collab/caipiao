@@ -77,44 +77,31 @@ def _plot_single(
     ax.set_ylim(bottom=0)
 
 
-def build_probability_chart_pixmap(
-    red_probabilities: List[float],
-    blue_probabilities: List[float],
+def build_group_probability_chart_pixmap(
+    group_probabilities: List[tuple[str, List[float], str, int, str]],
     lookback: int | str = "-",
     diversity_boost: int | str = "-",
+    model_name: str = "XGBoost",
 ) -> QPixmap:
-    """生成红球+蓝球组合概率折线图的 QPixmap.
+    """生成任意彩种号码组概率折线图的 QPixmap.
 
     Args:
-        red_probabilities: 33 个红球预测概率。
-        blue_probabilities: 16 个蓝球预测概率。
+        group_probabilities: [(标题, 概率列表, 颜色, 高亮前N个, x轴标签), ...]
         lookback: 回看期数。
         diversity_boost: 多样性增强系数。
-
-    Returns:
-        可直接放入 QGraphicsView 的 QPixmap。
+        model_name: 模型名称，用于总标题。
     """
     _configure_matplotlib_fonts()
 
-    fig, axes = plt.subplots(2, 1, figsize=(12, 10), dpi=150)
-    _plot_single(
-        axes[0],
-        red_probabilities,
-        title=f"Red Balls Probability (lookback={lookback})",
-        xlabel="Red Ball Number (1-33)",
-        color="#D32F2F",
-        highlight_top_n=6,
-    )
-    _plot_single(
-        axes[1],
-        blue_probabilities,
-        title=f"Blue Balls Probability (lookback={lookback})",
-        xlabel="Blue Ball Number (1-16)",
-        color="#1976D2",
-        highlight_top_n=1,
-    )
+    n = len(group_probabilities)
+    fig, axes = plt.subplots(n, 1, figsize=(12, 5 * n), dpi=150)
+    if n == 1:
+        axes = [axes]
+    for ax, (title, probs, color, highlight, xlabel) in zip(axes, group_probabilities):
+        _plot_single(ax, probs, title=title, xlabel=xlabel, color=color, highlight_top_n=highlight)
+
     fig.suptitle(
-        f"XGBoost Prediction Probability Charts (lookback={lookback}, diversity={diversity_boost})",
+        f"{model_name} Prediction Probability Charts (lookback={lookback}, diversity={diversity_boost})",
         fontsize=16,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.97])
@@ -129,32 +116,21 @@ def build_probability_chart_pixmap(
     return pixmap
 
 
-def build_probability_charts_html(
-    red_probabilities: List[float],
-    blue_probabilities: List[float],
+def build_group_probability_charts_html(
+    group_probabilities: List[tuple[str, List[float], str, int, str]],
     lookback: int | str = "-",
     diversity_boost: int | str = "-",
+    model_name: str = "XGBoost",
 ) -> str:
-    """生成适合 PDF/打印的红球、蓝球概率折线图 HTML（base64 图片）."""
+    """生成适合 PDF/打印的通用概率折线图 HTML（base64 图片）."""
     _configure_matplotlib_fonts()
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 8), dpi=120)
-    _plot_single(
-        axes[0],
-        red_probabilities,
-        title=f"Red Balls Probability (lookback={lookback})",
-        xlabel="Red Ball Number (1-33)",
-        color="#D32F2F",
-        highlight_top_n=6,
-    )
-    _plot_single(
-        axes[1],
-        blue_probabilities,
-        title=f"Blue Balls Probability (lookback={lookback})",
-        xlabel="Blue Ball Number (1-16)",
-        color="#1976D2",
-        highlight_top_n=1,
-    )
+    n = len(group_probabilities)
+    fig, axes = plt.subplots(n, 1, figsize=(10, 4 * n), dpi=120)
+    if n == 1:
+        axes = [axes]
+    for ax, (title, probs, color, highlight, xlabel) in zip(axes, group_probabilities):
+        _plot_single(ax, probs, title=title, xlabel=xlabel, color=color, highlight_top_n=highlight)
     fig.tight_layout()
 
     buf = io.BytesIO()
@@ -166,10 +142,10 @@ def build_probability_charts_html(
     return f"""
     <div style="font-family: 'Microsoft YaHei', sans-serif; font-size: 14px;">
         <h3 style="color:#0A2540;margin:8px 0;">
-            XGBoost 预测概率折线图（回看 {lookback} 期，多样性增强 {diversity_boost}）
+            {model_name} 预测概率折线图（回看 {lookback} 期，多样性增强 {diversity_boost}）
         </h3>
         <p style="color:#666;font-size:12px;margin:4px 0;">
-            橙色标记为概率最高的前 6 个红球 / 前 1 个蓝球。
+            橙色标记为每组概率最高的推荐号码。
         </p>
         <p><img src="data:image/png;base64,{b64}" width="100%"></p>
         <p style="color:#888;font-size:11px;margin-top:6px;">
@@ -177,6 +153,42 @@ def build_probability_charts_html(
         </p>
     </div>
     """
+
+
+def build_probability_chart_pixmap(
+    red_probabilities: List[float],
+    blue_probabilities: List[float],
+    lookback: int | str = "-",
+    diversity_boost: int | str = "-",
+) -> QPixmap:
+    """双色球专用：生成红球+蓝球组合概率折线图（兼容旧接口）."""
+    return build_group_probability_chart_pixmap(
+        [
+            ("Red Balls Probability", red_probabilities, "#D32F2F", 6, "Red Ball Number (1-33)"),
+            ("Blue Balls Probability", blue_probabilities, "#1976D2", 1, "Blue Ball Number (1-16)"),
+        ],
+        lookback=lookback,
+        diversity_boost=diversity_boost,
+        model_name="XGBoost",
+    )
+
+
+def build_probability_charts_html(
+    red_probabilities: List[float],
+    blue_probabilities: List[float],
+    lookback: int | str = "-",
+    diversity_boost: int | str = "-",
+) -> str:
+    """双色球专用：生成红球+蓝球概率折线图 HTML（兼容旧接口）."""
+    return build_group_probability_charts_html(
+        [
+            ("Red Balls Probability", red_probabilities, "#D32F2F", 6, "Red Ball Number (1-33)"),
+            ("Blue Balls Probability", blue_probabilities, "#1976D2", 1, "Blue Ball Number (1-16)"),
+        ],
+        lookback=lookback,
+        diversity_boost=diversity_boost,
+        model_name="XGBoost",
+    )
 
 
 class ChartGraphicsView(QGraphicsView):
@@ -226,21 +238,30 @@ class ChartGraphicsView(QGraphicsView):
 
 
 class ProbabilityChartDialog(QDialog):
-    """独立窗口显示 XGBoost 概率折线图，支持缩放与拖动."""
+    """独立窗口显示预测概率折线图，支持缩放与拖动."""
 
     def __init__(self, details: dict, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("XGBoost 预测概率折线图")
+        self.setWindowTitle("预测概率折线图")
         self.resize(1100, 850)
 
         layout = QVBoxLayout(self)
 
-        pixmap = build_probability_chart_pixmap(
-            red_probabilities=details.get("red_probabilities", []),
-            blue_probabilities=details.get("blue_probabilities", []),
-            lookback=details.get("lookback", "-"),
-            diversity_boost=details.get("diversity_boost", "-"),
-        )
+        group_probs = details.get("group_probabilities")
+        if group_probs:
+            pixmap = build_group_probability_chart_pixmap(
+                group_probs,
+                lookback=details.get("lookback", "-"),
+                diversity_boost=details.get("diversity_boost", "-"),
+                model_name=details.get("model_name", "XGBoost"),
+            )
+        else:
+            pixmap = build_probability_chart_pixmap(
+                red_probabilities=details.get("red_probabilities", []),
+                blue_probabilities=details.get("blue_probabilities", []),
+                lookback=details.get("lookback", "-"),
+                diversity_boost=details.get("diversity_boost", "-"),
+            )
         self.chart_view = ChartGraphicsView(pixmap, self)
         layout.addWidget(self.chart_view)
 

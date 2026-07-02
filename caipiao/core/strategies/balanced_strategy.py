@@ -142,7 +142,15 @@ class BalancedStrategy(GenerationStrategy):
                 if best_score <= 0.5:
                     break
 
-            if best_candidate:
-                tickets.append(best_candidate)
+            if best_candidate is None:
+                # Fallback: ensure at least one valid ticket
+                candidate = sorted(rng.sample(reds, 6))
+                best_candidate = Ticket(
+                    red_balls=candidate,
+                    blue_ball=rng.choices(blues, weights=blue_weights, k=1)[0],
+                    strategy_name=self.metadata.name,
+                    basis=basis,
+                )
+            tickets.append(best_candidate)
 
         return tickets

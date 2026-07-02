@@ -1,61 +1,174 @@
-"""双色球投注单."""
+"""投注单（多彩种统一模型）.
+
+``Ticket`` 现在是基于「号码组」的通用投注单，可表达任意彩种。
+为保证双色球的历史行为与序列化格式完全不变，保留了：
+
+- 旧构造方式 ``Ticket(red_balls, blue_ball, ...)``（自动归为双色球档案）；
+- ``.red_balls`` / ``.blue_ball`` / ``RED_COUNT`` / ``BLUE_COUNT`` 访问器；
+- 双色球的 ``to_dict``/``from_dict`` 旧字段（``red`` / ``blue``）。
+
+其它彩种通过 ``Ticket(profile=..., groups=...)`` 或 ``Ticket.from_groups`` 构造。
+"""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional, Union
 
-from .ball import Ball, BallColor
+from .ball import Ball
+from .profile import SSQ, LotteryProfile, RenderGroup, get_profile
 
 
 class Ticket:
-    """一张双色球投注单.
-
-    包含 6 个不重复的红球（1-33）和 1 个蓝球（1-16）。
-    """
+    """一张投注单（默认双色球：6 红球 1-33 + 1 蓝球 1-16）。"""
 
     RED_COUNT = 6
     BLUE_COUNT = 1
 
     def __init__(
         self,
-        red_balls: Iterable[int] | Iterable[Ball],
-        blue_ball: int | Ball,
+        red_balls: Union[Iterable[int], Iterable[Ball], None] = None,
+        blue_ball: Union[int, Ball, None] = None,
         generated_at: datetime | None = None,
         strategy_name: str = "",
         basis: str = "",
         details: Dict[str, Any] | None = None,
+        *,
+        profile: Union[LotteryProfile, str, None] = None,
+        groups: Optional[Dict[str, Iterable[int]]] = None,
     ) -> None:
-        self.red_balls: List[Ball] = sorted(
-            [b if isinstance(b, Ball) else Ball.red(b) for b in red_balls],
-            key=lambda b: b.number,
-        )
-        self.blue_ball: Ball = (
-            blue_ball if isinstance(blue_ball, Ball) else Ball.blue(blue_ball)
-        )
+        if groups is not None or profile is not None:
+            # 通用构造：显式给出彩种档案与各组号码
+            prof = (
+                profile
+                if isinstance(profile, LotteryProfile)
+                else get_profile(profile or "ssq")
+            )
+            self.profile = prof
+            self.groups: Dict[str, List[int]] = {
+                k: [int(x) for x in v] for k, v in (groups or {}).items()
+            }
+        else:
+            # 兼容旧的双色球构造：Ticket(red_balls, blue_ball)
+            self.profile = SSQ
+            reds = sorted(int(getattr(b, "number", b)) for b in (red_balls or []))
+            blue = int(getattr(blue_ball, "number", blue_ball))
+            self.groups = {"red": reds, "blue": [blue]}
+
         self.generated_at = generated_at or datetime.now()
         self.strategy_name = strategy_name
         self.basis = basis
         self.details = details or {}
+        self._sort_groups()
         self._validate()
 
-    def _validate(self) -> None:
-        """校验投注单合法性."""
-        if len(self.red_balls) != self.RED_COUNT:
-            raise ValueError(f"红球数量必须为 {self.RED_COUNT}，得到 {len(self.red_balls)}")
-        if len({b.number for b in self.red_balls}) != self.RED_COUNT:
-            raise ValueError("红球号码不能重复")
-        for ball in self.red_balls:
-            if ball.color != BallColor.RED:
-                raise ValueError("红球列表中包含非红球")
-        if self.blue_ball.color != BallColor.BLUE:
-            raise ValueError("蓝球必须是蓝色球")
+    # ------------------------------------------------------------------ #
+    # 构造工厂
+    # ------------------------------------------------------------------ #
+    @classmethod
+    def from_groups(
+        cls,
+        profile: Union[LotteryProfile, str],
+        groups: Dict[str, Iterable[int]],
+        generated_at: datetime | None = None,
+        strategy_name: str = "",
+        basis: str = "",
+        details: Dict[str, Any] | None = None,
+    ) -> "Ticket":
+        return cls(
+            profile=profile,
+            groups=groups,
+            generated_at=generated_at,
+            strategy_name=strategy_name,
+            basis=basis,
+            details=details,
+        )
 
+    # ------------------------------------------------------------------ #
+    # 校验
+    # ------------------------------------------------------------------ #
+    def _sort_groups(self) -> None:
+        """非按位组升序排列（按位组保持顺序，如 3D 的百十个位）。"""
+        for g in self.profile.groups:
+            nums = self.groups.get(g.key)
+            if nums is not None and not g.positional:
+                self.groups[g.key] = sorted(nums)
+
+    def _validate(self) -> None:
+        for g in self.profile.pick_groups:
+            nums = self.groups.get(g.key)
+            if nums is None:
+                raise ValueError(f"缺少号码组：{g.name}")
+            pmin, pmax = g.effective_pick_min, g.effective_pick_max
+            if not (pmin <= len(nums) <= pmax):
+                if pmin == pmax:
+                    raise ValueError(f"{g.name}数量必须为 {pmin}，得到 {len(nums)}")
+                raise ValueError(
+                    f"{g.name}数量必须在 {pmin}-{pmax} 之间，得到 {len(nums)}"
+                )
+            g.validate_numbers(nums)
+
+    # ------------------------------------------------------------------ #
+    # 双色球兼容访问器
+    # ------------------------------------------------------------------ #
+    @property
+    def red_balls(self) -> List[Ball]:
+        """双色球红球（List[Ball]）；仅在包含 red 组时有意义。"""
+        return [Ball.red(n) for n in self.groups.get("red", [])]
+
+    @property
+    def blue_ball(self) -> Optional[Ball]:
+        """双色球蓝球（Ball）；仅在包含 blue 组时返回，否则为 None。"""
+        blues = self.groups.get("blue")
+        return Ball.blue(blues[0]) if blues else None
+
+    # ------------------------------------------------------------------ #
+    # 展示
+    # ------------------------------------------------------------------ #
+    def render_groups(self) -> List[RenderGroup]:
+        """返回可供界面/打印统一渲染的号码组列表。"""
+        result: List[RenderGroup] = []
+        for g in self.profile.pick_groups:
+            nums = self.groups.get(g.key, [])
+            result.append(RenderGroup(g.name, list(nums), g.color, g.pad))
+        return result
+
+    def format_pretty(self) -> str:
+        if self.profile.key == "ssq":
+            reds = " ".join(f"{n:02d}" for n in self.groups["red"])
+            return f"红球: {reds} | 蓝球: {self.groups['blue'][0]:02d}"
+        parts = []
+        for rg in self.render_groups():
+            nums = " ".join(f"{n:0{rg.pad}d}" for n in rg.numbers)
+            parts.append(f"{rg.name}: {nums}")
+        return " | ".join(parts)
+
+    def format_compact(self) -> str:
+        if self.profile.key == "ssq":
+            reds = " ".join(f"{n:02d}" for n in self.groups["red"])
+            return f"{reds} + {self.groups['blue'][0]:02d}"
+        parts = []
+        for rg in self.render_groups():
+            parts.append(" ".join(f"{n:0{rg.pad}d}" for n in rg.numbers))
+        return " + ".join(parts)
+
+    # ------------------------------------------------------------------ #
+    # 序列化
+    # ------------------------------------------------------------------ #
     def to_dict(self) -> dict:
-        """序列化为字典."""
+        if self.profile.key == "ssq":
+            # 保持旧格式，历史文件向后兼容
+            return {
+                "red": list(self.groups["red"]),
+                "blue": self.groups["blue"][0],
+                "generated_at": self.generated_at.isoformat(),
+                "strategy_name": self.strategy_name,
+                "basis": self.basis,
+                "details": self.details,
+            }
         return {
-            "red": [b.number for b in self.red_balls],
-            "blue": self.blue_ball.number,
+            "profile": self.profile.key,
+            "groups": {k: list(v) for k, v in self.groups.items()},
             "generated_at": self.generated_at.isoformat(),
             "strategy_name": self.strategy_name,
             "basis": self.basis,
@@ -64,25 +177,26 @@ class Ticket:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Ticket":
-        """从字典反序列化."""
-        return cls(
-            red_balls=data["red"],
-            blue_ball=data["blue"],
-            generated_at=datetime.fromisoformat(data["generated_at"]),
+        generated_at = datetime.fromisoformat(data["generated_at"])
+        common = dict(
+            generated_at=generated_at,
             strategy_name=data.get("strategy_name", ""),
             basis=data.get("basis", ""),
             details=data.get("details", {}),
         )
+        if "groups" in data:  # 通用格式
+            return cls(profile=data.get("profile", "ssq"), groups=data["groups"], **common)
+        # 旧的双色球格式
+        return cls(red_balls=data["red"], blue_ball=data["blue"], **common)
 
-    def format_pretty(self) -> str:
-        """格式化为易读字符串."""
-        reds = " ".join(f"{b.number:02d}" for b in self.red_balls)
-        return f"红球: {reds} | 蓝球: {self.blue_ball.number:02d}"
-
-    def format_compact(self) -> str:
-        """格式化为紧凑字符串，方便复制."""
-        reds = " ".join(f"{b.number:02d}" for b in self.red_balls)
-        return f"{reds} + {self.blue_ball.number:02d}"
+    # ------------------------------------------------------------------ #
+    # dunder
+    # ------------------------------------------------------------------ #
+    def _key(self):
+        return (
+            self.profile.key,
+            tuple((k, tuple(self.groups[k])) for k in sorted(self.groups)),
+        )
 
     def __repr__(self) -> str:
         return f"Ticket({self.format_pretty()})"
@@ -93,10 +207,7 @@ class Ticket:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Ticket):
             return NotImplemented
-        return (
-            self.red_balls == other.red_balls
-            and self.blue_ball == other.blue_ball
-        )
+        return self._key() == other._key()
 
     def __hash__(self) -> int:
-        return hash((tuple(self.red_balls), self.blue_ball))
+        return hash(self._key())

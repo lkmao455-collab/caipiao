@@ -15,10 +15,10 @@ BLUE_COUNT = 16
 def build_features(
     records: List[DrawRecord], lookback: int = 50
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """构建训练特征和标签.
+    """构建训练特征和标签（仅支持双色球）.
 
     Args:
-        records: 按时间排序的开奖记录。
+        records: 按时间排序的开奖记录（必须为双色球）。
         lookback: 回看期数。
 
     Returns:
@@ -26,6 +26,8 @@ def build_features(
         y_red: 红球标签，形状 (samples, 33)，每列为是否出现
         y_blue: 蓝球标签，形状 (samples, 16)，每列为是否出现
     """
+    if any(r.profile.key != "ssq" for r in records):
+        raise ValueError("features.build_features 仅支持双色球记录")
     if len(records) <= lookback:
         return np.array([]), np.array([]), np.array([])
 
@@ -47,7 +49,9 @@ def build_features(
         y_red.append(red_label)
 
         blue_label = np.zeros(BLUE_COUNT, dtype=np.int32)
-        blue_label[next_record.blue_ball - 1] = 1
+        blue = next_record.blue_ball
+        if blue is not None:
+            blue_label[blue - 1] = 1
         y_blue.append(blue_label)
 
     return np.array(X), np.array(y_red), np.array(y_blue)
@@ -56,7 +60,9 @@ def build_features(
 def build_prediction_features(
     records: List[DrawRecord], lookback: int = 50
 ) -> np.ndarray:
-    """为最新一期构建预测特征."""
+    """为最新一期构建预测特征（仅支持双色球）。"""
+    if any(r.profile.key != "ssq" for r in records):
+        raise ValueError("features.build_prediction_features 仅支持双色球记录")
     if len(records) < lookback:
         return np.array([])
     window = records[-lookback:]
@@ -98,7 +104,7 @@ def _number_features(
     """单个号码的特征：出现次数、最近一次出现距离、出现频率."""
     appears = []
     for idx, record in enumerate(window):
-        nums = record.red_balls if is_red else [record.blue_ball]
+        nums = record.red_balls if is_red else ([record.blue_ball] if record.blue_ball is not None else [])
         if number in nums:
             appears.append(idx)
 
@@ -115,10 +121,12 @@ def _window_stats(window: List[DrawRecord]) -> List[float]:
     odd_counts = [sum(1 for b in r.red_balls if b % 2 == 1) for r in window]
     high_counts = [sum(1 for b in r.red_balls if b >= 17) for r in window]
 
+    blue_balls = [r.blue_ball for r in window if r.blue_ball is not None]
+
     return [
         np.mean(sums) / 200.0,
         np.std(sums) / 50.0 if len(sums) > 1 else 0.0,
         np.mean(odd_counts) / 6.0,
         np.mean(high_counts) / 6.0,
-        np.mean([r.blue_ball for r in window]) / 16.0,
+        np.mean(blue_balls) / 16.0 if blue_balls else 0.0,
     ]

@@ -1,45 +1,120 @@
-"""数据模型."""
+"""开奖记录数据模型（多彩种统一模型）.
+
+``DrawRecord`` 现在以「号码组」表达任意彩种的一期开奖。
+为保证双色球行为与序列化格式不变，保留了：
+
+- 旧构造 ``DrawRecord(issue, draw_date, red_balls, blue_ball)``（归为双色球）；
+- ``.red_balls`` / ``.blue_ball`` 访问器；
+- 双色球旧的 ``to_dict``/``from_dict`` 字段。
+
+其它彩种通过 ``DrawRecord(issue, draw_date, profile=..., groups=...)`` 构造。
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
-from typing import List
+from typing import Dict, List, Optional, Union
+
+from ..core.profile import SSQ, LotteryProfile, get_profile
 
 
-@dataclass
 class DrawRecord:
-    """一条开奖记录.
+    """一条开奖记录。
 
-    Attributes:
-        issue: 开奖期号，如 "2026073"。
-        draw_date: 开奖日期。
-        red_balls: 6 个红球号码，已排序。
-        blue_ball: 蓝球号码。
+    双色球：``groups = {"red": [...6...], "blue": [x]}``。
     """
 
-    issue: str
-    draw_date: datetime
-    red_balls: List[int]
-    blue_ball: int
+    def __init__(
+        self,
+        issue: str,
+        draw_date: datetime,
+        red_balls: Optional[List[int]] = None,
+        blue_ball: Optional[int] = None,
+        *,
+        profile: Union[LotteryProfile, str, None] = None,
+        groups: Optional[Dict[str, List[int]]] = None,
+    ) -> None:
+        self.issue = issue
+        self.draw_date = draw_date
+        if groups is not None or profile is not None:
+            prof = (
+                profile
+                if isinstance(profile, LotteryProfile)
+                else get_profile(profile or "ssq")
+            )
+            self.profile = prof
+            self.groups: Dict[str, List[int]] = {
+                k: [int(x) for x in v] for k, v in (groups or {}).items()
+            }
+        else:
+            self.profile = SSQ
+            self.groups = {
+                "red": sorted(int(x) for x in (red_balls or [])),
+                "blue": [int(blue_ball)],
+            }
 
+    # --- 双色球兼容访问器 ---
+    @property
+    def red_balls(self) -> List[int]:
+        return self.groups.get("red", [])
+
+    @property
+    def blue_ball(self) -> Optional[int]:
+        """双色球蓝球；仅在包含 blue 组时返回，否则为 None。"""
+        blues = self.groups.get("blue")
+        return blues[0] if blues else None
+
+    # --- 序列化 ---
     def to_dict(self) -> dict:
+        if self.profile.key == "ssq":
+            return {
+                "issue": self.issue,
+                "draw_date": self.draw_date.strftime("%Y-%m-%d"),
+                "red_balls": list(self.groups["red"]),
+                "blue_ball": self.groups["blue"][0],
+            }
         return {
             "issue": self.issue,
             "draw_date": self.draw_date.strftime("%Y-%m-%d"),
-            "red_balls": self.red_balls,
-            "blue_ball": self.blue_ball,
+            "profile": self.profile.key,
+            "groups": {k: list(v) for k, v in self.groups.items()},
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "DrawRecord":
+        draw_date = datetime.strptime(data["draw_date"], "%Y-%m-%d")
+        if "groups" in data:
+            return cls(
+                issue=data["issue"],
+                draw_date=draw_date,
+                profile=data.get("profile", "ssq"),
+                groups=data["groups"],
+            )
         return cls(
             issue=data["issue"],
-            draw_date=datetime.strptime(data["draw_date"], "%Y-%m-%d"),
+            draw_date=draw_date,
             red_balls=data["red_balls"],
             blue_ball=data["blue_ball"],
         )
 
     def __repr__(self) -> str:
-        reds = " ".join(f"{r:02d}" for r in self.red_balls)
-        return f"DrawRecord({self.issue} {self.draw_date.date()} 红:{reds} 蓝:{self.blue_ball:02d})"
+        if self.profile.key == "ssq":
+            reds = " ".join(f"{r:02d}" for r in self.groups["red"])
+            return (
+                f"DrawRecord({self.issue} {self.draw_date.date()} "
+                f"红:{reds} 蓝:{self.groups['blue'][0]:02d})"
+            )
+        parts = []
+        for g in self.profile.groups:
+            nums = self.groups.get(g.key, [])
+            parts.append(f"{g.name}:" + " ".join(f"{n:0{g.pad}d}" for n in nums))
+        return f"DrawRecord({self.issue} {self.draw_date.date()} " + " ".join(parts) + ")"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DrawRecord):
+            return NotImplemented
+        return (
+            self.profile.key == other.profile.key
+            and self.issue == other.issue
+            and self.groups == other.groups
+        )

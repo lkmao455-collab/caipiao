@@ -27,6 +27,7 @@ class PluginManager:
         self.engine = engine
         self.plugin_dir = Path(plugin_dir)
         self._loaded_plugins: List[ModuleType] = []
+        self._plugin_strategy_ids: List[str] = []
 
     def discover(self) -> List[Path]:
         """发现插件文件."""
@@ -52,6 +53,7 @@ class PluginManager:
 
     def load(self, plugin_path: Path) -> List[str]:
         """加载单个插件文件."""
+        before_ids = {s.metadata.id for s in self.engine.list_strategies()}
         spec = importlib.util.spec_from_file_location(
             f"caipiao_plugin_{plugin_path.stem}", plugin_path
         )
@@ -70,7 +72,6 @@ class PluginManager:
         )
         if callable(register_func):
             register_func(self.engine)
-            # 无法直接知道注册了哪些，稍后通过 engine 反推
 
         # 方式2：自动发现模块中的 GenerationStrategy 子类
         for _, obj in inspect.getmembers(module, inspect.isclass):
@@ -86,10 +87,15 @@ class PluginManager:
                 except Exception as exc:  # noqa: BLE001
                     logger.error("实例化策略失败 %s: %s", obj.__name__, exc)
 
-        return loaded_ids
+        # 记录本插件新增的策略 ID（方式1 通过前后对比补充）
+        after_ids = {s.metadata.id for s in self.engine.list_strategies()}
+        new_ids = list(after_ids - before_ids)
+        self._plugin_strategy_ids.extend(new_ids)
+        return loaded_ids + new_ids
 
     def unload_all(self) -> None:
-        """卸载所有已加载插件（从引擎中移除相关策略）."""
-        # 简单实现：直接清空引擎中所有策略
-        self.engine._strategies.clear()
+        """卸载所有已加载插件（仅移除插件策略，保留内置策略）。"""
+        for sid in self._plugin_strategy_ids:
+            self.engine._strategies.pop(sid, None)
+        self._plugin_strategy_ids.clear()
         self._loaded_plugins.clear()

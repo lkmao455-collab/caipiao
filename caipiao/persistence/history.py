@@ -87,18 +87,19 @@ class HistoryManager:
         path = Path(path)
         with path.open("w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
-            writer.writerow(["时间", "策略", "红球", "蓝球", "紧凑格式", "依据"])
+            # 动态列头：按第一个有号票的 render_groups 决定（全部票同彩种）
+            sample = self._tickets[0] if self._tickets else None
+            group_names = [rg.name for rg in sample.render_groups()] if sample else ["红球", "蓝球"]
+            writer.writerow(["时间", "策略"] + group_names + ["紧凑格式", "依据"])
             for t in self._tickets:
-                writer.writerow(
-                    [
-                        t.generated_at.strftime("%Y-%m-%d %H:%M:%S"),
-                        t.strategy_name,
-                        " ".join(f"{b.number:02d}" for b in t.red_balls),
-                        f"{t.blue_ball.number:02d}",
-                        t.format_compact(),
-                        t.basis,
-                    ]
-                )
+                row = [
+                    t.generated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    t.strategy_name,
+                ]
+                for rg in t.render_groups():
+                    row.append(" ".join(f"{n:0{rg.pad}d}" for n in rg.numbers))
+                row.extend([t.format_compact(), t.basis])
+                writer.writerow(row)
 
     def export_txt(self, path: Path | str) -> None:
         """导出为纯文本."""

@@ -12,9 +12,20 @@ from ...core.ball import Ball, BallColor
 class BallWidget(QFrame):
     """单个球的图形化展示."""
 
-    def __init__(self, ball: Ball, size: int = 36, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        ball: Ball | None = None,
+        number: int | None = None,
+        color: str | None = None,
+        pad: int = 2,
+        size: int = 36,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.ball = ball
+        self.number = number if number is not None else (ball.number if ball else 0)
+        self.color = color
+        self.pad = pad
         self.size = size
         self.setFixedSize(size, size)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -24,7 +35,10 @@ class BallWidget(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        if self.ball.color == BallColor.RED:
+        if self.color:
+            color = QColor(self.color)
+            border = QColor(self.color).darker(120)
+        elif self.ball and self.ball.color == BallColor.RED:
             color = QColor("#D32F2F")
             border = QColor("#B71C1C")
         else:
@@ -38,8 +52,9 @@ class BallWidget(QFrame):
         painter.setPen(QColor("white"))
         font = QFont("Microsoft YaHei", 10, QFont.Weight.Bold)
         painter.setFont(font)
+        pad = self.pad
         painter.drawText(
-            self.rect(), Qt.AlignmentFlag.AlignCenter, f"{self.ball.number:02d}"
+            self.rect(), Qt.AlignmentFlag.AlignCenter, f"{self.number:0{pad}d}"
         )
 
 
@@ -67,13 +82,14 @@ class TicketRowWidget(QWidget):
             index_label.setStyleSheet("color: #666; font-weight: bold;")
             row_layout.addWidget(index_label)
 
-        for ball in ticket.red_balls:
-            row_layout.addWidget(BallWidget(ball))
-
-        separator = QLabel("+")
-        separator.setStyleSheet("color: #999; font-size: 16px; margin: 0 4px;")
-        row_layout.addWidget(separator)
-        row_layout.addWidget(BallWidget(ticket.blue_ball))
+        render_groups = ticket.render_groups()
+        for gi, rg in enumerate(render_groups):
+            if gi > 0:
+                sep = QLabel("+")
+                sep.setStyleSheet("color: #999; font-size: 16px; margin: 0 4px;")
+                row_layout.addWidget(sep)
+            for n in rg.numbers:
+                row_layout.addWidget(BallWidget(number=n, color=rg.color, pad=rg.pad, size=36))
 
         row_layout.addStretch()
         self.layout.addWidget(row)

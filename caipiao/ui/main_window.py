@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -30,33 +30,27 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.engine import GenerationEngine
-from ..core.strategies import (
-    BalancedStrategy,
-    ExcludeIncludeStrategy,
-    HotColdStrategy,
-    LightGBMStrategy,
-    MissingNumberStrategy,
-    OddEvenStrategy,
-    RandomStrategy,
-    SmartHotColdStrategy,
-    XGBoostStrategy,
-)
-from ..data.analyzer import LotteryAnalyzer
-from ..data.fetcher import LotteryDataFetcher
-from ..data.repository import DataRepository
+from ..core.profile import get_profile, list_profiles
+from ..core.strategies.generic import is_ml_strategy, needs_history
+from ..data.models import DrawRecord
+from ..data.repository import DrawRepository
 from ..ml.lgbm_model import LotteryLightGBMModel
 from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
 from ..persistence.settings import AppSettings
 from ..plugins.plugin_manager import PluginManager
-from .chart_utils import ProbabilityChartDialog, build_probability_charts_html
+from .chart_utils import (
+    ProbabilityChartDialog,
+    build_group_probability_charts_html,
+    build_probability_charts_html,
+)
 from .components.backtest_dialog import BacktestDialog
 from .components.ball_display import TicketRowWidget
 from .components.history_panel import HistoryPanel
 from .components.strategy_panel import StrategyPanel
 from .components.training_progress_dialog import TrainingProgressDialog
+from .lottery_context import ContextManager, LotteryContext
 from .markdown_view import MarkdownDialog
 from .workers import (
     FetchAllDataThread,
@@ -65,8 +59,7 @@ from .workers import (
     TrainModelThread,
 )
 
-# ML 策略的模型新鲜度检测与自动重训配置：strategy_id -> (模型类, 模型文件前缀)。
-# 生成前据此判断已保存模型是否与当前数据匹配，不匹配则自动重新训练。
+# 双色球 ML 策略的模型新鲜度检测与自动重训配置：strategy_id -> (模型类, 模型文件前缀)。
 ML_MODEL_STRATEGIES = {
     "xgboost": (LotteryXGBoostModel, "xgboost"),
     "lightgbm": (LotteryLightGBMModel, "lightgbm"),
@@ -77,12 +70,12 @@ _WEEKDAY_CN = "一二三四五六日"
 
 
 class MainWindow(QMainWindow):
-    """双色球生成器主窗口."""
+    """彩票号码生成器主窗口（支持双色球/福彩3D/七乐彩/快乐8）."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("双色球号码生成器")
-        self.setMinimumSize(900, 700)
+        self.setWindowTitle("彩票号码生成器")
+        self.setMinimumSize(950, 720)
 
         # 设置窗口图标
         icon_path = Path(__file__).resolve().parent / "resources" / "icon.ico"
@@ -96,22 +89,22 @@ class MainWindow(QMainWindow):
         # 设置
         self.settings = AppSettings()
 
-        # 引擎与策略
-        self.engine = GenerationEngine()
-        self._register_builtin_strategies()
-
-        # 插件
-        plugin_dir = Path(self.settings.plugin_dir or Path.cwd() / "plugins")
-        plugin_dir.mkdir(exist_ok=True)
-        self.plugin_manager = PluginManager(self.engine, plugin_dir)
-        self.plugin_manager.load_all()
-
-        # 历史
+        # 历史（所有彩种共用一份历史记录文件）
         self.history_manager = HistoryManager(self.data_dir / "history.json")
 
-        # 官方开奖数据
-        self.data_repository = DataRepository(self.data_dir / "draws.json")
-        self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+        # 彩种上下文管理器
+        self.context_manager = ContextManager(self.data_dir, self.history_manager)
+        self.current_key = self.settings.get("current_lottery", "ssq")
+        self.current = self.context_manager.get(self.current_key)
+
+        # 插件（每个彩种上下文独立加载，策略 id 互不冲突）
+        self.plugin_managers: dict[str, PluginManager] = {}
+        plugin_dir = Path(self.settings.plugin_dir or Path.cwd() / "plugins")
+        plugin_dir.mkdir(exist_ok=True)
+        for ctx in self.context_manager.all_contexts():
+            pm = PluginManager(ctx.engine, plugin_dir)
+            pm.load_all()
+            self.plugin_managers[ctx.profile.key] = pm
 
         self._setup_ui()
         self._setup_menu()
@@ -120,6 +113,9 @@ class MainWindow(QMainWindow):
         # 启动时自动检查更新（离线时静默失败，不影响使用）
         self._perform_auto_update()
 
+    # ------------------------------------------------------------------ #
+    # 生命周期
+    # ------------------------------------------------------------------ #
     def closeEvent(self, event) -> None:
         """关闭窗口时等待后台线程结束."""
         for attr in (
@@ -135,17 +131,9 @@ class MainWindow(QMainWindow):
                 thread.wait(5000)
         event.accept()
 
-    def _register_builtin_strategies(self) -> None:
-        self.engine.register(RandomStrategy())
-        self.engine.register(OddEvenStrategy())
-        self.engine.register(HotColdStrategy())
-        self.engine.register(ExcludeIncludeStrategy())
-        self.engine.register(SmartHotColdStrategy())
-        self.engine.register(MissingNumberStrategy())
-        self.engine.register(BalancedStrategy())
-        self.engine.register(XGBoostStrategy())
-        self.engine.register(LightGBMStrategy())
-
+    # ------------------------------------------------------------------ #
+    # UI 构建
+    # ------------------------------------------------------------------ #
     def _setup_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
@@ -153,11 +141,25 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(12)
         main_layout.setContentsMargins(16, 16, 16, 16)
 
+        # 顶部彩种选择栏
+        top_bar = QHBoxLayout()
+        top_bar.addWidget(QLabel("当前彩种:"))
+        self.lottery_combo = QComboBox()
+        for p in list_profiles():
+            self.lottery_combo.addItem(f"{p.name} ({p.subtitle})", p.key)
+        idx = self.lottery_combo.findData(self.current_key)
+        if idx >= 0:
+            self.lottery_combo.setCurrentIndex(idx)
+        self.lottery_combo.currentIndexChanged.connect(self._on_lottery_changed)
+        top_bar.addWidget(self.lottery_combo, 1)
+        top_bar.addStretch()
+        main_layout.addLayout(top_bar)
+
         # 标题
-        title = QLabel("双色球号码自动生成器")
-        title.setObjectName("app_title")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title)
+        self.title_label = QLabel(self._title_text())
+        self.title_label.setObjectName("app_title")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self.title_label)
 
         # 标签页
         self.tabs = QTabWidget()
@@ -184,6 +186,11 @@ class MainWindow(QMainWindow):
         self.settings_tab = self._build_settings_tab()
         self.tabs.addTab(self.settings_tab, "设置")
 
+        self._refresh_for_current_context()
+
+    def _title_text(self) -> str:
+        return f"{self.current.profile.name}号码自动生成器"
+
     def _build_generate_tab(self) -> QWidget:
         tab = QWidget()
         layout = QHBoxLayout(tab)
@@ -206,17 +213,14 @@ class MainWindow(QMainWindow):
         left_layout.addLayout(count_layout)
 
         # 策略面板
-        self.strategy_panel = StrategyPanel(self.engine)
-        self.strategy_panel.set_strategy_id(self.settings.last_strategy_id)
-        saved_options = self.settings.last_strategy_options
-        if saved_options:
-            self.strategy_panel.set_options(saved_options)
+        self.strategy_panel = StrategyPanel(self.current.engine)
+        self._restore_last_strategy()
         left_layout.addWidget(self.strategy_panel)
 
         # 生成按钮
         self.generate_btn = QPushButton("立即生成")
         self.generate_btn.setObjectName("generate_btn")
-        self.generate_btn.setToolTip("根据当前策略生成号码。XGBoost 策略首次会训练模型，请稍候。")
+        self.generate_btn.setToolTip("根据当前策略生成号码。ML 策略首次会训练模型，请稍候。")
         self.generate_btn.clicked.connect(self._generate)
         left_layout.addWidget(self.generate_btn)
 
@@ -264,7 +268,7 @@ class MainWindow(QMainWindow):
         self.result_text.setPlaceholderText("点击“立即生成”获取号码...")
         right_layout.addWidget(self.result_text, 1)
 
-        self.chart_btn = QPushButton("查看 XGBoost 概率折线图")
+        self.chart_btn = QPushButton("查看概率折线图")
         self.chart_btn.setToolTip("在独立窗口中查看更大的概率折线图")
         self.chart_btn.setVisible(False)
         self.chart_btn.clicked.connect(self._show_probability_chart)
@@ -283,6 +287,15 @@ class MainWindow(QMainWindow):
 
         return tab
 
+    def _restore_last_strategy(self) -> None:
+        last_id = self.settings.last_strategy_id
+        idx = self.strategy_panel.strategy_combo.findData(last_id)
+        if idx >= 0:
+            self.strategy_panel.set_strategy_id(last_id)
+            saved_options = self.settings.last_strategy_options
+            if saved_options:
+                self.strategy_panel.set_options(saved_options)
+
     def _build_plugins_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -297,7 +310,7 @@ class MainWindow(QMainWindow):
 
         path_layout = QHBoxLayout()
         path_layout.addWidget(QLabel("插件目录:"))
-        self.plugin_dir_edit = QLineEdit(str(self.plugin_manager.plugin_dir))
+        self.plugin_dir_edit = QLineEdit(str(self.plugin_managers[self.current_key].plugin_dir))
         self.plugin_dir_edit.setToolTip("当前插件所在的目录。插件可扩展生成策略。")
         self.plugin_dir_edit.setReadOnly(True)
         path_layout.addWidget(self.plugin_dir_edit)
@@ -370,7 +383,7 @@ class MainWindow(QMainWindow):
         # 按钮区
         btn_layout = QHBoxLayout()
         self.update_data_btn = QPushButton("更新开奖数据")
-        self.update_data_btn.setToolTip("从网络下载全部历史开奖数据（2003 年至今），用于统计分析和模型训练。")
+        self.update_data_btn.setToolTip("从网络下载全部历史开奖数据，用于统计分析和模型训练。")
         self.update_data_btn.clicked.connect(self._update_draw_data)
         self.fetch_latest_btn = QPushButton("获取最新一期")
         self.fetch_latest_btn.setToolTip("仅下载最近一期的开奖数据。")
@@ -415,7 +428,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("数据统计:"))
         self.data_stats_text = QTextEdit()
         self.data_stats_text.setReadOnly(True)
-        self.data_stats_text.setMaximumHeight(200)
+        self.data_stats_text.setMaximumHeight(240)
         layout.addWidget(self.data_stats_text)
 
         # 详细统计刷新
@@ -424,18 +437,19 @@ class MainWindow(QMainWindow):
         self.refresh_stats_btn.clicked.connect(self._refresh_data_stats)
         layout.addWidget(self.refresh_stats_btn)
 
-        # XGBoost 模型区
-        layout.addWidget(QLabel("XGBoost 模型:"))
-        self.xgboost_status_label = QLabel(self._xgboost_status_text())
+        # 模型区
+        self.model_section_label = QLabel(self._model_section_title())
+        layout.addWidget(self.model_section_label)
+        self.xgboost_status_label = QLabel(self._model_status_text())
         self.xgboost_status_label.setWordWrap(True)
         layout.addWidget(self.xgboost_status_label)
 
         xgb_btn_layout = QHBoxLayout()
         self.train_xgboost_btn = QPushButton("训练模型")
-        self.train_xgboost_btn.setToolTip("使用本地历史数据训练 XGBoost 模型。首次训练约 10-20 秒。")
+        self.train_xgboost_btn.setToolTip("使用本地历史数据训练模型。首次训练可能需要一些时间。")
         self.train_xgboost_btn.clicked.connect(self._train_xgboost_model)
         self.delete_model_btn = QPushButton("删除模型")
-        self.delete_model_btn.setToolTip("删除本地保存的 XGBoost 模型文件。")
+        self.delete_model_btn.setToolTip("删除本地保存的模型文件。")
         self.delete_model_btn.clicked.connect(self._delete_xgboost_model)
         xgb_btn_layout.addWidget(self.train_xgboost_btn)
         xgb_btn_layout.addWidget(self.delete_model_btn)
@@ -446,15 +460,63 @@ class MainWindow(QMainWindow):
         self._refresh_data_stats()
         return tab
 
+    # ------------------------------------------------------------------ #
+    # 彩种切换
+    # ------------------------------------------------------------------ #
+    def _on_lottery_changed(self, index: int) -> None:
+        new_key = self.lottery_combo.itemData(index)
+        if new_key == self.current_key:
+            return
+        # 保存当前策略选择
+        self.settings.last_strategy_id = self.strategy_panel.current_strategy_id()
+        self.settings.set("current_lottery", new_key)
+        self.settings.sync()
+
+        self.current_key = new_key
+        self.current = self.context_manager.get(new_key)
+        self._refresh_for_current_context()
+
+    def _refresh_for_current_context(self) -> None:
+        """刷新所有与当前彩种相关的界面元素."""
+        self.setWindowTitle(f"{self.current.profile.name}号码生成器")
+        self.title_label.setText(self._title_text())
+
+        # 策略面板重新绑定到当前引擎
+        self.strategy_panel.engine = self.current.engine
+        self.strategy_panel._refresh_strategies()
+        self._restore_last_strategy()
+
+        # 数据页刷新
+        self.data_status_label.setText(self._data_status_text())
+        self.model_section_label.setText(self._model_section_title())
+        self.xgboost_status_label.setText(self._model_status_text())
+        self._refresh_data_stats()
+
+        # 插件页刷新
+        self.plugin_dir_edit.setText(str(self.plugin_managers[self.current_key].plugin_dir))
+        self._refresh_plugin_list()
+
+        # 清空生成结果（避免旧彩种结果残留）
+        self.result_text.clear()
+        self.target_label.setVisible(False)
+        self.chart_btn.setVisible(False)
+        while self.result_container_layout.count() > 1:
+            item = self.result_container_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    # ------------------------------------------------------------------ #
+    # 数据页
+    # ------------------------------------------------------------------ #
     def _data_status_text(self, offline: bool = False) -> str:
-        count = self.data_repository.get_count()
-        start, end = self.data_repository.get_date_range()
+        count = self.current.data_repository.get_count()
+        start, end = self.current.data_repository.get_date_range()
         last_update = self.settings.last_data_update or "从未"
         mode = "离线模式" if offline else "在线模式"
         if count == 0:
-            return f"[{mode}] 本地暂无官方开奖数据，请点击“更新开奖数据”获取。"
+            return f"[{mode}] 本地暂无{self.current.profile.name}官方开奖数据，请点击“更新开奖数据”获取。"
         return (
-            f"[{mode}] 本地已存储 {count} 期官方开奖数据\n"
+            f"[{mode}] 本地已存储 {count} 期{self.current.profile.name}官方开奖数据\n"
             f"数据范围: {start.date()} 至 {end.date()}\n"
             f"上次更新: {last_update}"
         )
@@ -464,8 +526,10 @@ class MainWindow(QMainWindow):
         self.update_data_btn.setEnabled(False)
         self.data_progress.setVisible(True)
 
-        self._fetch_thread = FetchAllDataThread(self)
-        self._fetch_thread.result_ready.connect(self._on_data_fetched)
+        self._fetch_thread = FetchAllDataThread(self, profile=self.current.profile)
+        self._fetch_thread.result_ready.connect(
+            self._on_data_fetched, Qt.ConnectionType.QueuedConnection
+        )
         self._fetch_thread.start()
 
     def _on_data_fetched(self, records, error) -> None:
@@ -476,120 +540,160 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "获取失败", f"获取开奖数据失败:\n{error}")
             return
 
-        added = self.data_repository.update(records)
-        self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+        added = self.current.update_data(records)
         self.data_status_label.setText(self._data_status_text())
         self._refresh_data_stats()
+        self.xgboost_status_label.setText(self._model_status_text())
         QMessageBox.information(
-            self, "更新成功", f"成功更新开奖数据\n新增 {added} 期，本地共 {self.data_repository.get_count()} 期"
+            self, "更新成功", f"成功更新{self.current.profile.name}开奖数据\n新增 {added} 期，本地共 {self.current.data_repository.get_count()} 期"
         )
 
     def _fetch_latest_draw(self) -> None:
         """获取并显示最新一期开奖."""
         try:
-            fetcher = LotteryDataFetcher()
+            fetcher = self.current.data_fetcher
             latest = fetcher.fetch_latest()
             if latest:
-                self.data_repository.update([latest])
-                self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+                self.current.update_data([latest])
                 self.data_status_label.setText(self._data_status_text())
                 self._refresh_data_stats()
+                self.xgboost_status_label.setText(self._model_status_text())
                 QMessageBox.information(
                     self,
                     "最新一期",
-                    f"期号: {latest.issue}\n"
-                    f"日期: {latest.draw_date.date()}\n"
-                    f"红球: {' '.join(f'{r:02d}' for r in latest.red_balls)}\n"
-                    f"蓝球: {latest.blue_ball:02d}",
+                    self._latest_draw_message(latest),
                 )
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "获取失败", str(exc))
+
+    def _latest_draw_message(self, latest: DrawRecord) -> str:
+        lines = [
+            f"期号: {latest.issue}",
+            f"日期: {latest.draw_date.date()}",
+        ]
+        for g in self.current.profile.pick_groups:
+            nums = latest.groups.get(g.key, [])
+            lines.append(f"{g.name}: {' '.join(f'{n:0{g.pad}d}' for n in nums)}")
+        return "\n".join(lines)
 
     def _clear_draw_data(self) -> None:
         """清空本地开奖数据."""
         reply = QMessageBox.question(
             self,
             "确认清空",
-            "确定要清空本地官方开奖数据吗？",
+            f"确定要清空本地{self.current.profile.name}官方开奖数据吗？",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self.data_repository.clear()
-            self.data_analyzer = LotteryAnalyzer([])
+            self.current.clear_data()
             self.data_status_label.setText(self._data_status_text())
             self.data_stats_text.clear()
+            self.xgboost_status_label.setText(self._model_status_text())
 
     def _refresh_data_stats(self) -> None:
         """刷新统计信息."""
-        if self.data_repository.get_count() == 0:
+        if self.current.data_repository.get_count() == 0:
             self.data_stats_text.setText("暂无数据，请先更新开奖数据。")
             return
-        summary = self.data_analyzer.summary()
-        lines = [
-            f"总期数: {summary['total_records']}",
-            f"最近 30 期热红球: {' '.join(f'{n:02d}' for n in summary['hot_reds_30'])}",
-            f"最近 30 期冷红球: {' '.join(f'{n:02d}' for n in summary['cold_reds_30'])}",
-            f"最近 30 期热蓝球: {' '.join(f'{n:02d}' for n in summary['hot_blues_30'])}",
-            f"红球遗漏值 TOP5: "
-            + ", ".join(f"{n:02d}({v})" for n, v in summary['missing_reds_50'][:5]),
-            f"最近 100 期奇偶比: {summary['odd_even_ratio'][0]:.2%} : {summary['odd_even_ratio'][1]:.2%}",
-            f"最近 100 期大小比: {summary['high_low_ratio'][0]:.2%} : {summary['high_low_ratio'][1]:.2%}",
-            f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
-            f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}",
-            f"最近 100 期连号出现比例: {summary['consecutive_ratio']:.2%}",
-        ]
+        summary = self.current.data_analyzer.summary()
+        if self.current.profile.key == "ssq":
+            lines = [
+                f"总期数: {summary['total_records']}",
+                f"最近 30 期热红球: {' '.join(f'{n:02d}' for n in summary['hot_reds_30'])}",
+                f"最近 30 期冷红球: {' '.join(f'{n:02d}' for n in summary['cold_reds_30'])}",
+                f"最近 30 期热蓝球: {' '.join(f'{n:02d}' for n in summary['hot_blues_30'])}",
+                f"红球遗漏值 TOP5: "
+                + ", ".join(f"{n:02d}({v})" for n, v in summary['missing_reds_50'][:5]),
+                f"最近 100 期奇偶比: {summary['odd_even_ratio'][0]:.2%} : {summary['odd_even_ratio'][1]:.2%}",
+                f"最近 100 期大小比: {summary['high_low_ratio'][0]:.2%} : {summary['high_low_ratio'][1]:.2%}",
+                f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
+                f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}",
+                f"最近 100 期连号出现比例: {summary['consecutive_ratio']:.2%}",
+            ]
+        else:
+            primary = self.current.profile.primary_group
+            lines = [
+                f"总期数: {summary['total_records']}",
+                f"最近 30 期热{primary.name}: {' '.join(f'{n:0{primary.pad}d}' for n in summary['hot_30'])}",
+                f"最近 30 期冷{primary.name}: {' '.join(f'{n:0{primary.pad}d}' for n in summary['cold_30'])}",
+                f"{primary.name}遗漏值 TOP5: "
+                + ", ".join(f"{n:0{primary.pad}d}({v})" for n, v in summary['missing_50'][:5]),
+                f"最近 100 期奇偶比: {summary['odd_even_ratio'][0]:.2%} : {summary['odd_even_ratio'][1]:.2%}",
+                f"最近 100 期大小比: {summary['high_low_ratio'][0]:.2%} : {summary['high_low_ratio'][1]:.2%}",
+                f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
+                f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}",
+                f"最近 100 期连号出现比例: {summary['consecutive_ratio']:.2%}",
+            ]
+            if self.current.profile.key == "3d":
+                span = self.current.data_analyzer.span(100)
+                lines.append(f"最近 100 期跨度: 最小={span['min']}, 最大={span['max']}, 平均={span['avg']:.1f}")
         self.data_stats_text.setText("\n".join(lines))
 
-    def _xgboost_status_text(self) -> str:
-        """XGBoost 模型状态文本."""
-        model_dir = Path.home() / ".caipiao" / "models"
-        model_files = list(model_dir.glob("xgboost_*.pkl")) if model_dir.exists() else []
-        if not model_files:
-            return "尚未训练 XGBoost 模型。首次使用“XGBoost 智能分析”策略时会自动训练，或点击“训练模型”提前准备。"
-        latest = max(model_files, key=lambda p: p.stat().st_mtime)
-        from datetime import datetime
+    def _model_section_title(self) -> str:
+        if self.current.profile.key == "ssq":
+            return "XGBoost 模型:"
+        return "机器学习模型:"
 
+    def _model_status_text(self) -> str:
+        """模型状态文本（同时检查 XGBoost 与 LightGBM 模型）。"""
+        model_dir = Path.home() / ".caipiao" / "models"
+        prefixes = {self.current.profile.xgboost_prefix()}
+        if self.current.profile.key != "ssq":
+            prefixes.add(self.current.profile.lightgbm_prefix())
+        else:
+            prefixes.add("lightgbm")
+        model_files = []
+        if model_dir.exists():
+            for prefix in prefixes:
+                model_files.extend(model_dir.glob(f"{prefix}_*.pkl"))
+        if not model_files:
+            return "尚未训练模型。首次使用 ML 策略时会自动训练，或点击“训练模型”提前准备。"
+        latest = max(model_files, key=lambda p: p.stat().st_mtime)
         mtime = datetime.fromtimestamp(latest.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         return f"已找到训练好的模型：{latest.name}\n训练时间：{mtime}"
 
+    # ------------------------------------------------------------------ #
+    # 模型训练
+    # ------------------------------------------------------------------ #
     def _start_training(
-        self, model_class: type, prefix: str, after
+        self,
+        model_class: type | None,
+        prefix: str,
+        after,
+        backend: str = "xgboost",
     ) -> None:
-        """两段式训练：先联网拉取最新一期数据，再训练带时间戳的新模型.
-
-        全程弹出模态进度窗口，阻止训练期间的无效操作。训练结束后调用
-        ``after(error)``（``error`` 为 None 表示成功），由调用方决定后续动作。
-
-        Args:
-            model_class: 要训练的模型类（XGBoost / LightGBM 等）。
-            prefix: 模型文件命名前缀，用于区分不同模型的缓存。
-        """
+        """两段式训练：先联网拉取最新一期数据，再训练带时间戳的新模型."""
         self._train_after = after
         self._train_model_class = model_class
         self._train_prefix = prefix
+        self._train_backend = backend
         self._train_dialog = TrainingProgressDialog(self)
         self._train_dialog.set_stage("正在获取最新开奖数据…")
         self._train_dialog.show()
 
-        self._pretrain_fetch_thread = FetchLatestDataThread(self)
-        self._pretrain_fetch_thread.result_ready.connect(self._on_pretrain_fetch_done)
+        self._pretrain_fetch_thread = FetchLatestDataThread(
+            self, profile=self.current.profile
+        )
+        self._pretrain_fetch_thread.result_ready.connect(
+            self._on_pretrain_fetch_done, Qt.ConnectionType.QueuedConnection
+        )
         self._pretrain_fetch_thread.start()
 
     def _on_pretrain_fetch_done(self, latest, error) -> None:
         """最新数据拉取完成：更新本地数据后开始训练（离线失败则用本地数据继续）."""
         if not error and latest is not None:
-            self.data_repository.update([latest])
-            self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+            self.current.update_data([latest])
             self.data_status_label.setText(self._data_status_text())
             self._refresh_data_stats()
 
-        records = self.data_repository.get_all()
+        records = self.current.data_repository.get_all()
         if len(records) < 100:
             self._finish_training(ValueError("模型需要至少 100 期历史数据"))
             return
 
-        model_class = getattr(self, "_train_model_class", LotteryXGBoostModel)
+        model_class = getattr(self, "_train_model_class", None)
         prefix = getattr(self, "_train_prefix", "xgboost")
+        backend = getattr(self, "_train_backend", "xgboost")
         lookback = compute_lookback(len(records))
         model_path = new_model_path(lookback, prefix=prefix)
 
@@ -597,17 +701,27 @@ class MainWindow(QMainWindow):
         if dialog is not None:
             dialog.set_stage("正在训练模型…")
 
-        self._xgboost_thread = TrainModelThread(
-            records,
-            lookback=lookback,
-            model_path=model_path,
-            model_class=model_class,
-            prefix=prefix,
-            parent=self,
-        )
+        kwargs: dict = {
+            "records": records,
+            "lookback": lookback,
+            "model_path": model_path,
+            "prefix": prefix,
+            "parent": self,
+        }
+        if self.current.profile.key == "ssq":
+            kwargs["model_class"] = model_class or LotteryXGBoostModel
+        else:
+            kwargs["profile"] = self.current.profile
+            kwargs["backend"] = backend
+
+        self._xgboost_thread = TrainModelThread(**kwargs)
         if dialog is not None:
-            self._xgboost_thread.progress.connect(dialog.set_progress)
-        self._xgboost_thread.result_ready.connect(self._on_training_done)
+            self._xgboost_thread.progress.connect(
+                dialog.set_progress, Qt.ConnectionType.QueuedConnection
+            )
+        self._xgboost_thread.result_ready.connect(
+            self._on_training_done, Qt.ConnectionType.QueuedConnection
+        )
         self._xgboost_thread.start()
 
     def _on_training_done(self, success, error) -> None:
@@ -627,59 +741,61 @@ class MainWindow(QMainWindow):
             after(error)
 
     def _train_xgboost_model(self) -> None:
-        """点击「训练模型」：拉取最新数据并训练，训练期间弹模态进度窗口."""
-        records = self.data_repository.get_all()
+        """点击「训练模型」：拉取最新数据并训练."""
+        records = self.current.data_repository.get_all()
         if len(records) < 100:
-            QMessageBox.warning(self, "数据不足", "XGBoost 模型需要至少 100 期历史数据")
+            QMessageBox.warning(self, "数据不足", "模型需要至少 100 期历史数据")
             return
 
         self.train_xgboost_btn.setEnabled(False)
-        self._start_training(
-            LotteryXGBoostModel, "xgboost", after=self._after_button_train
-        )
+        prefix = self.current.profile.xgboost_prefix()
+        if self.current.profile.key == "ssq":
+            self._start_training(LotteryXGBoostModel, prefix, after=self._after_button_train)
+        else:
+            self._start_training(None, prefix, after=self._after_button_train, backend="xgboost")
 
     def _after_button_train(self, error) -> None:
         self.train_xgboost_btn.setEnabled(True)
         if error:
-            QMessageBox.critical(self, "训练失败", f"XGBoost 模型训练失败:\n{error}")
+            QMessageBox.critical(self, "训练失败", f"模型训练失败:\n{error}")
         else:
-            self.xgboost_status_label.setText(self._xgboost_status_text())
-            QMessageBox.information(self, "训练完成", "XGBoost 模型已训练完成并保存")
+            self.xgboost_status_label.setText(self._model_status_text())
+            QMessageBox.information(self, "训练完成", "模型已训练完成并保存")
 
     def _delete_xgboost_model(self) -> None:
-        """删除本地 XGBoost 模型."""
+        """删除本地模型."""
+        prefix = self.current.profile.xgboost_prefix()
         model_dir = Path.home() / ".caipiao" / "models"
-        model_files = list(model_dir.glob("xgboost_*.pkl")) if model_dir.exists() else []
+        model_files = list(model_dir.glob(f"{prefix}_*.pkl")) if model_dir.exists() else []
         if not model_files:
             QMessageBox.information(self, "提示", "没有可删除的模型")
             return
         reply = QMessageBox.question(
             self,
             "确认删除",
-            f"确定删除 {len(model_files)} 个 XGBoost 模型文件吗？",
+            f"确定删除 {len(model_files)} 个{self.current.profile.name}模型文件吗？",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             for f in model_files:
                 f.unlink()
-                # 一并删除对应的元数据文件
                 meta = Path(str(f) + ".meta.json")
                 if meta.exists():
                     meta.unlink()
-            self.xgboost_status_label.setText(self._xgboost_status_text())
+            self.xgboost_status_label.setText(self._model_status_text())
 
+    # ------------------------------------------------------------------ #
+    # 设置
+    # ------------------------------------------------------------------ #
     def _on_auto_update_changed(self, state: int) -> None:
-        """自动更新开关变化."""
         self.settings.auto_update_on_start = state == Qt.CheckState.Checked.value
         self.settings.sync()
 
     def _on_update_interval_changed(self, value: int) -> None:
-        """更新间隔变化."""
         self.settings.auto_update_interval_days = value
         self.settings.sync()
 
     def _should_auto_update(self) -> bool:
-        """判断是否需要自动更新."""
         if not self.settings.auto_update_on_start:
             return False
         last_update = self.settings.last_data_update
@@ -697,25 +813,28 @@ class MainWindow(QMainWindow):
         if not self._should_auto_update():
             return
 
-        self._latest_update_thread = FetchLatestDataThread(self)
-        self._latest_update_thread.result_ready.connect(self._on_latest_update_finished)
+        self._latest_update_thread = FetchLatestDataThread(
+            self, profile=self.current.profile
+        )
+        self._latest_update_thread.result_ready.connect(
+            self._on_latest_update_finished, Qt.ConnectionType.QueuedConnection
+        )
         self._latest_update_thread.start()
 
     def _on_latest_update_finished(self, latest, error) -> None:
         """自动更新完成回调（静默处理失败）."""
         if error or latest is None:
-            # 静默失败：标记为离线模式，使用本地数据
             self.data_status_label.setText(self._data_status_text(offline=True))
             return
 
-        local_latest = self.data_repository.get_latest()
+        local_latest = self.current.data_repository.get_latest()
         if local_latest is None or latest.draw_date > local_latest.draw_date:
-            self.data_repository.update([latest])
-            self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+            self.current.update_data([latest])
             self.settings.last_data_update = datetime.now().isoformat()
             self.settings.sync()
             self.data_status_label.setText(self._data_status_text(offline=False))
             self._refresh_data_stats()
+            self.xgboost_status_label.setText(self._model_status_text())
         else:
             self.settings.last_data_update = datetime.now().isoformat()
             self.settings.sync()
@@ -726,8 +845,12 @@ class MainWindow(QMainWindow):
         self.check_update_btn.setEnabled(False)
         self.data_progress.setVisible(True)
 
-        self._latest_update_thread = FetchLatestDataThread(self)
-        self._latest_update_thread.result_ready.connect(self._on_manual_update_finished)
+        self._latest_update_thread = FetchLatestDataThread(
+            self, profile=self.current.profile
+        )
+        self._latest_update_thread.result_ready.connect(
+            self._on_manual_update_finished, Qt.ConnectionType.QueuedConnection
+        )
         self._latest_update_thread.start()
 
     def _on_manual_update_finished(self, latest, error) -> None:
@@ -741,21 +864,18 @@ class MainWindow(QMainWindow):
             self.data_status_label.setText(self._data_status_text(offline=True))
             return
 
-        local_latest = self.data_repository.get_latest()
+        local_latest = self.current.data_repository.get_latest()
         if local_latest is None or latest.draw_date > local_latest.draw_date:
-            self.data_repository.update([latest])
-            self.data_analyzer = LotteryAnalyzer(self.data_repository.get_all())
+            self.current.update_data([latest])
             self.settings.last_data_update = datetime.now().isoformat()
             self.settings.sync()
             self.data_status_label.setText(self._data_status_text(offline=False))
             self._refresh_data_stats()
+            self.xgboost_status_label.setText(self._model_status_text())
             QMessageBox.information(
                 self,
                 "更新成功",
-                f"已更新到最新一期 {latest.issue}\n"
-                f"开奖日期: {latest.draw_date.date()}\n"
-                f"红球: {' '.join(f'{r:02d}' for r in latest.red_balls)}\n"
-                f"蓝球: {latest.blue_ball:02d}",
+                self._latest_draw_message(latest),
             )
         else:
             self.settings.last_data_update = datetime.now().isoformat()
@@ -763,6 +883,9 @@ class MainWindow(QMainWindow):
             self.data_status_label.setText(self._data_status_text(offline=False))
             QMessageBox.information(self, "已是最新", f"当前数据已是最新一期 {local_latest.issue}")
 
+    # ------------------------------------------------------------------ #
+    # 菜单
+    # ------------------------------------------------------------------ #
     def _setup_menu(self) -> None:
         menubar = self.menuBar()
         file_menu = menubar.addMenu("文件")
@@ -785,7 +908,6 @@ class MainWindow(QMainWindow):
         guide_action.triggered.connect(self._show_learning_guide)
         help_menu.addAction(guide_action)
 
-        # 其余帮助文档，统一由内置 Markdown 阅读器渲染显示
         for label, filename in (
             ("使用帮助", "help.md"),
             ("XGBoost 使用教程", "XGBoost_TUTORIAL.md"),
@@ -803,6 +925,9 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
+    # ------------------------------------------------------------------ #
+    # 号码生成
+    # ------------------------------------------------------------------ #
     def _generate(self) -> None:
         strategy_id = self.strategy_panel.current_strategy_id()
         if not strategy_id:
@@ -817,7 +942,7 @@ class MainWindow(QMainWindow):
 
         count = self.count_spin.value()
 
-        # 保存用户设置的策略、注数与参数，下次启动自动恢复
+        # 保存用户设置
         user_options = {k: v for k, v in options.items() if k != "history"}
         self.settings.last_strategy_id = strategy_id
         self.settings.default_count = count
@@ -825,26 +950,17 @@ class MainWindow(QMainWindow):
         self.settings.sync()
 
         # 需要历史记录的策略自动注入数据
-        history_dependent = {
-            "hot_cold",
-            "smart_hot_cold",
-            "missing_number",
-            "balanced",
-            "xgboost",
-            "lightgbm",
-        }
-        if strategy_id in history_dependent:
-            records = self.data_repository.get_all()
+        if needs_history(strategy_id):
+            records = self.current.data_repository.get_all()
             if not records:
                 QMessageBox.warning(self, "缺少数据", "该策略需要官方开奖数据，请先更新数据。")
                 return
             options["history"] = records
 
-        # ML 模型策略（XGBoost / LightGBM）：若当前数据对应的模型已过期，
-        # 先（拉取最新数据并）自动重新训练，再生成。
-        if strategy_id in ML_MODEL_STRATEGIES:
+        # ML 模型策略：若当前数据对应的模型已过期，先自动重新训练
+        if self.current.profile.key == "ssq" and strategy_id in ML_MODEL_STRATEGIES:
             model_class, prefix = ML_MODEL_STRATEGIES[strategy_id]
-            records = self.data_repository.get_all()
+            records = self.current.data_repository.get_all()
             lookback = compute_lookback(len(records))
             if not is_model_current(records, lookback, prefix=prefix):
                 self.generate_btn.setEnabled(False)
@@ -852,34 +968,63 @@ class MainWindow(QMainWindow):
                 self._start_training(
                     model_class,
                     prefix,
-                    after=lambda err: self._after_generate_train(
-                        err, strategy_id, count, options
-                    ),
+                    after=lambda err: self._after_generate_train(err, strategy_id, count, options),
+                )
+                return
+        elif self.current.profile.key != "ssq" and is_ml_strategy(strategy_id):
+            backend = "xgboost" if strategy_id.startswith("xgboost_") else "lightgbm"
+            prefix = (
+                self.current.profile.xgboost_prefix()
+                if backend == "xgboost"
+                else self.current.profile.lightgbm_prefix()
+            )
+            records = self.current.data_repository.get_all()
+            lookback = compute_lookback(len(records))
+            if not is_model_current(records, lookback, prefix=prefix):
+                self.generate_btn.setEnabled(False)
+                self.generate_btn.setText("准备模型...")
+                self._start_training(
+                    None,
+                    prefix,
+                    after=lambda err: self._after_generate_train(err, strategy_id, count, options),
+                    backend=backend,
                 )
                 return
 
         self._launch_generation(strategy_id, count, options)
 
     def _launch_generation(self, strategy_id, count, options) -> None:
-        """在后台线程启动号码生成（避免耗时策略冻结 UI）."""
+        """在后台线程启动号码生成."""
         self.generate_btn.setEnabled(False)
         self.generate_btn.setText("生成中...")
 
         self._generate_thread = GenerateTicketsThread(
-            self.engine, strategy_id, count, options, self
+            self.current.engine, strategy_id, count, options, self
         )
-        self._generate_thread.result_ready.connect(self._on_generation_finished)
+        self._generate_thread.result_ready.connect(
+            self._on_generation_finished, Qt.ConnectionType.QueuedConnection
+        )
         self._generate_thread.start()
 
     def _after_generate_train(self, error, strategy_id, count, options) -> None:
-        """生成前的模型训练完成：成功则用最新数据继续生成，失败则提示."""
         if error:
             self.generate_btn.setEnabled(True)
             self.generate_btn.setText("立即生成")
             QMessageBox.critical(self, "训练失败", f"模型训练失败:\n{error}")
             return
-        # 训练已把最新数据合并入库，用更新后的数据重新注入历史后再生成
-        options["history"] = self.data_repository.get_all()
+        records = self.current.data_repository.get_all()
+        is_ml = is_ml_strategy(strategy_id) or strategy_id in ML_MODEL_STRATEGIES
+        if is_ml and len(records) < 100:
+            self.generate_btn.setEnabled(True)
+            self.generate_btn.setText("立即生成")
+            QMessageBox.warning(self, "数据不足", "训练后历史数据不足 100 期，无法使用 ML 策略")
+            return
+        if needs_history(strategy_id) and len(records) < 20:
+            self.generate_btn.setEnabled(True)
+            self.generate_btn.setText("立即生成")
+            QMessageBox.warning(self, "数据不足", "训练后历史数据不足 20 期，无法使用该策略")
+            return
+        options["history"] = records
         self._launch_generation(strategy_id, count, options)
 
     def _on_generation_finished(self, tickets, error) -> None:
@@ -898,14 +1043,9 @@ class MainWindow(QMainWindow):
         self.history_panel.refresh()
 
     def _annotate_target_period(self, tickets: list) -> None:
-        """为本次生成的号码标注预测目标期号与开奖日期.
-
-        信息写入每张投注单的 details，从而同时用于界面展示、PDF/打印与历史记录，
-        提醒用户当前预测的是哪一期，避免忘记先更新最新开奖数据。
-        """
         if not tickets:
             return
-        info = self.data_repository.next_period_info()
+        info = self.current.data_repository.next_period_info()
         if not info:
             return
         next_date = info["next_date"]
@@ -921,7 +1061,6 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _format_target_lines(details: dict) -> list[str]:
-        """根据 details 中的目标期号信息生成展示文本行（无信息则返回空列表）."""
         target_date = details.get("target_date")
         if not target_date:
             return []
@@ -955,10 +1094,9 @@ class MainWindow(QMainWindow):
         target_lines = self._format_target_lines(details)
         if target_lines:
             self.target_label.setText("\n".join(target_lines))
-            if details.get("stale"):
-                self.target_label.setStyleSheet("color:#D32F2F;font-weight:bold;")
-            else:
-                self.target_label.setStyleSheet("color:#333;")
+            self.target_label.setStyleSheet(
+                "color:#D32F2F;font-weight:bold;" if details.get("stale") else "color:#333;"
+            )
             self.target_label.setVisible(True)
         else:
             self.target_label.clear()
@@ -973,18 +1111,35 @@ class MainWindow(QMainWindow):
             row = TicketRowWidget(ticket, show_index=idx)
             self.result_container_layout.insertWidget(idx - 1, row)
 
-        # 如果包含概率详情，提供独立窗口查看大图
-        self._last_chart_details = details
-        has_chart = bool(self._last_chart_details.get("red_probabilities"))
-        self.chart_btn.setVisible(has_chart)
+        self._last_chart_details = self._build_chart_details(details)
+        self.chart_btn.setVisible(bool(self._last_chart_details))
 
         header = target_lines + ["-" * 30] if target_lines else []
         self.result_text.setText("\n".join(header + text_lines))
 
+    @staticmethod
+    def _build_chart_details(details: dict) -> dict | None:
+        """把 details 中的概率信息整理成图表可用的字典."""
+        if details.get("group_probabilities"):
+            return {
+                "group_probabilities": details["group_probabilities"],
+                "lookback": details.get("lookback", "-"),
+                "diversity_boost": details.get("diversity_boost", "-"),
+                "model_name": "XGBoost" if "xgboost" in str(details) else "LightGBM",
+            }
+        if details.get("red_probabilities"):
+            return {
+                "red_probabilities": details["red_probabilities"],
+                "blue_probabilities": details["blue_probabilities"],
+                "lookback": details.get("lookback", "-"),
+                "diversity_boost": details.get("diversity_boost", "-"),
+            }
+        return None
+
     def _show_probability_chart(self) -> None:
         """在独立窗口中显示更大的概率折线图."""
         details = getattr(self, "_last_chart_details", None)
-        if not details or not details.get("red_probabilities"):
+        if not details:
             QMessageBox.information(self, "提示", "当前没有可查看的概率图表。")
             return
         dialog = ProbabilityChartDialog(details, self)
@@ -994,7 +1149,13 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _build_probability_details_html(details: dict) -> str:
-        """生成 XGBoost 概率详情的 HTML 字符串（折线图）."""
+        if details.get("group_probabilities"):
+            return build_group_probability_charts_html(
+                group_probabilities=details["group_probabilities"],
+                lookback=details.get("lookback", "-"),
+                diversity_boost=details.get("diversity_boost", "-"),
+                model_name=details.get("model_name", "XGBoost"),
+            )
         return build_probability_charts_html(
             red_probabilities=details.get("red_probabilities", []),
             blue_probabilities=details.get("blue_probabilities", []),
@@ -1004,14 +1165,11 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _build_probability_details_html_for_print(details: dict) -> str:
-        """生成适合 PDF/打印的概率详情 HTML（折线图）."""
-        return build_probability_charts_html(
-            red_probabilities=details.get("red_probabilities", []),
-            blue_probabilities=details.get("blue_probabilities", []),
-            lookback=details.get("lookback", "-"),
-            diversity_boost=details.get("diversity_boost", "-"),
-        )
+        return MainWindow._build_probability_details_html(details)
 
+    # ------------------------------------------------------------------ #
+    # 复制/打印/导出
+    # ------------------------------------------------------------------ #
     def _copy_all(self) -> None:
         text = self.result_text.toPlainText()
         if not text.strip():
@@ -1022,21 +1180,18 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "复制成功", "号码已复制到剪贴板")
 
     def _print_results(self) -> None:
-        """打印当前生成结果."""
         if not hasattr(self, "_last_generated") or not self._last_generated:
             QMessageBox.information(self, "提示", "请先生成号码")
             return
-        self._print_tickets(self._last_generated, "双色球生成结果")
+        self._print_tickets(self._last_generated, f"{self.current.profile.name}生成结果")
 
     def _export_pdf_results(self) -> None:
-        """导出当前生成结果为 PDF."""
         if not hasattr(self, "_last_generated") or not self._last_generated:
             QMessageBox.information(self, "提示", "请先生成号码")
             return
-        self._export_tickets_to_pdf(self._last_generated, "双色球生成结果")
+        self._export_tickets_to_pdf(self._last_generated, f"{self.current.profile.name}生成结果")
 
     def _print_tickets(self, tickets: list, title: str) -> None:
-        """通用打印方法，打印失败时只提示一次."""
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         dialog = QPrintDialog(printer, self)
         if dialog.exec() != QPrintDialog.DialogCode.Accepted:
@@ -1051,9 +1206,8 @@ class MainWindow(QMainWindow):
             self._show_print_error_once(str(exc))
 
     def _export_tickets_to_pdf(self, tickets: list, title: str) -> None:
-        """导出为 PDF，不依赖打印机驱动."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_name = f"caipiao_result_{timestamp}.pdf"
+        default_name = f"caipiao_{self.current.profile.key}_result_{timestamp}.pdf"
         path, _ = QFileDialog.getSaveFileName(
             self, "导出 PDF", default_name, "PDF 文件 (*.pdf)"
         )
@@ -1072,7 +1226,6 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "导出失败", str(exc))
 
     def _show_print_error_once(self, message: str) -> None:
-        """会话内只显示一次打印错误."""
         if getattr(self, "_print_error_shown", False):
             return
         self._print_error_shown = True
@@ -1093,21 +1246,20 @@ class MainWindow(QMainWindow):
     def _build_print_html(tickets: list, title: str) -> str:
         rows = []
         for idx, ticket in enumerate(tickets, start=1):
-            reds = " ".join(
-                f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
-                f'text-align:center;border-radius:14px;background:#D32F2F;color:#fff;'
-                f'margin:2px;font-weight:bold;">{b.number:02d}</span>'
-                for b in ticket.red_balls
-            )
-            blue = (
-                f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
-                f'text-align:center;border-radius:14px;background:#1976D2;color:#fff;'
-                f'margin:2px;font-weight:bold;">{ticket.blue_ball.number:02d}</span>'
-            )
+            balls_html = []
+            for gi, rg in enumerate(ticket.render_groups()):
+                if gi > 0:
+                    balls_html.append('<span style="margin:0 6px;color:#999;font-weight:bold;">+</span>')
+                for n in rg.numbers:
+                    balls_html.append(
+                        f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
+                        f'text-align:center;border-radius:14px;background:{rg.color};color:#fff;'
+                        f'margin:2px;font-weight:bold;">{n:0{rg.pad}d}</span>'
+                    )
             rows.append(
                 f"<tr><td style='padding:8px;border-bottom:1px solid #ddd;'>"
                 f"<b>{idx:02d}.</b></td>"
-                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{reds} {blue}</td>"
+                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{''.join(balls_html)}</td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;color:#666;'>"
                 f"{ticket.format_compact()}</td></tr>"
             )
@@ -1119,8 +1271,10 @@ class MainWindow(QMainWindow):
                 )
 
         details_html = ""
-        if tickets and tickets[0].details.get("red_probabilities"):
-            details_html = MainWindow._build_probability_details_html_for_print(tickets[0].details)
+        if tickets:
+            chart_details = MainWindow._build_chart_details(tickets[0].details)
+            if chart_details:
+                details_html = MainWindow._build_probability_details_html_for_print(chart_details)
 
         target_html = ""
         if tickets:
@@ -1158,11 +1312,10 @@ class MainWindow(QMainWindow):
                 </tr>
                 {''.join(rows)}
             </table>
-            <p class="footer">本结果由双色球号码生成器生成，仅供娱乐参考。</p>
+            <p class="footer">本结果由彩票号码生成器生成，仅供娱乐参考。</p>
         </body>
         </html>
         """
-
 
     def _save_to_history(self) -> None:
         if not hasattr(self, "_last_generated") or not self._last_generated:
@@ -1173,34 +1326,42 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "保存成功", f"已保存 {len(self._last_generated)} 注到历史记录")
 
     def _on_history_changed(self) -> None:
-        # 历史变化时的回调，可扩展统计更新
         pass
 
+    # ------------------------------------------------------------------ #
+    # 插件
+    # ------------------------------------------------------------------ #
     def _choose_plugin_dir(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "选择插件目录", str(self.plugin_manager.plugin_dir))
+        path = QFileDialog.getExistingDirectory(self, "选择插件目录", str(self.plugin_managers[self.current_key].plugin_dir))
         if path:
-            self.plugin_manager.plugin_dir = Path(path)
+            for pm in self.plugin_managers.values():
+                pm.plugin_dir = Path(path)
             self.plugin_dir_edit.setText(path)
             self.settings.plugin_dir = path
             self.settings.sync()
 
     def _reload_plugins(self) -> None:
-        self.plugin_manager.unload_all()
-        self._register_builtin_strategies()
-        self.plugin_manager.load_all()
+        for ctx in self.context_manager.all_contexts():
+            ctx.engine._strategies.clear()
+            ctx.register_builtin_strategies()
+            self.plugin_managers[ctx.profile.key].load_all()
         self.strategy_panel._refresh_strategies()
+        self._restore_last_strategy()
         self._refresh_plugin_list()
         QMessageBox.information(self, "插件重载", "插件已重新加载")
 
     def _refresh_plugin_list(self) -> None:
         lines = []
-        for strategy in self.engine.list_strategies():
+        for strategy in self.current.engine.list_strategies():
             lines.append(
                 f"• {strategy.metadata.name} ({strategy.metadata.id})\n"
                 f"  {strategy.metadata.description}"
             )
         self.plugin_list.setText("\n\n".join(lines))
 
+    # ------------------------------------------------------------------ #
+    # 主题/设置
+    # ------------------------------------------------------------------ #
     def _apply_theme(self) -> None:
         is_dark = self.dark_theme_check.isChecked()
         self.settings.dark_theme = is_dark
@@ -1213,15 +1374,17 @@ class MainWindow(QMainWindow):
         self.settings.default_count = self.settings_count_spin.value()
         self.settings.dark_theme = self.dark_theme_check.isChecked()
         self.settings.last_strategy_id = self.strategy_panel.current_strategy_id()
+        self.settings.set("current_lottery", self.current_key)
         self.settings.sync()
         QMessageBox.information(self, "设置已保存", "设置已保存并生效")
 
+    # ------------------------------------------------------------------ #
+    # 文档/关于/回测
+    # ------------------------------------------------------------------ #
     def _docs_dir(self) -> Path:
-        """返回项目 docs 目录."""
         return Path(__file__).resolve().parents[2] / "docs"
 
     def _show_doc(self, title: str, filename: str) -> None:
-        """用内置 Markdown 阅读器打开 docs 目录下的文档."""
         md_path = self._docs_dir() / filename
         if not md_path.exists():
             QMessageBox.warning(self, "文档缺失", f"未找到文档：{md_path}")
@@ -1232,29 +1395,30 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def _show_learning_guide(self) -> None:
-        """在应用内打开学习文档（Markdown 渲染）."""
         self._show_doc("学习文档 - 概率统计与机器学习", "LEARNING_GUIDE.md")
 
     def _show_backtest_dialog(self) -> None:
-        """打开历史回测对话框."""
-        if not self.data_repository.get_count():
+        if not self.current.data_repository.get_count():
             QMessageBox.information(
                 self, "缺少数据", "请先更新本地开奖数据，再进行历史回测。"
             )
             return
-        dialog = BacktestDialog(self.engine, self.data_repository, self)
+        dialog = BacktestDialog(self.current, self)
         dialog.exec()
 
     def _show_about(self) -> None:
         QMessageBox.about(
             self,
             "关于",
-            "<h2>双色球号码生成器</h2>"
-            "<p>版本: 1.0.0</p>"
-            "<p>基于 PySide6 开发，支持多种生成策略与插件扩展。</p>"
+            "<h2>彩票号码生成器</h2>"
+            "<p>版本: 2.0.0</p>"
+            "<p>基于 PySide6 开发，支持双色球、福彩3D、七乐彩、快乐8。</p>"
             "<p>本软件仅供娱乐参考，不保证中奖。</p>",
         )
 
+    # ------------------------------------------------------------------ #
+    # 样式表（与原版一致）
+    # ------------------------------------------------------------------ #
     @staticmethod
     def _light_stylesheet() -> str:
         return """

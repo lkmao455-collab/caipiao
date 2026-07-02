@@ -86,6 +86,8 @@ class XGBoostStrategy(GenerationStrategy):
         )
 
         tickets: List[Ticket] = []
+        if count <= 0:
+            return tickets
 
         # 第一组强制为模型预测概率最高的前 6 个红球 + 概率最高的 1 个蓝球
         top_red_indices = np.argsort(red_proba)[-6:]

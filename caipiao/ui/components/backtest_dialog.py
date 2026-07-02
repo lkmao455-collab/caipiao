@@ -26,9 +26,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core.engine import GenerationEngine
+from ...core.profile import LotteryProfile
+from ...core.strategies.generic import needs_history
 from ...core.ticket import Ticket
-from ...data.repository import DataRepository
 from ..workers import GenerateTicketsThread
 from .ball_display import TicketRowWidget
 from .strategy_panel import StrategyPanel
@@ -39,16 +39,16 @@ class BacktestDialog(QDialog):
 
     def __init__(
         self,
-        engine: GenerationEngine,
-        data_repository: DataRepository,
+        context,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.engine = engine
-        self.data_repository = data_repository
+        self.context = context
+        self.profile: LotteryProfile = context.profile
+        self.data_repository = context.data_repository
         self._generate_thread: Optional[QThread] = None
 
-        self.setWindowTitle("历史回测")
+        self.setWindowTitle(f"{self.profile.name}历史回测")
         self.resize(900, 700)
         self._setup_ui()
         self._refresh_date_range()
@@ -56,7 +56,6 @@ class BacktestDialog(QDialog):
     def _setup_ui(self) -> None:
         self.layout = QVBoxLayout(self)
 
-        # 说明
         info = QLabel(
             "选择一个已开奖日期，程序会使用该日期之前的全部历史数据生成预测，"
             "并与当天真实开奖结果进行对比。"
@@ -65,9 +64,7 @@ class BacktestDialog(QDialog):
         info.setStyleSheet("color: #666;")
         self.layout.addWidget(info)
 
-        # 顶部控制区
         control_layout = QHBoxLayout()
-
         control_layout.addWidget(QLabel("回测日期:"))
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
@@ -88,21 +85,17 @@ class BacktestDialog(QDialog):
         control_layout.addStretch()
         self.layout.addLayout(control_layout)
 
-        # 策略面板
-        self.strategy_panel = StrategyPanel(self.engine)
+        self.strategy_panel = StrategyPanel(self.context.engine)
         self.layout.addWidget(self.strategy_panel)
 
-        # 进度条
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
         self.progress.setVisible(False)
         self.layout.addWidget(self.progress)
 
-        # 结果区分左右/上下
         self.result_group = QGroupBox("回测结果")
         result_layout = QVBoxLayout(self.result_group)
 
-        # 真实开奖
         actual_layout = QHBoxLayout()
         self.actual_info_label = QLabel("真实开奖：")
         self.actual_info_label.setStyleSheet("font-weight: bold; color: #0A2540;")
@@ -114,7 +107,6 @@ class BacktestDialog(QDialog):
         actual_layout.addStretch()
         result_layout.addLayout(actual_layout)
 
-        # 训练数据范围说明：明确展示预测所用数据的截止情况，说明不存在数据泄露
         self.data_scope_label = QLabel()
         self.data_scope_label.setWordWrap(True)
         self.data_scope_label.setStyleSheet(
@@ -124,8 +116,7 @@ class BacktestDialog(QDialog):
         self.data_scope_label.setVisible(False)
         result_layout.addWidget(self.data_scope_label)
 
-        # 预测结果
-        result_layout.addWidget(QLabel("预测号码（命中数 = 红球命中 + 蓝球命中）:"))
+        result_layout.addWidget(QLabel("预测号码（命中数按各号码组分别统计）:"))
         self.predicted_scroll = QScrollArea()
         self.predicted_scroll.setWidgetResizable(True)
         self.predicted_container = QWidget()
@@ -138,7 +129,6 @@ class BacktestDialog(QDialog):
         self.layout.addWidget(self.result_group)
 
     def _refresh_date_range(self) -> None:
-        """根据本地数据设置可选日期范围."""
         start, end = self.data_repository.get_date_range()
         if start is None or end is None:
             self.date_edit.setEnabled(False)
@@ -147,7 +137,6 @@ class BacktestDialog(QDialog):
         self.date_edit.setMinimumDate(QDate(start.year, start.month, start.day))
         self.date_edit.setMaximumDate(QDate(end.year, end.month, end.day))
 
-        # 在日历上对已有开奖记录的日期加下划线提示
         calendar = self.date_edit.calendarWidget()
         highlight_format = QTextCharFormat()
         highlight_format.setFontUnderline(True)
@@ -160,7 +149,6 @@ class BacktestDialog(QDialog):
             )
             calendar.setDateTextFormat(qdate, highlight_format)
 
-        # 默认选中倒数第二期，留出预测空间
         records = self.data_repository.get_all()
         if len(records) >= 2:
             default = records[-2].draw_date
@@ -189,16 +177,8 @@ class BacktestDialog(QDialog):
             QMessageBox.warning(self, "参数错误", str(exc))
             return
 
-        # 需要历史数据的策略自动注入该日期之前的数据
-        history_dependent = {
-            "hot_cold",
-            "smart_hot_cold",
-            "missing_number",
-            "balanced",
-            "xgboost",
-            "lightgbm",
-        }
-        if strategy_id in history_dependent:
+        uses_history = needs_history(strategy_id)
+        if uses_history:
             if not history:
                 QMessageBox.warning(self, "缺少数据", "该日期之前没有足够的历史开奖数据。")
                 return
@@ -206,18 +186,15 @@ class BacktestDialog(QDialog):
 
         count = self.count_spin.value()
 
-        # 显示真实开奖
         self._show_actual(actual)
-
-        # 展示本次预测所用数据的截止情况，明确不存在数据泄露
-        self._show_data_scope(strategy_id, history, target_date, strategy_id in history_dependent)
+        self._show_data_scope(strategy_id, history, target_date, uses_history)
 
         self.run_btn.setEnabled(False)
         self.run_btn.setText("预测中...")
         self.progress.setVisible(True)
 
         self._generate_thread = GenerateTicketsThread(
-            self.engine, strategy_id, count, options, self
+            self.context.engine, strategy_id, count, options, self
         )
         self._generate_thread.result_ready.connect(
             lambda tickets, error: self._on_prediction_finished(tickets, error, actual)
@@ -225,8 +202,6 @@ class BacktestDialog(QDialog):
         self._generate_thread.start()
 
     def _show_actual(self, actual) -> None:
-        """显示真实开奖结果."""
-        # 清空旧内容
         while self.actual_layout.count():
             item = self.actual_layout.takeAt(0)
             if item.widget():
@@ -236,9 +211,10 @@ class BacktestDialog(QDialog):
         self.actual_info_label.setText(f"真实开奖：第 {actual.issue} 期  {date_str}")
         self.result_group.setTitle(f"回测结果 - 第 {actual.issue} 期（{date_str}）")
 
+        groups = {g.key: actual.groups.get(g.key, []) for g in self.profile.pick_groups}
         ticket = Ticket(
-            red_balls=actual.red_balls,
-            blue_ball=actual.blue_ball,
+            profile=self.profile,
+            groups=groups,
             strategy_name="官方开奖",
             basis=f"期号：{actual.issue}，开奖日期：{date_str}",
         )
@@ -247,12 +223,18 @@ class BacktestDialog(QDialog):
     def _show_data_scope(
         self, strategy_id, history, target_date, uses_history: bool
     ) -> None:
-        """展示本次预测所用训练数据的范围，明确不含预测日、无数据泄露."""
         target_str = target_date.strftime("%Y-%m-%d")
         if not uses_history:
             self.data_scope_label.setText(
                 f"该策略不依赖历史开奖数据，预测与 {target_str} 当期结果无关，"
                 "不存在数据泄露。"
+            )
+            self.data_scope_label.setVisible(True)
+            return
+
+        if not history:
+            self.data_scope_label.setText(
+                f"⚠ 该策略需要历史数据，但 {target_str} 之前没有可用记录。"
             )
             self.data_scope_label.setVisible(True)
             return
@@ -276,21 +258,19 @@ class BacktestDialog(QDialog):
             QMessageBox.critical(self, "预测失败", str(error))
             return
 
-        # 清空旧预测结果
         while self.predicted_layout.count() > 1:
             item = self.predicted_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        actual_reds = set(actual.red_balls)
-        actual_blue = actual.blue_ball
-
         for idx, ticket in enumerate(tickets, start=1):
-            red_hits = len(actual_reds & {b.number for b in ticket.red_balls})
-            blue_hit = 1 if ticket.blue_ball.number == actual_blue else 0
-            hit_text = f"命中 {red_hits} 个红球"
-            if blue_hit:
-                hit_text += " + 蓝球"
+            hit_parts = []
+            for g in self.profile.pick_groups:
+                actual_set = set(actual.groups.get(g.key, []))
+                predicted_set = set(ticket.groups.get(g.key, []))
+                hits = len(actual_set & predicted_set)
+                hit_parts.append(f"{g.name}{hits}")
+            hit_text = "，".join(hit_parts)
 
             row_widget = QWidget()
             row_layout = QHBoxLayout(row_widget)
@@ -298,7 +278,7 @@ class BacktestDialog(QDialog):
             row_layout.setSpacing(12)
 
             row_layout.addWidget(TicketRowWidget(ticket, show_index=idx))
-            hit_label = QLabel(f"{hit_text}")
+            hit_label = QLabel(f"命中：{hit_text}")
             hit_label.setStyleSheet(
                 "color: #D32F2F; font-weight: bold; font-size: 13px;"
             )

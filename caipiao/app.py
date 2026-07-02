@@ -18,8 +18,8 @@ def run() -> int:
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 
     app = QApplication(sys.argv)
-    app.setApplicationName("双色球号码生成器")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationName("彩票号码生成器")
+    app.setApplicationVersion("2.0.0")
 
     # 设置全局字体，避免某些控件出现负字号警告
     app.setFont(QFont("Microsoft YaHei", 10))
