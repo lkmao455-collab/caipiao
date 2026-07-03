@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from pathlib import Path
+import logging
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QClipboard, QKeySequence
@@ -30,7 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.profile import get_profile, list_profiles
+from ..core.profile import get_profile, list_profiles, profile_keys
 from ..core.strategies.generic import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
@@ -47,7 +48,10 @@ from .chart_utils import (
 )
 from .components.backtest_dialog import BacktestDialog
 from .components.ball_display import TicketRowWidget
+from .components.batch_backtest_dialog import BatchBacktestDialog
+from .components.draw_analysis_dialog import DrawAnalysisDialog
 from .components.history_panel import HistoryPanel
+from .components.hotkey_edit import HotkeyEdit, validate_hotkey_dialog
 from .components.strategy_panel import StrategyPanel
 from .components.training_progress_dialog import TrainingProgressDialog
 from .lottery_context import ContextManager, LotteryContext
@@ -64,6 +68,8 @@ ML_MODEL_STRATEGIES = {
     "xgboost": (LotteryXGBoostModel, "xgboost"),
     "lightgbm": (LotteryLightGBMModel, "lightgbm"),
 }
+
+logger = logging.getLogger(__name__)
 
 # 周几中文，用于展示开奖日期（weekday(): 周一=0 ... 周日=6）
 _WEEKDAY_CN = "一二三四五六日"
@@ -94,7 +100,11 @@ class MainWindow(QMainWindow):
 
         # 彩种上下文管理器
         self.context_manager = ContextManager(self.data_dir, self.history_manager)
-        self.current_key = self.settings.get("current_lottery", "ssq")
+        self.current_key = self._validated_current_key(
+            self.settings.get("current_lottery", "ssq")
+        )
+        self.settings.set("current_lottery", self.current_key)
+        self.settings.sync()
         self.current = self.context_manager.get(self.current_key)
 
         # 插件（每个彩种上下文独立加载，策略 id 互不冲突）
@@ -109,15 +119,24 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._setup_menu()
         self._apply_theme()
+        self._register_boss_key()
 
         # 启动时自动检查更新（离线时静默失败，不影响使用）
         self._perform_auto_update()
+
+    @staticmethod
+    def _validated_current_key(key: str) -> str:
+        """校验并规范化当前彩种 key，非法时回退到双色球。"""
+        if key in profile_keys():
+            return key
+        return "ssq"
 
     # ------------------------------------------------------------------ #
     # 生命周期
     # ------------------------------------------------------------------ #
     def closeEvent(self, event) -> None:
-        """关闭窗口时等待后台线程结束."""
+        """关闭窗口时请求后台线程结束并等待；超时后强制终止。"""
+        pending = []
         for attr in (
             "_fetch_thread",
             "_latest_update_thread",
@@ -127,8 +146,26 @@ class MainWindow(QMainWindow):
         ):
             thread = getattr(self, attr, None)
             if thread and thread.isRunning():
-                thread.quit()
-                thread.wait(5000)
+                thread.requestInterruption()
+                pending.append((attr, thread))
+
+        # 批量回测对话框可能是独立窗口，关闭主窗口时也要中断它
+        for dialog in self.findChildren(type):
+            if hasattr(dialog, "_thread"):
+                thread = getattr(dialog, "_thread", None)
+                if thread and thread.isRunning():
+                    thread.requestInterruption()
+                    pending.append(("batch_backtest_thread", thread))
+
+        for attr, thread in pending:
+            if not thread.wait(3000):
+                logger.warning("%s 未在 3 秒内结束，强制终止", attr)
+                thread.terminate()
+                thread.wait(1000)
+            thread.deleteLater()
+            if isinstance(attr, str) and hasattr(self, attr):
+                setattr(self, attr, None)
+
         event.accept()
 
     # ------------------------------------------------------------------ #
@@ -295,6 +332,10 @@ class MainWindow(QMainWindow):
             saved_options = self.settings.last_strategy_options
             if saved_options:
                 self.strategy_panel.set_options(saved_options)
+            # 恢复上次使用的历史记录期数
+            saved_history_count = self.settings.last_history_count
+            if saved_history_count != -1:
+                self.strategy_panel.set_options({"history_count": saved_history_count})
 
     def _build_plugins_tab(self) -> QWidget:
         tab = QWidget()
@@ -359,6 +400,23 @@ class MainWindow(QMainWindow):
         self.dark_theme_check.setChecked(self.settings.dark_theme)
         self.dark_theme_check.stateChanged.connect(self._apply_theme)
         layout.addWidget(self.dark_theme_check)
+
+        # 老板键设置
+        hotkey_layout = QHBoxLayout()
+        hotkey_layout.addWidget(QLabel("老板键:"))
+        self.boss_key_edit = HotkeyEdit()
+        self.boss_key_edit.set_hotkey(self.settings.boss_key)
+        self.boss_key_edit.hotkey_changed.connect(self._on_boss_key_changed)
+        hotkey_layout.addWidget(self.boss_key_edit, 1)
+        layout.addLayout(hotkey_layout)
+
+        self.boss_key_hint = QLabel(
+            "设置后按快捷键可快速隐藏/显示主窗口。\n"
+            "建议：Ctrl+Shift+B、Alt+M。修改后点击“保存设置”即可生效。"
+        )
+        self.boss_key_hint.setWordWrap(True)
+        self.boss_key_hint.setStyleSheet("color: #666; font-size: 12px;")
+        layout.addWidget(self.boss_key_hint)
 
         # 保存按钮
         self.save_settings_btn = QPushButton("保存设置")
@@ -536,11 +594,24 @@ class MainWindow(QMainWindow):
         self.update_data_btn.setEnabled(True)
         self.data_progress.setVisible(False)
 
+        # 清理线程对象
+        thread = getattr(self, "_fetch_thread", None)
+        if thread is not None:
+            thread.deleteLater()
+            self._fetch_thread = None
+
         if error:
             QMessageBox.critical(self, "获取失败", f"获取开奖数据失败:\n{error}")
             return
+        if records is None:
+            QMessageBox.warning(self, "获取失败", "未获取到有效开奖数据")
+            return
 
-        added = self.current.update_data(records)
+        try:
+            added = self.current.update_data(records)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "保存失败", f"保存开奖数据失败:\n{exc}")
+            return
         self.data_status_label.setText(self._data_status_text())
         self._refresh_data_stats()
         self.xgboost_status_label.setText(self._model_status_text())
@@ -549,22 +620,48 @@ class MainWindow(QMainWindow):
         )
 
     def _fetch_latest_draw(self) -> None:
-        """获取并显示最新一期开奖."""
+        """获取并显示最新一期开奖（在后台线程执行）。"""
+        self.fetch_latest_btn.setEnabled(False)
+        self.data_progress.setVisible(True)
+        self._latest_update_thread = FetchLatestDataThread(
+            self, profile=self.current.profile
+        )
+        self._latest_update_thread.result_ready.connect(
+            self._on_fetch_latest_finished, Qt.ConnectionType.QueuedConnection
+        )
+        self._latest_update_thread.start()
+
+    def _on_fetch_latest_finished(self, latest, error) -> None:
+        """最新一期获取完成回调。"""
+        self.fetch_latest_btn.setEnabled(True)
+        self.data_progress.setVisible(False)
+
+        # 清理线程对象
+        thread = getattr(self, "_latest_update_thread", None)
+        if thread is not None:
+            thread.deleteLater()
+            self._latest_update_thread = None
+
+        if error:
+            QMessageBox.critical(self, "获取失败", f"获取最新一期失败:\n{error}")
+            return
+        if latest is None:
+            QMessageBox.warning(self, "获取失败", "未获取到最新一期数据")
+            return
+
         try:
-            fetcher = self.current.data_fetcher
-            latest = fetcher.fetch_latest()
-            if latest:
-                self.current.update_data([latest])
-                self.data_status_label.setText(self._data_status_text())
-                self._refresh_data_stats()
-                self.xgboost_status_label.setText(self._model_status_text())
-                QMessageBox.information(
-                    self,
-                    "最新一期",
-                    self._latest_draw_message(latest),
-                )
+            self.current.update_data([latest])
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "获取失败", str(exc))
+            QMessageBox.critical(self, "保存失败", f"保存最新一期失败:\n{exc}")
+            return
+        self.data_status_label.setText(self._data_status_text())
+        self._refresh_data_stats()
+        self.xgboost_status_label.setText(self._model_status_text())
+        QMessageBox.information(
+            self,
+            "最新一期",
+            self._latest_draw_message(latest),
+        )
 
     def _latest_draw_message(self, latest: DrawRecord) -> str:
         lines = [
@@ -585,7 +682,11 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self.current.clear_data()
+            try:
+                self.current.clear_data()
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.critical(self, "清空失败", f"清空本地数据失败:\n{exc}")
+                return
             self.data_status_label.setText(self._data_status_text())
             self.data_stats_text.clear()
             self.xgboost_status_label.setText(self._model_status_text())
@@ -680,11 +781,16 @@ class MainWindow(QMainWindow):
         self._pretrain_fetch_thread.start()
 
     def _on_pretrain_fetch_done(self, latest, error) -> None:
-        """最新数据拉取完成：更新本地数据后开始训练（离线失败则用本地数据继续）."""
+        """最新数据拉取完成：更新本地数据后开始训练（离线失败则用本地数据继续）。"""
         if not error and latest is not None:
-            self.current.update_data([latest])
-            self.data_status_label.setText(self._data_status_text())
-            self._refresh_data_stats()
+            try:
+                self.current.update_data([latest])
+            except Exception as exc:  # noqa: BLE001
+                # 拉取到但保存失败：继续用本地数据训练，只记录日志
+                logger.warning("保存最新一期数据失败: %s", exc)
+            else:
+                self.data_status_label.setText(self._data_status_text())
+                self._refresh_data_stats()
 
         records = self.current.data_repository.get_all()
         if len(records) < 100:
@@ -695,7 +801,11 @@ class MainWindow(QMainWindow):
         prefix = getattr(self, "_train_prefix", "xgboost")
         backend = getattr(self, "_train_backend", "xgboost")
         lookback = compute_lookback(len(records))
-        model_path = new_model_path(lookback, prefix=prefix)
+
+        strategy_options = self.strategy_panel.current_options()
+        model_path = new_model_path(
+            records, lookback, prefix=prefix, options=strategy_options
+        )
 
         dialog = getattr(self, "_train_dialog", None)
         if dialog is not None:
@@ -725,14 +835,20 @@ class MainWindow(QMainWindow):
         self._xgboost_thread.start()
 
     def _on_training_done(self, success, error) -> None:
+        # 清理线程对象
+        thread = getattr(self, "_xgboost_thread", None)
+        if thread is not None:
+            thread.deleteLater()
+            self._xgboost_thread = None
         self._finish_training(error)
 
     def _finish_training(self, error) -> None:
-        """关闭进度窗口并回调训练发起方."""
+        """关闭进度窗口并回调训练发起方。"""
         dialog = getattr(self, "_train_dialog", None)
         if dialog is not None:
             dialog.mark_finished()
             dialog.close()
+            dialog.deleteLater()
             self._train_dialog = None
 
         after = getattr(self, "_train_after", None)
@@ -763,10 +879,16 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "训练完成", "模型已训练完成并保存")
 
     def _delete_xgboost_model(self) -> None:
-        """删除本地模型."""
-        prefix = self.current.profile.xgboost_prefix()
+        """删除本地模型（同时删除 XGBoost 与 LightGBM）。"""
+        prefixes = {
+            self.current.profile.xgboost_prefix(),
+            self.current.profile.lightgbm_prefix(),
+        }
         model_dir = Path.home() / ".caipiao" / "models"
-        model_files = list(model_dir.glob(f"{prefix}_*.pkl")) if model_dir.exists() else []
+        model_files = []
+        if model_dir.exists():
+            for prefix in prefixes:
+                model_files.extend(model_dir.glob(f"{prefix}_*.pkl"))
         if not model_files:
             QMessageBox.information(self, "提示", "没有可删除的模型")
             return
@@ -777,12 +899,22 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
+            failed = []
             for f in model_files:
-                f.unlink()
+                try:
+                    f.unlink()
+                except OSError as exc:
+                    failed.append((f.name, str(exc)))
                 meta = Path(str(f) + ".meta.json")
                 if meta.exists():
-                    meta.unlink()
+                    try:
+                        meta.unlink()
+                    except OSError as exc:
+                        failed.append((meta.name, str(exc)))
             self.xgboost_status_label.setText(self._model_status_text())
+            if failed:
+                details = "\n".join(f"{name}: {err}" for name, err in failed)
+                QMessageBox.warning(self, "删除警告", f"以下文件删除失败：\n{details}")
 
     # ------------------------------------------------------------------ #
     # 设置
@@ -822,23 +954,33 @@ class MainWindow(QMainWindow):
         self._latest_update_thread.start()
 
     def _on_latest_update_finished(self, latest, error) -> None:
-        """自动更新完成回调（静默处理失败）."""
+        """自动更新完成回调（静默处理失败）。"""
+        # 清理线程对象
+        thread = getattr(self, "_latest_update_thread", None)
+        if thread is not None:
+            thread.deleteLater()
+            self._latest_update_thread = None
+
         if error or latest is None:
             self.data_status_label.setText(self._data_status_text(offline=True))
             return
 
-        local_latest = self.current.data_repository.get_latest()
-        if local_latest is None or latest.draw_date > local_latest.draw_date:
-            self.current.update_data([latest])
-            self.settings.last_data_update = datetime.now().isoformat()
-            self.settings.sync()
-            self.data_status_label.setText(self._data_status_text(offline=False))
-            self._refresh_data_stats()
-            self.xgboost_status_label.setText(self._model_status_text())
-        else:
-            self.settings.last_data_update = datetime.now().isoformat()
-            self.settings.sync()
-            self.data_status_label.setText(self._data_status_text(offline=False))
+        try:
+            local_latest = self.current.data_repository.get_latest()
+            if local_latest is None or latest.draw_date > local_latest.draw_date:
+                self.current.update_data([latest])
+                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.sync()
+                self.data_status_label.setText(self._data_status_text(offline=False))
+                self._refresh_data_stats()
+                self.xgboost_status_label.setText(self._model_status_text())
+            else:
+                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.sync()
+                self.data_status_label.setText(self._data_status_text(offline=False))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("自动更新处理失败: %s", exc)
+            self.data_status_label.setText(self._data_status_text(offline=True))
 
     def _check_for_updates(self) -> None:
         """手动检查更新."""
@@ -857,6 +999,12 @@ class MainWindow(QMainWindow):
         self.check_update_btn.setEnabled(True)
         self.data_progress.setVisible(False)
 
+        # 清理线程对象
+        thread = getattr(self, "_latest_update_thread", None)
+        if thread is not None:
+            thread.deleteLater()
+            self._latest_update_thread = None
+
         if error or latest is None:
             QMessageBox.warning(
                 self, "检查失败", f"无法连接到数据源，当前为离线模式。\n错误: {error}"
@@ -864,24 +1012,28 @@ class MainWindow(QMainWindow):
             self.data_status_label.setText(self._data_status_text(offline=True))
             return
 
-        local_latest = self.current.data_repository.get_latest()
-        if local_latest is None or latest.draw_date > local_latest.draw_date:
-            self.current.update_data([latest])
-            self.settings.last_data_update = datetime.now().isoformat()
-            self.settings.sync()
-            self.data_status_label.setText(self._data_status_text(offline=False))
-            self._refresh_data_stats()
-            self.xgboost_status_label.setText(self._model_status_text())
-            QMessageBox.information(
-                self,
-                "更新成功",
-                self._latest_draw_message(latest),
-            )
-        else:
-            self.settings.last_data_update = datetime.now().isoformat()
-            self.settings.sync()
-            self.data_status_label.setText(self._data_status_text(offline=False))
-            QMessageBox.information(self, "已是最新", f"当前数据已是最新一期 {local_latest.issue}")
+        try:
+            local_latest = self.current.data_repository.get_latest()
+            if local_latest is None or latest.draw_date > local_latest.draw_date:
+                self.current.update_data([latest])
+                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.sync()
+                self.data_status_label.setText(self._data_status_text(offline=False))
+                self._refresh_data_stats()
+                self.xgboost_status_label.setText(self._model_status_text())
+                QMessageBox.information(
+                    self,
+                    "更新成功",
+                    self._latest_draw_message(latest),
+                )
+            else:
+                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.sync()
+                self.data_status_label.setText(self._data_status_text(offline=False))
+                QMessageBox.information(self, "已是最新", f"当前数据已是最新一期 {local_latest.issue}")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "保存失败", f"保存开奖数据失败:\n{exc}")
+            self.data_status_label.setText(self._data_status_text(offline=True))
 
     # ------------------------------------------------------------------ #
     # 菜单
@@ -901,7 +1053,29 @@ class MainWindow(QMainWindow):
         backtest_action.triggered.connect(self._show_backtest_dialog)
         tools_menu.addAction(backtest_action)
 
+        batch_backtest_action = QAction("批量历史回测", self)
+        batch_backtest_action.setToolTip(
+            "对一段日期区间逐期回测，自动为每个日期重新训练模型并汇总盈亏。"
+        )
+        batch_backtest_action.triggered.connect(self._show_batch_backtest_dialog)
+        tools_menu.addAction(batch_backtest_action)
+
+        draw_analysis_action = QAction("开奖记录分析", self)
+        draw_analysis_action.setToolTip(
+            "查看开奖记录，并统计相邻两期之间红球/蓝球的重合情况。"
+        )
+        draw_analysis_action.triggered.connect(self._show_draw_analysis_dialog)
+        tools_menu.addAction(draw_analysis_action)
+
         help_menu = menubar.addMenu("帮助")
+
+        lottery_guide_action = QAction("彩种介绍", self)
+        lottery_guide_action.setToolTip("查看全部彩种（双色球/福彩3D/七乐彩/快乐8）的玩法规则与策略说明。")
+        lottery_guide_action.triggered.connect(
+            lambda: self._show_doc("彩种介绍", "lottery_guide.md")
+        )
+        help_menu.addAction(lottery_guide_action)
+
         guide_action = QAction("学习文档", self)
         guide_action.setShortcut(QKeySequence("F1"))
         guide_action.setToolTip("打开概率统计与机器学习学习文档（本窗口内查看）。")
@@ -947,6 +1121,8 @@ class MainWindow(QMainWindow):
         self.settings.last_strategy_id = strategy_id
         self.settings.default_count = count
         self.settings.last_strategy_options = user_options
+        history_count = options.get("history_count", -1)
+        self.settings.last_history_count = history_count
         self.settings.sync()
 
         # 需要历史记录的策略自动注入数据
@@ -955,7 +1131,12 @@ class MainWindow(QMainWindow):
             if not records:
                 QMessageBox.warning(self, "缺少数据", "该策略需要官方开奖数据，请先更新数据。")
                 return
+            if isinstance(history_count, int) and history_count > 0:
+                records = records[-history_count:]
             options["history"] = records
+
+        # 保存实际用于训练的历史期数，供模型文件名使用
+        options["_training_record_count"] = len(options.get("history", records))
 
         # ML 模型策略：若当前数据对应的模型已过期，先自动重新训练
         if self.current.profile.key == "ssq" and strategy_id in ML_MODEL_STRATEGIES:
@@ -1032,6 +1213,12 @@ class MainWindow(QMainWindow):
         self.generate_btn.setEnabled(True)
         self.generate_btn.setText("立即生成")
 
+        # 清理线程对象
+        thread = getattr(self, "_generate_thread", None)
+        if thread is not None:
+            thread.deleteLater()
+            self._generate_thread = None
+
         if error:
             QMessageBox.critical(self, "生成失败", str(error))
             return
@@ -1039,8 +1226,11 @@ class MainWindow(QMainWindow):
         self._last_generated = tickets
         self._annotate_target_period(tickets)
         self._display_results(tickets)
-        self.history_manager.add_many(tickets)
-        self.history_panel.refresh()
+        try:
+            self.history_manager.add_many(tickets)
+            self.history_panel.refresh()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "保存历史失败", f"保存到历史记录失败:\n{exc}")
 
     def _annotate_target_period(self, tickets: list) -> None:
         if not tickets:
@@ -1321,9 +1511,18 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "_last_generated") or not self._last_generated:
             QMessageBox.information(self, "提示", "请先生成号码")
             return
-        self.history_manager.add_many(self._last_generated)
-        self.history_panel.refresh()
-        QMessageBox.information(self, "保存成功", f"已保存 {len(self._last_generated)} 注到历史记录")
+        # 生成结果已在 _on_generation_finished 中自动保存；此处仅做去重提示。
+        try:
+            added = self.history_manager.add_many(
+                self._last_generated, skip_duplicates=True
+            )
+            self.history_panel.refresh()
+            if added:
+                QMessageBox.information(self, "保存成功", f"已保存 {added} 注新结果到历史记录")
+            else:
+                QMessageBox.information(self, "提示", "当前结果已存在于历史记录中")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "保存失败", f"保存到历史记录失败:\n{exc}")
 
     def _on_history_changed(self) -> None:
         pass
@@ -1365,18 +1564,68 @@ class MainWindow(QMainWindow):
     def _apply_theme(self) -> None:
         is_dark = self.dark_theme_check.isChecked()
         self.settings.dark_theme = is_dark
+        font = self.font()
+        if font.pointSize() <= 0:
+            font.setPointSize(10)
+            self.setFont(font)
         if is_dark:
             self.setStyleSheet(self._dark_stylesheet())
         else:
             self.setStyleSheet(self._light_stylesheet())
 
     def _save_settings(self) -> None:
-        self.settings.default_count = self.settings_count_spin.value()
-        self.settings.dark_theme = self.dark_theme_check.isChecked()
-        self.settings.last_strategy_id = self.strategy_panel.current_strategy_id()
-        self.settings.set("current_lottery", self.current_key)
+        try:
+            self.settings.default_count = self.settings_count_spin.value()
+            self.settings.dark_theme = self.dark_theme_check.isChecked()
+            self.settings.last_strategy_id = self.strategy_panel.current_strategy_id()
+            self.settings.set("current_lottery", self.current_key)
+            new_boss_key = self.boss_key_edit.edit.text().strip()
+            if validate_hotkey_dialog(new_boss_key, self):
+                self.settings.boss_key = new_boss_key
+                self._register_boss_key()
+            else:
+                return
+            self.settings.sync()
+            QMessageBox.information(self, "设置已保存", "设置已保存并生效")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "保存失败", f"保存设置失败:\n{exc}")
+
+    def _on_boss_key_changed(self, hotkey: str) -> None:
+        """快捷键输入变化时实时保存并注册."""
+        hotkey = hotkey.strip()
+        if hotkey and not validate_hotkey_dialog(hotkey, self):
+            return
+        self.settings.boss_key = hotkey
         self.settings.sync()
-        QMessageBox.information(self, "设置已保存", "设置已保存并生效")
+        self._register_boss_key()
+
+    def _register_boss_key(self) -> None:
+        """注册/注销老板键."""
+        hotkey = self.settings.boss_key
+        if not hotkey:
+            if hasattr(self, "_boss_shortcut") and self._boss_shortcut:
+                self._boss_shortcut.setEnabled(False)
+            return
+
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        if not hasattr(self, "_boss_shortcut") or self._boss_shortcut is None:
+            self._boss_shortcut = QShortcut(self)
+            self._boss_shortcut.activated.connect(self._toggle_boss_mode)
+
+        self._boss_shortcut.setKey(QKeySequence(hotkey))
+        self._boss_shortcut.setEnabled(True)
+
+    def _toggle_boss_mode(self) -> None:
+        """切换主窗口显示/隐藏."""
+        if self.isVisible():
+            self.hide()
+            logger.info("老板键触发：隐藏主窗口")
+        else:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            logger.info("老板键触发：显示主窗口")
 
     # ------------------------------------------------------------------ #
     # 文档/关于/回测
@@ -1404,6 +1653,24 @@ class MainWindow(QMainWindow):
             )
             return
         dialog = BacktestDialog(self.current, self)
+        dialog.exec()
+
+    def _show_batch_backtest_dialog(self) -> None:
+        if not self.current.data_repository.get_count():
+            QMessageBox.information(
+                self, "缺少数据", "请先更新本地开奖数据，再进行批量历史回测。"
+            )
+            return
+        dialog = BatchBacktestDialog(self.current, self)
+        dialog.exec()
+
+    def _show_draw_analysis_dialog(self) -> None:
+        if not self.current.data_repository.get_count():
+            QMessageBox.information(
+                self, "缺少数据", "请先更新本地开奖数据，再进行开奖记录分析。"
+            )
+            return
+        dialog = DrawAnalysisDialog(self.current, self)
         dialog.exec()
 
     def _show_about(self) -> None:

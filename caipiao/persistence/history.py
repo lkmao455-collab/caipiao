@@ -42,17 +42,45 @@ class HistoryManager:
         with self.storage_path.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def add(self, ticket: Ticket) -> None:
-        """添加单条记录."""
+    def add(self, ticket: Ticket, *, skip_duplicates: bool = False) -> bool:
+        """添加单条记录。
+
+        Args:
+            ticket: 要添加的投注单。
+            skip_duplicates: 为 True 时跳过与现有记录完全相同的票。
+
+        Returns:
+            是否实际添加了新记录。
+        """
+        if skip_duplicates and ticket in self._tickets:
+            return False
         self._tickets.append(ticket)
         self._trim()
         self.save()
+        return True
 
-    def add_many(self, tickets: Iterable[Ticket]) -> None:
-        """批量添加记录."""
-        self._tickets.extend(tickets)
-        self._trim()
-        self.save()
+    def add_many(
+        self, tickets: Iterable[Ticket], *, skip_duplicates: bool = False
+    ) -> int:
+        """批量添加记录。
+
+        Args:
+            tickets: 要添加的投注单列表。
+            skip_duplicates: 为 True 时跳过已存在的记录。
+
+        Returns:
+            实际新增的记录数量。
+        """
+        added = 0
+        for ticket in tickets:
+            if skip_duplicates and ticket in self._tickets:
+                continue
+            self._tickets.append(ticket)
+            added += 1
+        if added > 0:
+            self._trim()
+            self.save()
+        return added
 
     def _trim(self) -> None:
         """限制记录数量."""

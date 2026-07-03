@@ -40,7 +40,7 @@ class LotteryLightGBMModel:
             subsample_freq=1,
             colsample_bytree=0.8,
             objective="binary",
-            n_jobs=2,
+            n_jobs=1,
             random_state=42,
             verbose=-1,
         )
@@ -85,7 +85,7 @@ class LotteryLightGBMModel:
         # 训练蓝球多输出分类器
         blue_clf = self._create_classifier()
         blue_clf.set_params(scale_pos_weight=5.0)
-        self.blue_model = MultiOutputClassifier(blue_clf, n_jobs=2)
+        self.blue_model = MultiOutputClassifier(blue_clf, n_jobs=1)
         self.blue_model.fit(X, y_blue)
         if progress_callback is not None:
             progress_callback(total, total)

@@ -36,7 +36,7 @@ def _create_xgb_classifier() -> Any:
         objective="binary:logistic",
         eval_metric="logloss",
         use_label_encoder=False,
-        n_jobs=2,
+        n_jobs=1,
         random_state=42,
         verbosity=0,
     )
@@ -54,7 +54,7 @@ def _create_lgbm_classifier() -> Any:
         subsample_freq=1,
         colsample_bytree=0.8,
         objective="binary",
-        n_jobs=2,
+        n_jobs=1,
         random_state=42,
         verbose=-1,
     )

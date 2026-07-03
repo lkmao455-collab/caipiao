@@ -112,7 +112,7 @@ def test_lightgbm_freshness_detection_and_retrain(tmp_path):
     """LightGBM 应能检测模型是否与当前数据匹配，过期时触发重训."""
     records = make_records(120)
     lookback = 50
-    path = model_store.new_model_path(lookback, directory=tmp_path, prefix="lightgbm")
+    path = model_store.new_model_path(records, lookback, directory=tmp_path, prefix="lightgbm")
 
     # 首次：无缓存模型 -> 需要训练
     p1 = MLPredictor(

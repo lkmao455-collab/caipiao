@@ -31,6 +31,8 @@ class FetchAllDataThread(QThread):
         try:
             fetcher = LotteryDataFetcher(profile=self.profile, timeout=self.timeout)
             records = fetcher.fetch_all()
+            if self.isInterruptionRequested():
+                return
             self.result_ready.emit(records, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
@@ -55,6 +57,8 @@ class FetchLatestDataThread(QThread):
         try:
             fetcher = LotteryDataFetcher(profile=self.profile, timeout=self.timeout)
             latest = fetcher.fetch_latest()
+            if self.isInterruptionRequested():
+                return
             self.result_ready.emit(latest, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
@@ -84,6 +88,8 @@ class GenerateTicketsThread(QThread):
             tickets = self.engine.generate(
                 self.strategy_id, count=self.count, options=self.options
             )
+            if self.isInterruptionRequested():
+                return
             self.result_ready.emit(tickets, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
@@ -145,6 +151,8 @@ class TrainModelThread(QThread):
                 predictor = MLPredictor(self.records, **kwargs)
 
             predictor.train(progress_callback=self._emit_progress)
+            if self.isInterruptionRequested():
+                return
             self.result_ready.emit(True, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)

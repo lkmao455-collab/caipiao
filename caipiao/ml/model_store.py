@@ -4,7 +4,8 @@
 供 UI 训练流程与生成策略共用，避免各处重复实现。
 
 各类模型（XGBoost、LightGBM 等）通过 ``prefix`` 区分文件命名，
-以免不同模型的缓存互相覆盖或指纹串扰。
+文件名中同时包含训练参数与预测目标日期，提高缓存命中率，
+避免相同参数下重复训练模型。
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..data.models import DrawRecord
 
@@ -60,25 +61,88 @@ def _model_fingerprint(model_path: Path) -> Optional[str]:
         return None
 
 
+def _model_meta(model_path: Path) -> Dict[str, Any]:
+    """读取模型元数据；缺失或异常返回空字典."""
+    meta_path = _meta_path(model_path)
+    if not meta_path.exists():
+        return {}
+    try:
+        with meta_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _format_prediction_date(records: List[DrawRecord]) -> str:
+    """返回模型预测目标日期的字符串（用于文件名）."""
+    if not records:
+        return "nodate"
+    latest = max(records, key=lambda r: r.draw_date)
+    return latest.draw_date.strftime("%Y%m%d")
+
+
+def _format_params(options: Optional[Dict[str, Any]]) -> str:
+    """把关键参数编码为文件名片段.
+
+    只选取影响模型训练或预测分布的参数，避免文件名过长。
+    """
+    options = options or {}
+    parts = []
+    history_count = options.get("history_count", -1)
+    if isinstance(history_count, int) and history_count > 0:
+        parts.append(f"hist{history_count}")
+    diversity = options.get("diversity_boost")
+    if diversity is not None:
+        parts.append(f"div{int(diversity)}")
+    overlap = options.get("max_red_overlap")
+    if overlap is not None:
+        parts.append(f"ovl{int(overlap)}")
+    if not parts:
+        return "default"
+    return "_".join(parts)
+
+
 def new_model_path(
+    records: List[DrawRecord],
     lookback: int,
     directory: Optional[Path] = None,
     when: Optional[datetime] = None,
     prefix: str = "xgboost",
+    options: Optional[Dict[str, Any]] = None,
 ) -> Path:
-    """生成带时间戳的新模型路径：``{prefix}_lookback{lookback}_{YYYYMMDD_HHMMSS}.pkl``."""
+    """生成带参数和目标日期的模型路径.
+
+    文件名格式：
+    ``{prefix}_{predict_date}_{params}_lookback{lookback}_{YYYYMMDD_HHMMSS}.pkl``
+
+    其中：
+    - predict_date：训练数据最新一期的开奖日期（模型要预测的就是下一期）。
+    - params：影响训练/预测的关键策略参数（如 diversity_boost、max_red_overlap）。
+    - lookback：特征回看期数。
+    - timestamp：训练完成时间。
+    """
     directory = directory or model_dir()
+    predict_date = _format_prediction_date(records)
+    params = _format_params(options)
     ts = (when or datetime.now()).strftime("%Y%m%d_%H%M%S")
-    return directory / f"{prefix}_lookback{lookback}_{ts}.pkl"
+    return directory / f"{prefix}_{predict_date}_{params}_lookback{lookback}_{ts}.pkl"
 
 
 def _candidate_models(
-    lookback: int, directory: Path, prefix: str = "xgboost"
+    records: List[DrawRecord],
+    lookback: int,
+    directory: Path,
+    prefix: str = "xgboost",
+    options: Optional[Dict[str, Any]] = None,
 ) -> List[Path]:
-    """列出该 lookback 的所有候选模型（含旧的无时间戳命名）."""
+    """列出与当前参数/日期匹配的候选模型."""
     if not directory.exists():
         return []
-    candidates = list(directory.glob(f"{prefix}_lookback{lookback}_*.pkl"))
+    predict_date = _format_prediction_date(records)
+    params = _format_params(options)
+    pattern = f"{prefix}_{predict_date}_{params}_lookback{lookback}_*.pkl"
+    candidates = list(directory.glob(pattern))
+    # 兼容旧命名
     legacy = directory / f"{prefix}_lookback{lookback}.pkl"
     if legacy.exists():
         candidates.append(legacy)
@@ -90,13 +154,14 @@ def find_current_model(
     lookback: int,
     directory: Optional[Path] = None,
     prefix: str = "xgboost",
+    options: Optional[Dict[str, Any]] = None,
 ) -> Optional[Path]:
     """返回与当前数据指纹匹配的、最新（按修改时间）的模型路径；无则 None."""
     directory = directory or model_dir()
     fingerprint = data_fingerprint(records)
     matching = [
         p
-        for p in _candidate_models(lookback, directory, prefix)
+        for p in _candidate_models(records, lookback, directory, prefix, options)
         if _model_fingerprint(p) == fingerprint
     ]
     if not matching:
@@ -109,6 +174,19 @@ def is_model_current(
     lookback: int,
     directory: Optional[Path] = None,
     prefix: str = "xgboost",
+    options: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """当前数据是否已有匹配的最新模型."""
-    return find_current_model(records, lookback, directory, prefix) is not None
+    return find_current_model(records, lookback, directory, prefix, options) is not None
+
+
+def model_info(model_path: Path) -> Dict[str, Any]:
+    """读取模型的元数据信息摘要."""
+    meta = _model_meta(model_path)
+    info = {
+        "path": str(model_path),
+        "name": model_path.name,
+        "modified": datetime.fromtimestamp(model_path.stat().st_mtime).isoformat(),
+    }
+    info.update(meta)
+    return info

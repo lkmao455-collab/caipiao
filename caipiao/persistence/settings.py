@@ -78,6 +78,60 @@ class AppSettings:
         self.set("last_data_update", value)
 
     @property
+    def boss_key(self) -> str:
+        return self.get("boss_key", "")
+
+    @boss_key.setter
+    def boss_key(self, value: str) -> None:
+        self.set("boss_key", value.strip())
+
+    @property
+    def last_history_count(self) -> int:
+        """ML/历史策略上次使用的历史记录期数；-1 表示使用全部。"""
+        try:
+            return int(self.get("last_history_count", -1))
+        except (ValueError, TypeError):
+            return -1
+
+    @last_history_count.setter
+    def last_history_count(self, value: int) -> None:
+        self.set("last_history_count", int(value))
+
+    @property
+    def last_backtest_options(self) -> dict:
+        """历史回测对话框上次使用的参数."""
+        raw = self.get("last_backtest_options", "")
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+
+    @last_backtest_options.setter
+    def last_backtest_options(self, value: dict) -> None:
+        self.set("last_backtest_options", json.dumps(value or {}, ensure_ascii=False))
+
+    @property
+    def last_backtest_date(self) -> str:
+        return self.get("last_backtest_date", "")
+
+    @last_backtest_date.setter
+    def last_backtest_date(self, value: str) -> None:
+        self.set("last_backtest_date", value)
+
+    @property
+    def last_backtest_count(self) -> int:
+        try:
+            return int(self.get("last_backtest_count", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @last_backtest_count.setter
+    def last_backtest_count(self, value: int) -> None:
+        self.set("last_backtest_count", max(1, min(50, int(value))))
+
+    @property
     def last_strategy_options(self) -> dict:
         """上次生成时使用的策略参数（JSON 字符串）。"""
         raw = self.get("last_strategy_options", "")

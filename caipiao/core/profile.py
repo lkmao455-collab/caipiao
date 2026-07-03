@@ -239,6 +239,11 @@ PROFILES: Dict[str, LotteryProfile] = {
 DEFAULT_KEY = "ssq"
 
 
+def profile_keys() -> List[str]:
+    """返回全部已注册彩种 key。"""
+    return [p.key for p in list_profiles()]
+
+
 def get_profile(key: str) -> LotteryProfile:
     """按 key 获取彩种档案；未知 key 返回默认（双色球）。"""
     return PROFILES.get(key, SSQ)

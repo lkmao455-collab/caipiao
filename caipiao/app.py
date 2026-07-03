@@ -21,8 +21,11 @@ def run() -> int:
     app.setApplicationName("彩票号码生成器")
     app.setApplicationVersion("2.0.0")
 
-    # 设置全局字体，避免某些控件出现负字号警告
-    app.setFont(QFont("Microsoft YaHei", 10))
+    # 设置全局字体：明确使用正像素大小，避免某些系统主题下解析出负字号。
+    font = QFont("Microsoft YaHei")
+    font.setPointSize(10)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+    app.setFont(font)
 
     # 设置应用图标（任务栏显示）
     icon_path = Path(__file__).resolve().parent / "ui" / "resources" / "icon.ico"

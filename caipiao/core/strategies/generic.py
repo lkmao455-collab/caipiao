@@ -695,6 +695,14 @@ class _GenericMLStrategy(_GenericBase):
                 "max": 10,
             },
             "history": {"type": "history", "label": "历史记录", "default": []},
+            "history_count": {
+                "type": "int",
+                "label": "使用历史记录期数",
+                "default": -1,
+                "min": -1,
+                "max": 10000,
+                "tooltip": "-1 表示使用全部历史记录；正数表示只使用最近 N 期训练模型。",
+            },
         }
         # 快乐8 额外让玩家选择投注个数
         for g in self.profile.pick_groups:
@@ -712,6 +720,9 @@ class _GenericMLStrategy(_GenericBase):
         history = options.get("history", [])
         if len(history) < 100:
             raise ValueError(f"{self.metadata.name} 策略需要至少 100 期历史数据")
+        history_count = options.get("history_count", -1)
+        if not isinstance(history_count, int) or history_count < -1:
+            raise ValueError("使用历史记录期数必须大于等于 -1")
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -721,14 +732,20 @@ class _GenericMLStrategy(_GenericBase):
         diversity = int(options.get("diversity_boost", 3)) / 10.0
         seed = 42
 
+        history_count = options.get("history_count", -1)
+        if isinstance(history_count, int) and history_count > 0 and len(records) > history_count:
+            records = records[-history_count:]
+
         lookback = compute_lookback(len(records))
         prefix = (
             self.profile.xgboost_prefix()
             if self._backend == "xgboost"
             else self.profile.lightgbm_prefix()
         )
-        model_path = find_current_model(records, lookback, prefix=prefix) or new_model_path(
-            lookback, prefix=prefix
+        model_path = find_current_model(
+            records, lookback, prefix=prefix, options=options
+        ) or new_model_path(
+            records, lookback, prefix=prefix, options=options
         )
 
         predictor = GenericMLPredictor(
@@ -778,7 +795,7 @@ class _GenericMLStrategy(_GenericBase):
             "model_name": self._backend.upper(),
         }
         basis = (
-            f"{self.metadata.name}：基于全部 {len(records)} 期历史数据训练模型，"
+            f"{self.metadata.name}：基于最近 {len(records)} 期历史数据训练模型，"
             f"特征回看期数 {lookback}，按预测概率加权采样。"
         )
 

@@ -21,9 +21,10 @@ def make_records(count: int = 120):
     return records
 
 
-def _write_model(directory, lookback, fingerprint, when):
+def _write_model(directory, lookback, fingerprint, when, prefix="xgboost"):
     """在指定目录写入一个假的模型文件及其元数据."""
-    path = model_store.new_model_path(lookback, directory=directory, when=when)
+    records = make_records(120)
+    path = model_store.new_model_path(records, lookback, directory=directory, when=when, prefix=prefix)
     path.write_bytes(b"fake-model")
     meta = model_store._meta_path(path)
     meta.write_text(json.dumps({"fingerprint": fingerprint}), encoding="utf-8")
@@ -48,18 +49,21 @@ def test_data_fingerprint_reflects_latest():
 
 
 def test_new_model_path_naming(tmp_path):
+    records = make_records(120)
     path = model_store.new_model_path(
-        50, directory=tmp_path, when=datetime(2025, 7, 1, 9, 3, 53)
+        records, 50, directory=tmp_path, when=datetime(2025, 7, 1, 9, 3, 53)
     )
-    assert path.name == "xgboost_lookback50_20250701_090353.pkl"
+    assert path.name.startswith("xgboost_20240429_default_lookback50_20250701_090353")
     assert path.parent == tmp_path
 
 
 def test_new_model_path_prefix(tmp_path):
+    records = make_records(120)
     path = model_store.new_model_path(
-        50, directory=tmp_path, when=datetime(2025, 7, 1, 9, 3, 53), prefix="lightgbm"
+        records, 50, directory=tmp_path, when=datetime(2025, 7, 1, 9, 3, 53), prefix="lightgbm"
     )
-    assert path.name == "lightgbm_lookback50_20250701_090353.pkl"
+    assert path.name.startswith("lightgbm_20240429_default_lookback50_20250701_090353")
+    assert path.name.endswith(".pkl")
 
 
 def test_find_current_model_isolated_by_prefix(tmp_path):

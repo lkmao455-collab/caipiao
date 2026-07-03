@@ -26,7 +26,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...persistence.settings import AppSettings
 from ...core.profile import LotteryProfile
+from ...core.prize import calculate_prize
 from ...core.strategies.generic import needs_history
 from ...core.ticket import Ticket
 from ..workers import GenerateTicketsThread
@@ -46,12 +48,14 @@ class BacktestDialog(QDialog):
         self.context = context
         self.profile: LotteryProfile = context.profile
         self.data_repository = context.data_repository
+        self.settings = AppSettings()
         self._generate_thread: Optional[QThread] = None
 
         self.setWindowTitle(f"{self.profile.name}历史回测")
         self.resize(900, 700)
         self._setup_ui()
         self._refresh_date_range()
+        self._restore_last_settings()
 
     def _setup_ui(self) -> None:
         self.layout = QVBoxLayout(self)
@@ -116,6 +120,15 @@ class BacktestDialog(QDialog):
         self.data_scope_label.setVisible(False)
         result_layout.addWidget(self.data_scope_label)
 
+        self.summary_label = QLabel()
+        self.summary_label.setWordWrap(True)
+        self.summary_label.setStyleSheet(
+            "QLabel { color: #0A2540; background-color: #E3F2FD; "
+            "border-radius: 4px; padding: 6px; font-size: 13px; font-weight: bold; }"
+        )
+        self.summary_label.setVisible(False)
+        result_layout.addWidget(self.summary_label)
+
         result_layout.addWidget(QLabel("预测号码（命中数按各号码组分别统计）:"))
         self.predicted_scroll = QScrollArea()
         self.predicted_scroll.setWidgetResizable(True)
@@ -156,6 +169,36 @@ class BacktestDialog(QDialog):
             default = end
         self.date_edit.setDate(QDate(default.year, default.month, default.day))
 
+    def _restore_last_settings(self) -> None:
+        """恢复上次使用的回测参数."""
+        last_date_str = self.settings.last_backtest_date
+        if last_date_str:
+            try:
+                last_date = datetime.strptime(last_date_str, "%Y-%m-%d")
+                qdate = QDate(last_date.year, last_date.month, last_date.day)
+                if qdate >= self.date_edit.minimumDate() and qdate <= self.date_edit.maximumDate():
+                    self.date_edit.setDate(qdate)
+            except ValueError:
+                pass
+
+        self.count_spin.setValue(self.settings.last_backtest_count)
+
+        saved_options = self.settings.last_backtest_options
+        if saved_options:
+            self.strategy_panel.set_options(saved_options)
+
+    def _save_current_settings(self) -> None:
+        """保存当前回测参数."""
+        self.settings.last_backtest_date = self.date_edit.date().toString("yyyy-MM-dd")
+        self.settings.last_backtest_count = self.count_spin.value()
+        try:
+            options = self.strategy_panel.current_options()
+            user_options = {k: v for k, v in options.items() if k != "history"}
+            self.settings.last_backtest_options = user_options
+        except ValueError:
+            pass
+        self.settings.sync()
+
     def _run_backtest(self) -> None:
         target_qdate = self.date_edit.date()
         target_date = datetime(target_qdate.year(), target_qdate.month(), target_qdate.day())
@@ -185,6 +228,9 @@ class BacktestDialog(QDialog):
             options["history"] = history
 
         count = self.count_spin.value()
+
+        # 保存当前参数供下次启动恢复
+        self._save_current_settings()
 
         self._show_actual(actual)
         self._show_data_scope(strategy_id, history, target_date, uses_history)
@@ -263,14 +309,42 @@ class BacktestDialog(QDialog):
             if item.widget():
                 item.widget().deleteLater()
 
+        total_cost = len(tickets) * 2
+        total_fixed_prize = 0
+        float_prize_count = 0
+        hit_count = 0
+
         for idx, ticket in enumerate(tickets, start=1):
-            hit_parts = []
+            ticket_numbers: set[int] = set()
             for g in self.profile.pick_groups:
+                ticket_numbers.update(ticket.groups.get(g.key, []))
+            hits: Dict[str, int] = {}
+            hit_parts = []
+            for g in self.profile.groups:
                 actual_set = set(actual.groups.get(g.key, []))
-                predicted_set = set(ticket.groups.get(g.key, []))
-                hits = len(actual_set & predicted_set)
-                hit_parts.append(f"{g.name}{hits}")
+                if g.draw_only:
+                    predicted_set = ticket_numbers
+                else:
+                    predicted_set = set(ticket.groups.get(g.key, []))
+                h = len(actual_set & predicted_set)
+                hits[g.key] = h
+                if not g.draw_only:
+                    hit_parts.append(f"{g.name}{h}")
             hit_text = "，".join(hit_parts)
+
+            prize_name, prize_amount = calculate_prize(
+                self.profile.key, hits, ticket.groups
+            )
+            if prize_amount is None:
+                prize_text = f"{prize_name}（浮动奖金）"
+                float_prize_count += 1
+                hit_count += 1
+            elif prize_amount > 0:
+                prize_text = f"{prize_name} · 奖金 {prize_amount} 元"
+                total_fixed_prize += prize_amount
+                hit_count += 1
+            else:
+                prize_text = "未中奖"
 
             row_widget = QWidget()
             row_layout = QHBoxLayout(row_widget)
@@ -278,11 +352,22 @@ class BacktestDialog(QDialog):
             row_layout.setSpacing(12)
 
             row_layout.addWidget(TicketRowWidget(ticket, show_index=idx))
-            hit_label = QLabel(f"命中：{hit_text}")
+            hit_label = QLabel(f"命中：{hit_text}\n{prize_text}")
             hit_label.setStyleSheet(
-                "color: #D32F2F; font-weight: bold; font-size: 13px;"
+                "QLabel { color: #B71C1C; background-color: #FFEBEE; "
+                "border-radius: 4px; padding: 4px; font-weight: bold; font-size: 13px; }"
             )
+            hit_label.setWordWrap(True)
             row_layout.addWidget(hit_label)
             row_layout.addStretch()
 
             self.predicted_layout.insertWidget(idx - 1, row_widget)
+
+        profit = total_fixed_prize - total_cost
+        self.summary_label.setText(
+            f"本期共 {len(tickets)} 注，总花费 {total_cost} 元 | "
+            f"固定奖金合计 {total_fixed_prize} 元 | "
+            f"浮动奖 {float_prize_count} 次 | "
+            f"中奖 {hit_count} 次 | 盈亏 {profit:+d} 元"
+        )
+        self.summary_label.setVisible(True)

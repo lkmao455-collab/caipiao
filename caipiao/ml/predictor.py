@@ -168,9 +168,11 @@ class MLPredictor:
             available_reds.pop(idx)
             red_p = np.delete(red_p, idx)
 
-        selected_blues = rng.choice(
-            range(1, 17), size=blue_count, replace=False, p=blue_weights
-        ).tolist()
+        selected_blues: List[int] = []
+        if blue_count > 0:
+            selected_blues = rng.choice(
+                range(1, 17), size=blue_count, replace=False, p=blue_weights
+            ).tolist()
 
         return sorted(selected_reds), selected_blues
 
