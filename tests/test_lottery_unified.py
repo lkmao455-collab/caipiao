@@ -22,9 +22,14 @@ from caipiao.ml.generic_predictor import GenericMLPredictor
 # --------------------------------------------------------------------------- #
 def test_profile_registry():
     profiles = list_profiles()
-    assert {p.key for p in profiles} == {"ssq", "3d", "qlc", "kl8"}
+    assert {p.key for p in profiles} == {
+        "ssq", "3d", "qlc", "kl8",
+        "dlt", "pl3", "pl5", "qxc",
+    }
     assert get_profile("3d").primary_group.key == "pos"
     assert get_profile("kl8").primary_group.effective_pick_max == 10
+    assert get_profile("dlt").category == "sports"
+    assert get_profile("ssq").category == "welfare"
 
 
 def test_group_constraints():
@@ -105,6 +110,39 @@ def test_parse_kl8():
     rec = f._parse_kl8(parts, "")
     assert rec is not None
     assert len(rec.groups["main"]) == 20
+
+
+def test_parse_dlt():
+    f = LotteryDataFetcher(profile=get_profile("dlt"))
+    parts = ["2024001", "2024-01-01"] + [str(i) for i in range(1, 6)] + ["1", "2"]
+    rec = f._parse_dlt(parts, "")
+    assert rec is not None
+    assert rec.groups["front"] == list(range(1, 6))
+    assert rec.groups["back"] == [1, 2]
+
+
+def test_parse_pl3():
+    f = LotteryDataFetcher(profile=get_profile("pl3"))
+    parts = ["2026172", "2026-07-01", "4", "4", "5"] + ["0"] * 10
+    rec = f._parse_pl3(parts, "")
+    assert rec is not None
+    assert rec.groups["pos"] == [4, 4, 5]
+
+
+def test_parse_pl5():
+    f = LotteryDataFetcher(profile=get_profile("pl5"))
+    parts = ["2026172", "2026-07-01", "1", "2", "3", "4", "5"] + ["0"] * 10
+    rec = f._parse_pl5(parts, "")
+    assert rec is not None
+    assert rec.groups["pos"] == [1, 2, 3, 4, 5]
+
+
+def test_parse_qxc():
+    f = LotteryDataFetcher(profile=get_profile("qxc"))
+    parts = ["2026172", "2026-07-01", "1", "2", "3", "4", "5", "6", "7"] + ["0"] * 10
+    rec = f._parse_qxc(parts, "")
+    assert rec is not None
+    assert rec.groups["pos"] == [1, 2, 3, 4, 5, 6, 7]
 
 
 # --------------------------------------------------------------------------- #
@@ -267,6 +305,78 @@ def test_generic_hot_cold_qlc():
     ]
     tickets = strategies["hot_cold_qlc"].generate(count=2, options={"mode": "hot", "history": history})
     assert len(tickets) == 2
+
+
+# --------------------------------------------------------------------------- #
+# DrawAnalysisDialog analysis tests
+# --------------------------------------------------------------------------- #
+def test_analyze_adjacent_ssq():
+    records = [
+        DrawRecord("2024001", datetime(2024, 1, 1), [1, 2, 3, 4, 5, 6], 7),
+        DrawRecord("2024002", datetime(2024, 1, 3), [1, 2, 3, 10, 11, 12], 8),
+        DrawRecord("2024003", datetime(2024, 1, 5), [13, 14, 15, 16, 17, 18], 9),
+    ]
+    from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
+
+    stats, details = _analyze_adjacent(records, get_profile("ssq"))
+    assert stats.total_pairs == 2
+    assert stats.group_stats["red"].same_counts[3] == 1
+    assert stats.group_stats["red"].same_counts[0] == 1
+    assert stats.group_stats["blue"].same_counts[0] == 2
+    assert details[1]["red"] == 3
+    assert details[1]["blue"] is False
+
+
+def test_analyze_adjacent_3d():
+    records = [
+        DrawRecord("2024001", datetime(2024, 1, 1), profile="3d", groups={"pos": [1, 2, 3]}),
+        DrawRecord("2024002", datetime(2024, 1, 2), profile="3d", groups={"pos": [1, 2, 4]}),
+        DrawRecord("2024003", datetime(2024, 1, 3), profile="3d", groups={"pos": [5, 6, 7]}),
+    ]
+    from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
+
+    stats, details = _analyze_adjacent(records, get_profile("3d"))
+    assert stats.total_pairs == 2
+    assert stats.group_stats["pos"].same_counts[2] == 1
+    assert stats.group_stats["pos"].same_counts[0] == 1
+    assert details[1]["pos"] == 2
+
+
+def test_analyze_adjacent_qlc():
+    records = [
+        DrawRecord("2024001", datetime(2024, 1, 1), profile="qlc",
+                   groups={"basic": list(range(1, 8)), "special": [30]}),
+        DrawRecord("2024002", datetime(2024, 1, 3), profile="qlc",
+                   groups={"basic": list(range(1, 7)) + [31], "special": [30]}),
+        DrawRecord("2024003", datetime(2024, 1, 5), profile="qlc",
+                   groups={"basic": list(range(10, 17)), "special": [1]}),
+    ]
+    from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
+
+    stats, details = _analyze_adjacent(records, get_profile("qlc"))
+    assert stats.total_pairs == 2
+    assert stats.group_stats["basic"].same_counts[6] == 1
+    assert stats.group_stats["special"].same_counts[1] == 1
+    assert details[1]["basic"] == 6
+    assert details[1]["special"] is True
+
+
+def test_analyze_adjacent_kl8():
+    records = [
+        DrawRecord("2024001", datetime(2024, 1, 1), profile="kl8",
+                   groups={"main": list(range(1, 21))}),
+        DrawRecord("2024002", datetime(2024, 1, 2), profile="kl8",
+                   groups={"main": list(range(1, 11)) + list(range(21, 31))}),
+        DrawRecord("2024003", datetime(2024, 1, 3), profile="kl8",
+                   groups={"main": list(range(41, 61))}),
+    ]
+    from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
+
+    stats, details = _analyze_adjacent(records, get_profile("kl8"))
+    assert stats.total_pairs == 2
+    assert stats.group_stats["main"].same_counts[10] == 1
+    assert stats.group_stats["main"].same_counts[0] == 1
+    assert details[1]["main"] == 10
 
 
 def test_needs_history_helper():

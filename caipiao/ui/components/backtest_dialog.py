@@ -7,10 +7,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import partial
 from typing import Optional
 
 from PySide6.QtCore import QDate, QThread
-from PySide6.QtGui import QColor, QTextCharFormat
+from PySide6.QtGui import QColor, QFont, QTextCharFormat
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
@@ -156,6 +157,7 @@ class BacktestDialog(QDialog):
         calendar = self.date_edit.calendarWidget()
         highlight_format = QTextCharFormat()
         highlight_format.setFontUnderline(True)
+        highlight_format.setFontWeight(QFont.Weight.Bold)
         highlight_format.setForeground(QColor("#1976D2"))
         for record in self.data_repository.get_all():
             qdate = QDate(
@@ -248,7 +250,22 @@ class BacktestDialog(QDialog):
         self._generate_thread.result_ready.connect(
             lambda tickets, error: self._on_prediction_finished(tickets, error, actual)
         )
+        self._generate_thread.finished.connect(
+            partial(self._cleanup_generate_thread)
+        )
         self._generate_thread.start()
+
+    def _cleanup_generate_thread(self) -> None:
+        """生成线程 finished 后的清理."""
+        thread = self.sender()
+        if thread is None:
+            return
+        if thread is self._generate_thread:
+            self._generate_thread = None
+        try:
+            thread.deleteLater()
+        except RuntimeError:
+            pass
 
     def _show_actual(self, actual) -> None:
         while self.actual_layout.count():
@@ -260,12 +277,14 @@ class BacktestDialog(QDialog):
         self.actual_info_label.setText(f"真实开奖：第 {actual.issue} 期  {date_str}")
         self.result_group.setTitle(f"回测结果 - 第 {actual.issue} 期（{date_str}）")
 
-        groups = {g.key: actual.groups.get(g.key, []) for g in self.profile.pick_groups}
+        # 使用完整 groups 展示真实开奖（包括 draw_only 组），但用 pick_groups 验证
+        groups = {g.key: actual.groups.get(g.key, []) for g in self.profile.groups}
         ticket = Ticket(
             profile=self.profile,
             groups=groups,
             strategy_name="官方开奖",
             basis=f"期号：{actual.issue}，开奖日期：{date_str}",
+            validate=False,
         )
         self.actual_layout.addWidget(TicketRowWidget(ticket))
 

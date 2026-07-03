@@ -109,6 +109,128 @@ def _kl8_prize(hits: Dict[str, int], groups: Dict[str, List[int]]) -> Tuple[str,
     return ("未中奖", 0)
 
 
+def _dlt_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+    """超级大乐透奖金：前区命中 + 后区命中。"""
+    front = hits.get("front", 0)
+    back = hits.get("back", 0)
+    if front == 5 and back == 2:
+        return ("一等奖", None)
+    if front == 5 and back == 1:
+        return ("二等奖", None)
+    if front == 5 and back == 0:
+        return ("三等奖", 10000)
+    if front == 4 and back == 2:
+        return ("四等奖", 3000)
+    if front == 4 and back == 1:
+        return ("五等奖", 300)
+    if front == 3 and back == 2:
+        return ("六等奖", 200)
+    if front == 4 and back == 0:
+        return ("七等奖", 100)
+    if (front == 3 and back == 1) or (front == 2 and back == 2):
+        return ("八等奖", 15)
+    if (
+        (front == 3 and back == 0)
+        or (front == 1 and back == 2)
+        or (front == 2 and back == 1)
+        or (front == 0 and back == 2)
+    ):
+        return ("九等奖", 5)
+    return ("未中奖", 0)
+
+
+def _pl3_prize(
+    hits: Dict[str, int],
+    ticket_groups: Dict[str, List[int]],
+    actual_groups: Optional[Dict[str, List[int]]] = None,
+) -> Tuple[str, int | None]:
+    """排列3奖金：与福彩3D规则相同（直选/组选3/组选6）。"""
+    if actual_groups is None:
+        return ("未中奖", 0)
+
+    actual = actual_groups.get("pos", [])
+    ticket = ticket_groups.get("pos", [])
+    if len(actual) != 3 or len(ticket) != 3:
+        return ("未中奖", 0)
+
+    if list(actual) == list(ticket):
+        return ("直选", 1040)
+
+    if sorted(actual) == sorted(ticket):
+        unique = len(set(actual))
+        if unique == 2:
+            return ("组选3", 346)
+        if unique == 3:
+            return ("组选6", 173)
+
+    return ("未中奖", 0)
+
+
+def _pl5_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+    """排列5奖金：仅直选，5 位全部匹配。"""
+    if hits.get("pos", 0) == 5:
+        return ("直选", 100000)
+    return ("未中奖", 0)
+
+
+def _qxc_prize(
+    hits: Dict[str, int],
+    ticket_groups: Dict[str, List[int]],
+    actual_groups: Optional[Dict[str, List[int]]] = None,
+) -> Tuple[str, int | None]:
+    """7星彩奖金：按从右到左连续命中位数判定。"""
+    if actual_groups is None:
+        return ("未中奖", 0)
+
+    actual = actual_groups.get("pos", [])
+    ticket = ticket_groups.get("pos", [])
+    if len(actual) != 7 or len(ticket) != 7:
+        return ("未中奖", 0)
+
+    # 从右到左统计连续命中位数
+    consecutive = 0
+    for a, p in zip(reversed(actual), reversed(ticket)):
+        if a == p:
+            consecutive += 1
+        else:
+            break
+
+    if consecutive == 7:
+        return ("一等奖", None)
+    if consecutive == 6:
+        return ("二等奖", None)
+    if consecutive == 5:
+        return ("三等奖", 3000)
+    if consecutive == 4:
+        return ("四等奖", 500)
+    if consecutive == 3:
+        return ("五等奖", 30)
+    if consecutive == 2:
+        return ("六等奖", 5)
+    return ("未中奖", 0)
+
+
+def _gd36x7_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+    """广东36选7奖金：与七乐彩规则相同，仅号池为 1-36。"""
+    basic = hits.get("basic", 0)
+    special = hits.get("special", 0)
+    if basic == 7:
+        return ("一等奖", None)
+    if basic == 6 and special == 1:
+        return ("二等奖", None)
+    if basic == 6:
+        return ("三等奖", None)
+    if basic == 5 and special == 1:
+        return ("四等奖", 200)
+    if basic == 5:
+        return ("五等奖", 50)
+    if basic == 4 and special == 1:
+        return ("六等奖", 10)
+    if basic == 4:
+        return ("七等奖", 5)
+    return ("未中奖", 0)
+
+
 def fc3d_bet_type(numbers: List[int]) -> str:
     """根据福彩3D投注号码判断可购买的投注方式。
 
@@ -155,4 +277,15 @@ def calculate_prize(
         return _qlc_prize(hits)
     if profile_key == "kl8":
         return _kl8_prize(hits, ticket_groups)
+    if profile_key == "dlt":
+        return _dlt_prize(hits)
+    if profile_key == "pl3":
+        return _pl3_prize(hits, ticket_groups, actual_groups)
+    if profile_key == "pl5":
+        return _pl5_prize(hits)
+    if profile_key == "qxc":
+        return _qxc_prize(hits, ticket_groups, actual_groups)
+    # 广东36选7 已临时从注册表中移除；保留奖金函数供后续启用
+    if profile_key == "gd36x7":
+        return _gd36x7_prize(hits)
     return ("未知彩种", 0)

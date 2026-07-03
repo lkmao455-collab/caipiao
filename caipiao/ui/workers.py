@@ -25,6 +25,7 @@ class FetchAllDataThread(QThread):
         timeout: int = 60,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("FetchAllDataThread")
         self.profile = profile or SSQ
         self.timeout = timeout
 
@@ -51,8 +52,10 @@ class FetchLatestDataThread(QThread):
         timeout: int = 15,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("FetchLatestDataThread")
         self.profile = profile or SSQ
         self.timeout = timeout
+        self._finished = False
 
     def run(self) -> None:
         try:
@@ -63,6 +66,24 @@ class FetchLatestDataThread(QThread):
             self.result_ready.emit(latest, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
+        finally:
+            self._finished = True
+
+    def is_finished(self) -> bool:
+        return self._finished
+
+    def quit_safely(self) -> None:
+        """请求中断并等待线程结束，返回是否成功结束。"""
+        if not self.isRunning():
+            return True
+        self.requestInterruption()
+        return self.wait(5000)
+
+    def delete_when_finished(self) -> None:
+        """在线程已结束时安全 deleteLater。"""
+        if self.isRunning():
+            self.quit_safely()
+        self.deleteLater()
 
 
 class GenerateTicketsThread(QThread):
@@ -79,6 +100,7 @@ class GenerateTicketsThread(QThread):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("GenerateTicketsThread")
         self.engine = engine
         self.strategy_id = strategy_id
         self.count = count
@@ -118,6 +140,7 @@ class TrainModelThread(QThread):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("TrainModelThread")
         self.records = records
         self.lookback = lookback
         self.model_path = model_path

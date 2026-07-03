@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QClipboard, QKeySequence
 from PySide6.QtGui import QIcon, QPageSize, QPdfWriter
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
@@ -31,7 +32,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.profile import get_profile, list_profiles, profile_keys
+from ..core.profile import (
+    category_label,
+    list_profiles,
+    list_profiles_by_category,
+    profile_keys,
+)
 from ..core.prize import fc3d_bet_type
 from ..core.strategies.generic import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
@@ -80,7 +86,12 @@ _WEEKDAY_CN = "一二三四五六日"
 
 
 class MainWindow(QMainWindow):
-    """彩票号码生成器主窗口（支持双色球/福彩3D/七乐彩/快乐8）."""
+    """彩票号码生成器主窗口。
+
+    支持彩种：
+    - 福利彩票：双色球、福彩3D、七乐彩、快乐8
+    - 体育彩票：超级大乐透、排列3、排列5、7星彩、广东36选7
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -166,11 +177,37 @@ class MainWindow(QMainWindow):
                 logger.warning("%s 未在 3 秒内结束，强制终止", attr)
                 thread.terminate()
                 thread.wait(1000)
-            thread.deleteLater()
+            # 断开 finished 等信号，避免关闭期间触发回调操作已销毁对象
+            try:
+                thread.finished.disconnect()
+            except RuntimeError:
+                pass
+            try:
+                thread.result_ready.disconnect()
+            except RuntimeError:
+                pass
+            try:
+                thread.deleteLater()
+            except RuntimeError:
+                # 对象可能已被 C++ 侧销毁
+                pass
             if isinstance(attr, str) and hasattr(self, attr):
                 setattr(self, attr, None)
 
         event.accept()
+
+    def _cleanup_finished_thread(self, attr_name: str) -> None:
+        """线程 finished 信号的统一清理：清空引用并安全 deleteLater."""
+        thread = self.sender()
+        if thread is None:
+            return
+        current = getattr(self, attr_name, None)
+        if thread is current:
+            setattr(self, attr_name, None)
+        try:
+            thread.deleteLater()
+        except RuntimeError:
+            pass
 
     # ------------------------------------------------------------------ #
     # UI 构建
@@ -186,13 +223,17 @@ class MainWindow(QMainWindow):
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("当前彩种:"))
         self.lottery_combo = QComboBox()
-        for p in list_profiles():
-            self.lottery_combo.addItem(f"{p.name} ({p.subtitle})", p.key)
+        self._populate_lottery_combo()
         idx = self.lottery_combo.findData(self.current_key)
         if idx >= 0:
             self.lottery_combo.setCurrentIndex(idx)
         self.lottery_combo.currentIndexChanged.connect(self._on_lottery_changed)
         top_bar.addWidget(self.lottery_combo, 1)
+
+        self.category_label = QLabel(self._category_text())
+        self.category_label.setStyleSheet("color: #666; font-size: 10pt;")
+        self.category_label.setToolTip("当前彩种所属大类：福利彩票或体育彩票。")
+        top_bar.addWidget(self.category_label)
         top_bar.addStretch()
         main_layout.addLayout(top_bar)
 
@@ -229,8 +270,27 @@ class MainWindow(QMainWindow):
 
         self._refresh_for_current_context()
 
+    def _populate_lottery_combo(self) -> None:
+        """按福利彩票/体育彩票分组填充彩种下拉框。"""
+        self.lottery_combo.clear()
+        first = True
+        for category, profiles in list_profiles_by_category().items():
+            if not first:
+                self.lottery_combo.insertSeparator(self.lottery_combo.count())
+            first = False
+            # 分组标题（仅展示，不可选）
+            self.lottery_combo.addItem(f"[{category_label(category)}]")
+            for p in profiles:
+                self.lottery_combo.addItem(f"  {p.name} ({p.subtitle})", p.key)
+
+    def _category_text(self) -> str:
+        return f"类型: {category_label(self.current.profile.category)}"
+
     def _title_text(self) -> str:
-        return f"{self.current.profile.name}号码自动生成器"
+        return (
+            f"[{category_label(self.current.profile.category)}] "
+            f"{self.current.profile.name}号码自动生成器"
+        )
 
     def _build_generate_tab(self) -> QWidget:
         tab = QWidget()
@@ -526,8 +586,29 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ #
     # 彩种切换
     # ------------------------------------------------------------------ #
+    def _switch_to_lottery(self, key: str) -> None:
+        """通过菜单操作切换到指定彩种。"""
+        if key not in profile_keys():
+            return
+        idx = self.lottery_combo.findData(key)
+        if idx >= 0:
+            self.lottery_combo.setCurrentIndex(idx)
+        else:
+            # 下拉框中未找到时直接切换（兼容未来新增的彩种）
+            self.settings.set("current_lottery", key)
+            self.settings.sync()
+            self.current_key = key
+            self.current = self.context_manager.get(key)
+            self._refresh_for_current_context()
+
     def _on_lottery_changed(self, index: int) -> None:
         new_key = self.lottery_combo.itemData(index)
+        # 分隔线或分类标题不可选，自动回到当前彩种
+        if new_key is None:
+            idx = self.lottery_combo.findData(self.current_key)
+            if idx >= 0:
+                self.lottery_combo.setCurrentIndex(idx)
+            return
         if new_key == self.current_key:
             return
         # 保存当前策略选择
@@ -541,8 +622,9 @@ class MainWindow(QMainWindow):
 
     def _refresh_for_current_context(self) -> None:
         """刷新所有与当前彩种相关的界面元素."""
-        self.setWindowTitle(f"{self.current.profile.name}号码生成器")
+        self.setWindowTitle(self._title_text())
         self.title_label.setText(self._title_text())
+        self.category_label.setText(self._category_text())
 
         # 策略面板重新绑定到当前引擎
         self.strategy_panel.engine = self.current.engine
@@ -594,17 +676,16 @@ class MainWindow(QMainWindow):
         self._fetch_thread.result_ready.connect(
             self._on_data_fetched, Qt.ConnectionType.QueuedConnection
         )
+        self._fetch_thread.finished.connect(
+            partial(self._cleanup_finished_thread, "_fetch_thread")
+        )
         self._fetch_thread.start()
 
     def _on_data_fetched(self, records, error) -> None:
         self.update_data_btn.setEnabled(True)
         self.data_progress.setVisible(False)
 
-        # 清理线程对象
-        thread = getattr(self, "_fetch_thread", None)
-        if thread is not None:
-            thread.deleteLater()
-            self._fetch_thread = None
+        # 线程清理由 finished 信号统一处理，这里不操作线程对象
 
         if error:
             QMessageBox.critical(self, "获取失败", f"获取开奖数据失败:\n{error}")
@@ -635,6 +716,9 @@ class MainWindow(QMainWindow):
         self._latest_update_thread.result_ready.connect(
             self._on_fetch_latest_finished, Qt.ConnectionType.QueuedConnection
         )
+        self._latest_update_thread.finished.connect(
+            partial(self._cleanup_finished_thread, "_latest_update_thread")
+        )
         self._latest_update_thread.start()
 
     def _on_fetch_latest_finished(self, latest, error) -> None:
@@ -642,11 +726,7 @@ class MainWindow(QMainWindow):
         self.fetch_latest_btn.setEnabled(True)
         self.data_progress.setVisible(False)
 
-        # 清理线程对象
-        thread = getattr(self, "_latest_update_thread", None)
-        if thread is not None:
-            thread.deleteLater()
-            self._latest_update_thread = None
+        # 线程清理由 finished 信号统一处理，这里不操作线程对象
 
         if error:
             QMessageBox.critical(self, "获取失败", f"获取最新一期失败:\n{error}")
@@ -838,14 +918,13 @@ class MainWindow(QMainWindow):
         self._xgboost_thread.result_ready.connect(
             self._on_training_done, Qt.ConnectionType.QueuedConnection
         )
+        self._xgboost_thread.finished.connect(
+            partial(self._cleanup_finished_thread, "_xgboost_thread")
+        )
         self._xgboost_thread.start()
 
     def _on_training_done(self, success, error) -> None:
-        # 清理线程对象
-        thread = getattr(self, "_xgboost_thread", None)
-        if thread is not None:
-            thread.deleteLater()
-            self._xgboost_thread = None
+        # 线程清理由 finished 信号统一处理，这里不操作线程对象
         self._finish_training(error)
 
     def _finish_training(self, error) -> None:
@@ -947,26 +1026,31 @@ class MainWindow(QMainWindow):
             return True
 
     def _perform_auto_update(self) -> None:
-        """启动时静默检查并更新最新一期数据."""
+        """启动时静默检查并更新最新一期数据（延迟到事件循环开始后再启动）。."""
         if not self._should_auto_update():
             return
+        # 延迟执行，避免在构造函数中启动线程导致生命周期问题
+        QTimer.singleShot(0, self._start_auto_update)
 
+    def _start_auto_update(self) -> None:
+        """实际启动自动更新线程."""
+        if getattr(self, "_latest_update_thread", None) is not None:
+            return
+
+        # 不设置 parent，避免 MainWindow 销毁时自动 delete 仍在运行的线程
         self._latest_update_thread = FetchLatestDataThread(
-            self, profile=self.current.profile
+            profile=self.current.profile
         )
         self._latest_update_thread.result_ready.connect(
             self._on_latest_update_finished, Qt.ConnectionType.QueuedConnection
+        )
+        self._latest_update_thread.finished.connect(
+            partial(self._cleanup_finished_thread, "_latest_update_thread")
         )
         self._latest_update_thread.start()
 
     def _on_latest_update_finished(self, latest, error) -> None:
         """自动更新完成回调（静默处理失败）。"""
-        # 清理线程对象
-        thread = getattr(self, "_latest_update_thread", None)
-        if thread is not None:
-            thread.deleteLater()
-            self._latest_update_thread = None
-
         if error or latest is None:
             self.data_status_label.setText(self._data_status_text(offline=True))
             return
@@ -993,11 +1077,19 @@ class MainWindow(QMainWindow):
         self.check_update_btn.setEnabled(False)
         self.data_progress.setVisible(True)
 
+        # 如果旧线程仍在运行，只请求中断，不阻塞等待；它会在 finished 中自我清理
+        old = getattr(self, "_latest_update_thread", None)
+        if old is not None and old.isRunning():
+            old.requestInterruption()
+
         self._latest_update_thread = FetchLatestDataThread(
-            self, profile=self.current.profile
+            profile=self.current.profile
         )
         self._latest_update_thread.result_ready.connect(
             self._on_manual_update_finished, Qt.ConnectionType.QueuedConnection
+        )
+        self._latest_update_thread.finished.connect(
+            partial(self._cleanup_finished_thread, "_latest_update_thread")
         )
         self._latest_update_thread.start()
 
@@ -1005,11 +1097,7 @@ class MainWindow(QMainWindow):
         self.check_update_btn.setEnabled(True)
         self.data_progress.setVisible(False)
 
-        # 清理线程对象
-        thread = getattr(self, "_latest_update_thread", None)
-        if thread is not None:
-            thread.deleteLater()
-            self._latest_update_thread = None
+        # 清理线程对象由 finished 信号统一处理，这里不再重复 deleteLater
 
         if error or latest is None:
             QMessageBox.warning(
@@ -1053,6 +1141,23 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # 彩种菜单：按福利彩票/体育彩票分组，当前均为福利彩票
+        lottery_menu = menubar.addMenu("彩种")
+        for category, profiles in list_profiles_by_category().items():
+            category_menu = lottery_menu.addMenu(category_label(category))
+            if not profiles:
+                placeholder = QAction("暂无", self)
+                placeholder.setEnabled(False)
+                category_menu.addAction(placeholder)
+                continue
+            for p in profiles:
+                action = QAction(p.name, self)
+                action.setToolTip(f"切换到{p.name} ({p.subtitle})")
+                action.triggered.connect(
+                    lambda _checked=False, key=p.key: self._switch_to_lottery(key)
+                )
+                category_menu.addAction(action)
+
         tools_menu = menubar.addMenu("工具")
         backtest_action = QAction("历史回测", self)
         backtest_action.setToolTip("选择历史开奖日期，用策略基于当时已知数据预测并对比真实结果。")
@@ -1081,7 +1186,10 @@ class MainWindow(QMainWindow):
         help_menu = menubar.addMenu("帮助")
 
         lottery_guide_action = QAction("彩种介绍", self)
-        lottery_guide_action.setToolTip("查看全部彩种（双色球/福彩3D/七乐彩/快乐8）的玩法规则与策略说明。")
+        lottery_guide_action.setToolTip(
+            "查看全部彩种（福利彩票：双色球/福彩3D/七乐彩/快乐8；"
+            "体育彩票：超级大乐透/排列3/排列5/7星彩/广东36选7）的玩法规则与策略说明。"
+        )
         lottery_guide_action.triggered.connect(
             lambda: self._show_doc("彩种介绍", "lottery_guide.md")
         )
@@ -1139,6 +1247,7 @@ class MainWindow(QMainWindow):
         self.settings.sync()
 
         # 需要历史记录的策略自动注入数据
+        records: list[Any] = []
         if needs_history(strategy_id):
             records = self.current.data_repository.get_all()
             if not records:
@@ -1170,13 +1279,16 @@ class MainWindow(QMainWindow):
                 backend = "xgboost"
             elif strategy_id.startswith("lightgbm_"):
                 backend = "lightgbm"
+            elif strategy_id.startswith("catboost_"):
+                backend = "catboost"
             else:
                 raise ValueError(f"未知机器学习策略: {strategy_id}")
-            prefix = (
-                self.current.profile.xgboost_prefix()
-                if backend == "xgboost"
-                else self.current.profile.lightgbm_prefix()
-            )
+            if backend == "xgboost":
+                prefix = self.current.profile.xgboost_prefix()
+            elif backend == "lightgbm":
+                prefix = self.current.profile.lightgbm_prefix()
+            else:
+                prefix = self.current.profile.catboost_prefix()
             records = self.current.data_repository.get_all()
             lookback = compute_lookback(len(records))
             if not is_model_current(records, lookback, prefix=prefix):
@@ -1202,6 +1314,9 @@ class MainWindow(QMainWindow):
         )
         self._generate_thread.result_ready.connect(
             self._on_generation_finished, Qt.ConnectionType.QueuedConnection
+        )
+        self._generate_thread.finished.connect(
+            partial(self._cleanup_finished_thread, "_generate_thread")
         )
         self._generate_thread.start()
 
@@ -1231,11 +1346,7 @@ class MainWindow(QMainWindow):
         self.generate_btn.setEnabled(True)
         self.generate_btn.setText("立即生成")
 
-        # 清理线程对象
-        thread = getattr(self, "_generate_thread", None)
-        if thread is not None:
-            thread.deleteLater()
-            self._generate_thread = None
+        # 线程清理由 finished 信号统一处理，这里不操作线程对象
 
         if error:
             QMessageBox.critical(self, "生成失败", str(error))

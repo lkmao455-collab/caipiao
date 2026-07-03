@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -40,12 +40,15 @@ class StrategyPanel(QWidget):
     def _setup_ui(self) -> None:
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(10)
 
         # 策略选择
         selector_layout = QHBoxLayout()
+        selector_layout.setSpacing(8)
         selector_layout.addWidget(QLabel("生成策略:"))
         self.strategy_combo = QComboBox()
         self.strategy_combo.setToolTip("选择号码生成策略。不同策略基于不同的概率统计思想。")
+        self.strategy_combo.setMinimumWidth(160)
         self.strategy_combo.currentIndexChanged.connect(self._on_strategy_changed)
         selector_layout.addWidget(self.strategy_combo, 1)
         self.layout.addLayout(selector_layout)
@@ -53,12 +56,20 @@ class StrategyPanel(QWidget):
         # 策略描述
         self.description_label = QLabel("请选择生成策略")
         self.description_label.setWordWrap(True)
-        self.description_label.setStyleSheet("color: #666;")
+        self.description_label.setStyleSheet(
+            "color: #666; padding: 4px; background: #f9f9f9; border-radius: 4px;"
+        )
         self.layout.addWidget(self.description_label)
 
         # 参数区域
         self.options_group = QGroupBox("策略参数")
         self.options_layout = QFormLayout(self.options_group)
+        self.options_layout.setSpacing(10)
+        self.options_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.options_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        self.options_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         self.layout.addWidget(self.options_group)
 
         self.layout.addStretch()
@@ -106,6 +117,7 @@ class StrategyPanel(QWidget):
                 if tooltip:
                     widget.setToolTip(tooltip)
                 label = QLabel(meta.get("label", key))
+                label.setWordWrap(True)
                 if tooltip:
                     label.setToolTip(tooltip)
                 self.options_layout.addRow(label, widget)
@@ -117,6 +129,7 @@ class StrategyPanel(QWidget):
         if type_ == "int":
             spin = QSpinBox()
             spin.setRange(meta.get("min", -999999), meta.get("max", 999999))
+            spin.setMinimumWidth(80)
             if default is not None:
                 spin.setValue(int(default))
             else:
@@ -128,6 +141,7 @@ class StrategyPanel(QWidget):
 
         if type_ == "choice":
             combo = QComboBox()
+            combo.setMinimumWidth(120)
             for choice in meta.get("choices", []):
                 combo.addItem(str(choice), choice)
             if default is not None:
@@ -140,6 +154,7 @@ class StrategyPanel(QWidget):
 
         if type_ in ("list_int", "history"):
             edit = QLineEdit()
+            edit.setMinimumWidth(120)
             if isinstance(default, list):
                 edit.setText(", ".join(str(v) for v in default))
             edit.textChanged.connect(self._on_option_changed)
@@ -155,6 +170,7 @@ class StrategyPanel(QWidget):
 
         # 默认字符串
         edit = QLineEdit()
+        edit.setMinimumWidth(120)
         if default is not None:
             edit.setText(str(default))
         edit.textChanged.connect(self._on_option_changed)

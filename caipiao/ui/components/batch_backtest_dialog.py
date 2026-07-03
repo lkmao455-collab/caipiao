@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QDate, Qt
+from PySide6.QtGui import QColor, QFont, QTextCharFormat
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
@@ -152,6 +154,20 @@ class BatchBacktestDialog(QDialog):
             edit.setMinimumDate(qstart)
             edit.setMaximumDate(qend)
 
+        highlight_format = QTextCharFormat()
+        highlight_format.setFontUnderline(True)
+        highlight_format.setFontWeight(QFont.Weight.Bold)
+        highlight_format.setForeground(QColor("#1976D2"))
+        for record in self.data_repository.get_all():
+            qdate = QDate(
+                record.draw_date.year,
+                record.draw_date.month,
+                record.draw_date.day,
+            )
+            for edit in (self.start_date_edit, self.end_date_edit):
+                calendar = edit.calendarWidget()
+                calendar.setDateTextFormat(qdate, highlight_format)
+
         records = self.data_repository.get_all()
         if len(records) >= 30:
             default_start = records[-30].draw_date
@@ -226,6 +242,7 @@ class BatchBacktestDialog(QDialog):
         self._thread.result_ready.connect(
             self._on_finished, Qt.ConnectionType.QueuedConnection
         )
+        self._thread.finished.connect(self._cleanup_finished_thread)
         self._thread.start()
 
     def _stop_batch_backtest(self) -> None:
@@ -234,6 +251,18 @@ class BatchBacktestDialog(QDialog):
             self.status_text.append("用户请求停止批量回测，等待当前期处理完成...")
             self._thread.requestInterruption()
             self.stop_btn.setEnabled(False)
+
+    def _cleanup_finished_thread(self) -> None:
+        """线程 finished 信号的统一清理：清空引用并安全 deleteLater."""
+        thread = self.sender()
+        if thread is None:
+            return
+        if thread is self._thread:
+            self._thread = None
+        try:
+            thread.deleteLater()
+        except RuntimeError:
+            pass
 
     def _on_progress(self, current: int, total: int) -> None:
         if total > 0:
@@ -316,9 +345,7 @@ class BatchBacktestDialog(QDialog):
         self.stop_btn.setEnabled(False)
         self.progress.setVisible(False)
 
-        if self._thread is not None:
-            self._thread.deleteLater()
-            self._thread = None
+        # 线程清理由 finished 信号统一处理，这里不操作线程对象
 
         if error:
             QMessageBox.critical(self, "批量回测失败", str(error))

@@ -1,17 +1,19 @@
 """开奖记录相邻期统计分析对话框.
 
-功能：展示指定时间范围内的所有开奖记录，并按相邻两期统计：
-- 红球相同个数（1-6 个）的次数与比例（互斥统计）
-- 蓝球两期相同的次数与比例
+支持彩种：
+- 双色球：相邻期红球/蓝球重合统计
+- 福彩3D：相邻期按位数字相同个数统计
+- 七乐彩：相邻期基本号/特别号重合统计
+- 快乐8：相邻期主号码重合个数统计
 
-当前仅支持双色球（红球 + 蓝球结构）。
+每种彩种根据自身的 NumberGroup 结构计算相邻期号码重叠情况。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -30,58 +32,231 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...core.profile import LotteryProfile
+from ...core.profile import LotteryProfile, NumberGroup
 from ...data.models import DrawRecord
 from ...data.repository import DrawRepository
 
 
+# --------------------------------------------------------------------------- #
+# 统计抽象
+# --------------------------------------------------------------------------- #
+@dataclass
+class GroupOverlapStats:
+    """单个号码组的相邻期统计结果."""
+
+    group_name: str = ""
+    total_pairs: int = 0
+    # 相同个数 -> 次数
+    same_counts: Dict[int, int] = field(default_factory=dict)
+
+    def same_ratio(self, n: int) -> float:
+        return self.same_counts.get(n, 0) / max(self.total_pairs, 1) * 100
+
+
 @dataclass
 class AdjacentStats:
-    """相邻开奖记录统计结果."""
+    """相邻开奖记录统计结果.
+
+    Attributes:
+        total_pairs: 相邻期对数
+        group_stats: 每个分析号码组的统计（按组 key）
+    """
 
     total_pairs: int = 0
-    red_same_counts: Dict[int, int] = field(default_factory=lambda: {i: 0 for i in range(0, 7)})
-    blue_same_count: int = 0
-
-    def red_same_ratio(self, n: int) -> float:
-        return self.red_same_counts.get(n, 0) / max(self.total_pairs, 1) * 100
-
-    def blue_same_ratio(self) -> float:
-        return self.blue_same_count / max(self.total_pairs, 1) * 100
+    group_stats: Dict[str, GroupOverlapStats] = field(default_factory=dict)
 
 
-def _analyze_adjacent(records: List[DrawRecord]) -> Tuple[AdjacentStats, List[Optional[int]]]:
-    """分析相邻记录的红球/蓝球重合情况.
-
-    Returns:
-        stats: 统计结果
-        red_overlaps: 每条记录与上一期的红球交集数；第一条为 None
-    """
-    records = sorted(records, key=lambda r: r.draw_date)
+# --------------------------------------------------------------------------- #
+# 分析器
+# --------------------------------------------------------------------------- #
+def _analyze_adjacent_ssq(records: List[DrawRecord]) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    """双色球：红球 0-6 个相同，蓝球是否相同。"""
     stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
-    red_overlaps: List[Optional[int]] = [None]
-    blue_sames: List[Optional[bool]] = [None]
+    stats.group_stats["red"] = GroupOverlapStats(group_name="红球", total_pairs=stats.total_pairs,
+                                                  same_counts={i: 0 for i in range(0, 7)})
+    stats.group_stats["blue"] = GroupOverlapStats(group_name="蓝球", total_pairs=stats.total_pairs)
+    blue_same_count = 0
+
+    details: List[Dict[str, Any]] = []
+    if not records:
+        return stats, details
+
+    records = sorted(records, key=lambda r: r.draw_date)
+    details.append({"red": None, "blue": None})
 
     for i in range(1, len(records)):
         prev = records[i - 1]
         curr = records[i]
         prev_reds = set(prev.groups.get("red", []))
         curr_reds = set(curr.groups.get("red", []))
-        overlap = len(prev_reds & curr_reds)
-        red_overlaps.append(overlap)
-        if 0 <= overlap <= 6:
-            stats.red_same_counts[overlap] += 1
+        red_overlap = len(prev_reds & curr_reds)
+        stats.group_stats["red"].same_counts[red_overlap] += 1
 
         prev_blue = next(iter(prev.groups.get("blue", [])), None)
         curr_blue = next(iter(curr.groups.get("blue", [])), None)
         blue_same = prev_blue is not None and curr_blue is not None and prev_blue == curr_blue
-        blue_sames.append(blue_same)
         if blue_same:
-            stats.blue_same_count += 1
+            blue_same_count += 1
 
-    return stats, red_overlaps, blue_sames
+        details.append({"red": red_overlap, "blue": blue_same})
+
+    stats.group_stats["blue"].same_counts[1] = blue_same_count
+    stats.group_stats["blue"].same_counts[0] = stats.total_pairs - blue_same_count
+    return stats, details
 
 
+def _analyze_adjacent_positional(records: List[DrawRecord], group: NumberGroup) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    """按位数字彩种（福彩3D/排列3/排列5/7星彩）：统计每位相同个数。"""
+    stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
+    stats.group_stats[group.key] = GroupOverlapStats(
+        group_name=group.name,
+        total_pairs=stats.total_pairs,
+        same_counts={i: 0 for i in range(0, group.count + 1)},
+    )
+    details: List[Dict[str, Any]] = []
+    if not records:
+        return stats, details
+
+    records = sorted(records, key=lambda r: r.draw_date)
+    details.append({group.key: None})
+
+    for i in range(1, len(records)):
+        prev = records[i - 1].groups.get(group.key, [])
+        curr = records[i].groups.get(group.key, [])
+        same = sum(1 for a, b in zip(prev, curr) if a == b)
+        stats.group_stats[group.key].same_counts[same] += 1
+        details.append({group.key: same})
+
+    return stats, details
+
+
+def _analyze_adjacent_basic_special(records: List[DrawRecord], basic_group: NumberGroup,
+                                    special_group: NumberGroup) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    """基本号+特别号彩种（七乐彩/广东36选7）：基本号 0-N 个相同，特别号是否相同。"""
+    stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
+    stats.group_stats["basic"] = GroupOverlapStats(
+        group_name=basic_group.name,
+        total_pairs=stats.total_pairs,
+        same_counts={i: 0 for i in range(0, basic_group.count + 1)},
+    )
+    stats.group_stats["special"] = GroupOverlapStats(
+        group_name=special_group.name,
+        total_pairs=stats.total_pairs,
+    )
+    special_same_count = 0
+
+    details: List[Dict[str, Any]] = []
+    if not records:
+        return stats, details
+
+    records = sorted(records, key=lambda r: r.draw_date)
+    details.append({"basic": None, "special": None})
+
+    for i in range(1, len(records)):
+        prev = records[i - 1]
+        curr = records[i]
+        prev_basic = set(prev.groups.get(basic_group.key, []))
+        curr_basic = set(curr.groups.get(basic_group.key, []))
+        basic_overlap = len(prev_basic & curr_basic)
+        stats.group_stats["basic"].same_counts[basic_overlap] += 1
+
+        prev_special = next(iter(prev.groups.get(special_group.key, [])), None)
+        curr_special = next(iter(curr.groups.get(special_group.key, [])), None)
+        special_same = (
+            prev_special is not None
+            and curr_special is not None
+            and prev_special == curr_special
+        )
+        if special_same:
+            special_same_count += 1
+
+        details.append({"basic": basic_overlap, "special": special_same})
+
+    stats.group_stats["special"].same_counts[1] = special_same_count
+    stats.group_stats["special"].same_counts[0] = stats.total_pairs - special_same_count
+    return stats, details
+
+
+def _analyze_adjacent_main(records: List[DrawRecord], group: NumberGroup) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    """快乐8：开奖 20 个号码，统计相邻期相同号码个数分布。"""
+    stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
+    # 主号码相邻期重复个数的统计桶：0-20
+    stats.group_stats[group.key] = GroupOverlapStats(
+        group_name=group.name,
+        total_pairs=stats.total_pairs,
+        same_counts={i: 0 for i in range(0, group.count + 1)},
+    )
+    details: List[Dict[str, Any]] = []
+    if not records:
+        return stats, details
+
+    records = sorted(records, key=lambda r: r.draw_date)
+    details.append({group.key: None})
+
+    for i in range(1, len(records)):
+        prev = set(records[i - 1].groups.get(group.key, []))
+        curr = set(records[i].groups.get(group.key, []))
+        overlap = len(prev & curr)
+        stats.group_stats[group.key].same_counts[overlap] += 1
+        details.append({group.key: overlap})
+
+    return stats, details
+
+
+def _analyze_adjacent(records: List[DrawRecord], profile: LotteryProfile) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    """根据彩种档案选择对应的相邻期分析器."""
+    if profile.key == "ssq":
+        return _analyze_adjacent_ssq(records)
+
+    if profile.key in ("3d", "pl3", "pl5", "qxc"):
+        group = profile.primary_group
+        return _analyze_adjacent_positional(records, group)
+
+    if profile.key in ("qlc", "gd36x7"):
+        basic = profile.group("basic")
+        special = profile.group("special")
+        return _analyze_adjacent_basic_special(records, basic, special)
+
+    if profile.key == "kl8":
+        group = profile.primary_group
+        return _analyze_adjacent_main(records, group)
+
+    # 未知彩种退化为通用：分析所有 pick_groups
+    stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
+    details: List[Dict[str, Any]] = []
+    if not records:
+        return stats, details
+
+    records = sorted(records, key=lambda r: r.draw_date)
+    for idx, g in enumerate(profile.pick_groups):
+        stats.group_stats[g.key] = GroupOverlapStats(
+            group_name=g.name,
+            total_pairs=stats.total_pairs,
+            same_counts={i: 0 for i in range(0, g.count + 1)},
+        )
+    details.append({g.key: None for g in profile.pick_groups})
+
+    for i in range(1, len(records)):
+        detail: Dict[str, Any] = {}
+        for g in profile.pick_groups:
+            if g.positional:
+                prev = records[i - 1].groups.get(g.key, [])
+                curr = records[i].groups.get(g.key, [])
+                overlap = sum(1 for a, b in zip(prev, curr) if a == b)
+            else:
+                prev = set(records[i - 1].groups.get(g.key, []))
+                curr = set(records[i].groups.get(g.key, []))
+                overlap = len(prev & curr)
+            stats.group_stats[g.key].same_counts[overlap] += 1
+            detail[g.key] = overlap
+        details.append(detail)
+
+    return stats, details
+
+
+# --------------------------------------------------------------------------- #
+# 分组工具
+# --------------------------------------------------------------------------- #
 def _group_key(record: DrawRecord, mode: str) -> str:
     """根据分组模式返回该记录所属分组的 key."""
     d = record.draw_date
@@ -97,6 +272,9 @@ def _group_key(record: DrawRecord, mode: str) -> str:
     return "全部"
 
 
+# --------------------------------------------------------------------------- #
+# UI
+# --------------------------------------------------------------------------- #
 class DrawAnalysisDialog(QDialog):
     """开奖记录相邻期统计分析窗口."""
 
@@ -162,14 +340,8 @@ class DrawAnalysisDialog(QDialog):
         table_box = QGroupBox("开奖记录")
         table_layout = QVBoxLayout(table_box)
         self.record_table = QTableWidget()
-        self.record_table.setColumnCount(6)
-        self.record_table.setHorizontalHeaderLabels(
-            ["期号", "开奖日期", "红球", "蓝球", "与上期红球重复", "与上期蓝球相同"]
-        )
-        self.record_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.record_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.record_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        self.record_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        # 列：期号、日期、各号码组显示列、各组与上期重叠列
+        self._build_table_columns()
         table_layout.addWidget(self.record_table)
         right_layout.addWidget(table_box, 2)
 
@@ -178,7 +350,7 @@ class DrawAnalysisDialog(QDialog):
         self.stats_text = QTextEdit()
         self.stats_text.setReadOnly(True)
         self.stats_text.setStyleSheet(
-            "QLabel { color: #0A2540; background-color: #E8F5E9; "
+            "QTextEdit { color: #0A2540; background-color: #E8F5E9; "
             "border-radius: 4px; padding: 6px; font-size: 10pt; }"
         )
         stats_layout.addWidget(self.stats_text)
@@ -188,21 +360,58 @@ class DrawAnalysisDialog(QDialog):
         splitter.setSizes([250, 950])
         layout.addWidget(splitter, 1)
 
+    # ----------------------------------------------------------------------- #
+    # 按彩种定制的列配置
+    # ----------------------------------------------------------------------- #
+    def _build_table_columns(self) -> None:
+        """根据当前彩种构建表格列标题与列伸缩策略."""
+        headers = ["期号", "开奖日期"]
+        stretch_cols: List[int] = []
+
+        if self.profile.key == "ssq":
+            headers.extend(["红球", "蓝球", "与上期红球重复", "与上期蓝球相同"])
+            stretch_cols = [2]
+        elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
+            group = self.profile.primary_group
+            headers.append(group.name)
+            headers.append(f"与上期{group.name}同位相同")
+            stretch_cols = [2]
+        elif self.profile.key in ("qlc", "gd36x7"):
+            headers.extend(["基本号", "特别号", "与上期基本号重复", "与上期特别号相同"])
+            stretch_cols = [2]
+        elif self.profile.key == "kl8":
+            group = self.profile.primary_group
+            headers.extend([group.name, f"与上期{group.name}重复"])
+            stretch_cols = [2]
+        else:
+            for g in self.profile.pick_groups:
+                headers.append(g.name)
+                headers.append(f"与上期{g.name}重复")
+            stretch_cols = list(range(2, 2 + len(self.profile.pick_groups) * 2, 2))
+
+        self.record_table.setColumnCount(len(headers))
+        self.record_table.setHorizontalHeaderLabels(headers)
+        for c in range(len(headers)):
+            if c in stretch_cols:
+                self.record_table.horizontalHeader().setSectionResizeMode(
+                    c, QHeaderView.ResizeMode.Stretch
+                )
+            else:
+                self.record_table.horizontalHeader().setSectionResizeMode(
+                    c, QHeaderView.ResizeMode.ResizeToContents
+                )
+
+    def _format_group(self, record: DrawRecord, group: NumberGroup) -> str:
+        """格式化一组号码用于表格显示."""
+        nums = record.groups.get(group.key, [])
+        if group.positional:
+            return " ".join(f"{n:0{group.pad}d}" for n in nums)
+        return " ".join(f"{n:0{group.pad}d}" for n in sorted(nums))
+
     def _refresh_data(self) -> None:
         self._records = self.data_repository.get_all()
         if not self._records:
             QMessageBox.information(self, "缺少数据", "当前没有开奖记录可供分析。")
-            return
-
-        if self.profile.key != "ssq":
-            QMessageBox.information(
-                self,
-                "不支持",
-                "相邻期红球/蓝球统计功能当前仅支持双色球。",
-            )
-            self.group_combo.setEnabled(False)
-            self.record_table.setRowCount(0)
-            self.stats_text.setText("该功能当前仅支持双色球。")
             return
 
         self._records.sort(key=lambda r: r.draw_date)
@@ -239,60 +448,142 @@ class DrawAnalysisDialog(QDialog):
         records = self._groups.get(group_key, [])
         self._show_records(records)
 
+    # ----------------------------------------------------------------------- #
+    # 按彩种定制的数据显示
+    # ----------------------------------------------------------------------- #
     def _show_records(self, records: List[DrawRecord]) -> None:
-        stats, red_overlaps, blue_sames = _analyze_adjacent(records)
+        stats, details = _analyze_adjacent(records, self.profile)
 
         self.record_table.setRowCount(len(records))
         for idx, record in enumerate(records):
-            reds = record.groups.get("red", [])
-            blue = next(iter(record.groups.get("blue", [])), None)
-
             self.record_table.setItem(idx, 0, QTableWidgetItem(record.issue))
             date_item = QTableWidgetItem(record.draw_date.strftime("%Y-%m-%d"))
             date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.record_table.setItem(idx, 1, date_item)
 
-            red_item = QTableWidgetItem(" ".join(f"{r:02d}" for r in sorted(reds)))
-            red_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.record_table.setItem(idx, 2, red_item)
+            detail = details[idx] if idx < len(details) else {}
 
-            blue_item = QTableWidgetItem(f"{blue:02d}" if blue is not None else "-")
-            blue_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.record_table.setItem(idx, 3, blue_item)
-
-            overlap = red_overlaps[idx]
-            overlap_text = str(overlap) if overlap is not None else "-"
-            overlap_item = QTableWidgetItem(overlap_text)
-            overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.record_table.setItem(idx, 4, overlap_item)
-
-            blue_same = blue_sames[idx]
-            blue_same_text = "是" if blue_same else ("否" if blue_same is False else "-")
-            blue_same_item = QTableWidgetItem(blue_same_text)
-            blue_same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.record_table.setItem(idx, 5, blue_same_item)
+            if self.profile.key == "ssq":
+                self._fill_ssq_row(idx, record, detail)
+            elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
+                self._fill_positional_row(idx, record, detail)
+            elif self.profile.key in ("qlc", "gd36x7"):
+                self._fill_basic_special_row(idx, record, detail)
+            elif self.profile.key == "kl8":
+                self._fill_kl8_row(idx, record, detail)
+            else:
+                self._fill_generic_row(idx, record, detail)
 
         self._show_stats(stats)
 
-    def _show_stats(self, stats: AdjacentStats) -> None:
-        lines = [
-            f"相邻期对数：{stats.total_pairs}",
-            "",
-            "【红球相同个数统计】",
-        ]
-        for n in range(0, 7):
-            count = stats.red_same_counts[n]
-            ratio = stats.red_same_ratio(n)
-            lines.append(f"  {n} 个相同：{count} 次（{ratio:.2f}%）")
+    def _fill_ssq_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+        reds = record.groups.get("red", [])
+        blue = next(iter(record.groups.get("blue", [])), None)
 
-        lines.append("")
-        lines.append("【蓝球相同统计】")
-        lines.append(
-            f"  蓝球相同：{stats.blue_same_count} 次（{stats.blue_same_ratio():.2f}%）"
+        red_item = QTableWidgetItem(" ".join(f"{r:02d}" for r in sorted(reds)))
+        red_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 2, red_item)
+
+        blue_item = QTableWidgetItem(f"{blue:02d}" if blue is not None else "-")
+        blue_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 3, blue_item)
+
+        red_overlap = detail.get("red")
+        overlap_text = str(red_overlap) if red_overlap is not None else "-"
+        overlap_item = QTableWidgetItem(overlap_text)
+        overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 4, overlap_item)
+
+        blue_same = detail.get("blue")
+        blue_same_text = "是" if blue_same else ("否" if blue_same is False else "-")
+        blue_same_item = QTableWidgetItem(blue_same_text)
+        blue_same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 5, blue_same_item)
+
+    def _fill_positional_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+        group = self.profile.primary_group
+        nums_item = QTableWidgetItem(self._format_group(record, group))
+        nums_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 2, nums_item)
+
+        same = detail.get(group.key)
+        same_text = str(same) if same is not None else "-"
+        same_item = QTableWidgetItem(same_text)
+        same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 3, same_item)
+
+    def _fill_basic_special_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+        basic = self.profile.group("basic")
+        special = self.profile.group("special")
+
+        basic_item = QTableWidgetItem(self._format_group(record, basic))
+        basic_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 2, basic_item)
+
+        special_num = next(iter(record.groups.get(special.key, [])), None)
+        special_item = QTableWidgetItem(
+            f"{special_num:02d}" if special_num is not None else "-"
         )
-        lines.append(
-            f"  蓝球不同：{stats.total_pairs - stats.blue_same_count} 次"
-            f"（{(stats.total_pairs - stats.blue_same_count) / max(stats.total_pairs, 1) * 100:.2f}%）"
-        )
+        special_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 3, special_item)
+
+        basic_overlap = detail.get("basic")
+        basic_text = str(basic_overlap) if basic_overlap is not None else "-"
+        basic_overlap_item = QTableWidgetItem(basic_text)
+        basic_overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 4, basic_overlap_item)
+
+        special_same = detail.get("special")
+        special_text = "是" if special_same else ("否" if special_same is False else "-")
+        special_same_item = QTableWidgetItem(special_text)
+        special_same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 5, special_same_item)
+
+    def _fill_kl8_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+        group = self.profile.primary_group
+
+        nums_item = QTableWidgetItem(self._format_group(record, group))
+        nums_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 2, nums_item)
+
+        overlap = detail.get(group.key)
+        overlap_text = str(overlap) if overlap is not None else "-"
+        overlap_item = QTableWidgetItem(overlap_text)
+        overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 3, overlap_item)
+
+    def _fill_generic_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+        col = 2
+        for g in self.profile.pick_groups:
+            nums_item = QTableWidgetItem(self._format_group(record, g))
+            nums_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.record_table.setItem(idx, col, nums_item)
+            col += 1
+
+            overlap = detail.get(g.key)
+            overlap_text = str(overlap) if overlap is not None else "-"
+            overlap_item = QTableWidgetItem(overlap_text)
+            overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.record_table.setItem(idx, col, overlap_item)
+            col += 1
+
+    def _show_stats(self, stats: AdjacentStats) -> None:
+        lines = [f"相邻期对数：{stats.total_pairs}"]
+        for key in stats.group_stats:
+            gstat = stats.group_stats[key]
+            lines.append("")
+            lines.append(f"【{gstat.group_name}相同统计】")
+            if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+                # 二值统计
+                same = gstat.same_counts.get(1, 0)
+                diff = gstat.same_counts.get(0, 0)
+                lines.append(f"  相同：{same} 次（{gstat.same_ratio(1):.2f}%）")
+                lines.append(f"  不同：{diff} 次（{gstat.same_ratio(0):.2f}%）")
+            else:
+                max_n = max(gstat.same_counts.keys()) if gstat.same_counts else 0
+                for n in range(0, max_n + 1):
+                    count = gstat.same_counts.get(n, 0)
+                    ratio = gstat.same_ratio(n)
+                    lines.append(f"  {n} 个相同：{count} 次（{ratio:.2f}%）")
 
         self.stats_text.setText("\n".join(lines))

@@ -36,6 +36,7 @@ class Ticket:
         *,
         profile: Union[LotteryProfile, str, None] = None,
         groups: Optional[Dict[str, Iterable[int]]] = None,
+        validate: bool = True,
     ) -> None:
         if groups is not None or profile is not None:
             # 通用构造：显式给出彩种档案与各组号码
@@ -62,7 +63,8 @@ class Ticket:
         self.basis = basis
         self.details = details or {}
         self._sort_groups()
-        self._validate()
+        if validate:
+            self._validate()
 
     # ------------------------------------------------------------------ #
     # 构造工厂
@@ -76,6 +78,7 @@ class Ticket:
         strategy_name: str = "",
         basis: str = "",
         details: Dict[str, Any] | None = None,
+        validate: bool = True,
     ) -> "Ticket":
         return cls(
             profile=profile,
@@ -84,6 +87,7 @@ class Ticket:
             strategy_name=strategy_name,
             basis=basis,
             details=details,
+            validate=validate,
         )
 
     # ------------------------------------------------------------------ #

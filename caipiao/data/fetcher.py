@@ -48,6 +48,11 @@ class LotteryDataFetcher:
             "3d": self._parse_3d,
             "qlc": self._parse_qlc,
             "kl8": self._parse_kl8,
+            "dlt": self._parse_dlt,
+            "pl3": self._parse_pl3,
+            "pl5": self._parse_pl5,
+            "qxc": self._parse_qxc,
+            "gd36x7": self._parse_gd36x7,
         }
         if self.profile.parser_key not in parser_map:
             raise ValueError(f"Unsupported parser_key: {self.profile.parser_key}")
@@ -110,6 +115,78 @@ class LotteryDataFetcher:
             draw_date=draw_date,
             profile="kl8",
             groups={"main": nums},
+        )
+
+    def _parse_dlt(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+        """超级大乐透：期号 日期 前区5码 后区2码 ...统计尾列。"""
+        if len(parts) < 9:
+            return None
+        issue = parts[0]
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        front = sorted(int(parts[i]) for i in range(2, 7))
+        back = sorted(int(parts[i]) for i in range(7, 9))
+        return DrawRecord(
+            issue=issue,
+            draw_date=draw_date,
+            profile="dlt",
+            groups={"front": front, "back": back},
+        )
+
+    def _parse_pl3(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+        """排列3：期号 日期 3位数字 ...统计尾列。"""
+        if len(parts) < 5:
+            return None
+        issue = parts[0]
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        digits = [int(parts[i]) for i in range(2, 5)]
+        return DrawRecord(
+            issue=issue,
+            draw_date=draw_date,
+            profile="pl3",
+            groups={"pos": digits},
+        )
+
+    def _parse_pl5(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+        """排列5：期号 日期 5位数字 ...统计尾列。"""
+        if len(parts) < 7:
+            return None
+        issue = parts[0]
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        digits = [int(parts[i]) for i in range(2, 7)]
+        return DrawRecord(
+            issue=issue,
+            draw_date=draw_date,
+            profile="pl5",
+            groups={"pos": digits},
+        )
+
+    def _parse_qxc(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+        """7星彩：期号 日期 7位数字 ...统计尾列。"""
+        if len(parts) < 9:
+            return None
+        issue = parts[0]
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        digits = [int(parts[i]) for i in range(2, 9)]
+        return DrawRecord(
+            issue=issue,
+            draw_date=draw_date,
+            profile="qxc",
+            groups={"pos": digits},
+        )
+
+    def _parse_gd36x7(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+        """广东36选7：期号 日期 基本号7码 特别号1码 ...统计尾列。"""
+        if len(parts) < 10:
+            return None
+        issue = parts[0]
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        basic = sorted(int(parts[i]) for i in range(2, 9))
+        special = [int(parts[9])]
+        return DrawRecord(
+            issue=issue,
+            draw_date=draw_date,
+            profile="gd36x7",
+            groups={"basic": basic, "special": special},
         )
 
     # ------------------------------------------------------------------ #

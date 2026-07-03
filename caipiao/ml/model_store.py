@@ -29,8 +29,13 @@ def compute_lookback(record_count: int) -> int:
     """根据历史记录总数确定回看期数.
 
     与生成策略保持一致：尽量使用更长历史，同时至少保留 100 期作为训练样本。
+    当记录数较少时，保证返回值至少为 1 且不超过 record_count - 1，避免 lookback=0
+    导致特征工程抛出异常。
     """
-    return max(50, record_count - 100)
+    if record_count <= 1:
+        return 0
+    raw = max(50, record_count - 100)
+    return max(1, min(raw, record_count - 1))
 
 
 def data_fingerprint(records: List[DrawRecord]) -> str:

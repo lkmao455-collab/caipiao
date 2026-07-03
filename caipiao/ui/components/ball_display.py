@@ -95,8 +95,8 @@ class TicketRowWidget(QWidget):
         row_layout.addStretch()
         self.layout.addWidget(row)
 
-        # 福彩3D 显示投注方式建议
-        if ticket.profile.key == "3d":
+        # 福彩3D / 排列3 显示投注方式建议
+        if ticket.profile.key in ("3d", "pl3"):
             nums = ticket.groups.get("pos", [])
             bet_type = fc3d_bet_type(nums)
             bet_label = QLabel(f"建议投注方式：{bet_type}")

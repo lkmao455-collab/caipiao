@@ -71,6 +71,7 @@ class BatchBacktestThread(QThread):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("BatchBacktestThread")
         self.engine = engine
         self.strategy_id = strategy_id
         self.profile = profile

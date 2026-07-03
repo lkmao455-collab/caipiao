@@ -141,6 +141,50 @@ def test_fc3d_prize_requires_actual():
 
 
 # --------------------------------------------------------------------------- #
+# 体育彩票奖金计算测试
+# --------------------------------------------------------------------------- #
+def test_dlt_prize():
+    assert calculate_prize("dlt", {"front": 5, "back": 2}, {}) == ("一等奖", None)
+    assert calculate_prize("dlt", {"front": 5, "back": 1}, {}) == ("二等奖", None)
+    assert calculate_prize("dlt", {"front": 5, "back": 0}, {}) == ("三等奖", 10000)
+    assert calculate_prize("dlt", {"front": 3, "back": 1}, {}) == ("八等奖", 15)
+    assert calculate_prize("dlt", {"front": 0, "back": 2}, {}) == ("九等奖", 5)
+    assert calculate_prize("dlt", {"front": 1, "back": 0}, {}) == ("未中奖", 0)
+
+
+def test_pl3_prize():
+    actual = {"pos": [1, 2, 3]}
+    assert calculate_prize("pl3", {"pos": 3}, {"pos": [1, 2, 3]}, actual) == ("直选", 1040)
+    assert calculate_prize("pl3", {"pos": 0}, {"pos": [3, 2, 1]}, actual) == ("组选6", 173)
+    actual_group3 = {"pos": [1, 1, 2]}
+    assert calculate_prize("pl3", {"pos": 0}, {"pos": [2, 1, 1]}, actual_group3) == ("组选3", 346)
+    assert calculate_prize("pl3", {"pos": 2}, {"pos": [1, 2, 4]}, actual) == ("未中奖", 0)
+
+
+def test_pl5_prize():
+    assert calculate_prize("pl5", {"pos": 5}, {"pos": [1, 2, 3, 4, 5]}) == ("直选", 100000)
+    assert calculate_prize("pl5", {"pos": 4}, {"pos": [1, 2, 3, 4, 5]}) == ("未中奖", 0)
+
+
+def test_qxc_prize():
+    actual = {"pos": [1, 2, 3, 4, 5, 6, 7]}
+    assert calculate_prize("qxc", {"pos": 7}, {"pos": [1, 2, 3, 4, 5, 6, 7]}, actual) == ("一等奖", None)
+    assert calculate_prize("qxc", {"pos": 5}, {"pos": [9, 9, 3, 4, 5, 6, 7]}, actual) == ("三等奖", 3000)
+    assert calculate_prize("qxc", {"pos": 2}, {"pos": [9, 9, 9, 9, 9, 6, 7]}, actual) == ("六等奖", 5)
+    assert calculate_prize("qxc", {"pos": 1}, {"pos": [9, 9, 9, 9, 9, 9, 7]}, actual) == ("未中奖", 0)
+
+
+def test_gd36x7_prize():
+    # 广东36选7 已临时从注册表中移除，但奖金函数保留；
+    # 这里仅验证函数本身逻辑，不验证彩种是否注册。
+    assert calculate_prize("gd36x7", {"basic": 7, "special": 0}, {}) == ("一等奖", None)
+    assert calculate_prize("gd36x7", {"basic": 6, "special": 1}, {}) == ("二等奖", None)
+    assert calculate_prize("gd36x7", {"basic": 5, "special": 1}, {}) == ("四等奖", 200)
+    assert calculate_prize("gd36x7", {"basic": 4, "special": 0}, {}) == ("七等奖", 5)
+    assert calculate_prize("gd36x7", {"basic": 3, "special": 1}, {}) == ("未中奖", 0)
+
+
+# --------------------------------------------------------------------------- #
 # 福彩 3D 投注方式识别测试
 # --------------------------------------------------------------------------- #
 def test_fc3d_bet_type():

@@ -49,6 +49,37 @@ def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
     return records
 
 
+def _get_pick_count(options: Dict[str, Any], profile: LotteryProfile) -> int:
+    """返回本次生成主号码组应选几个号码。"""
+    primary = profile.primary_group
+    if not primary.variable_pick:
+        return primary.count
+    pick = options.get("pick_count")
+    if pick is None:
+        return primary.effective_pick_max
+    try:
+        pick = int(pick)
+    except (TypeError, ValueError):
+        return primary.effective_pick_max
+    return max(primary.effective_pick_min, min(pick, primary.effective_pick_max))
+
+
+def _add_pick_count_schema(
+    schema: Dict[str, Any], profile: LotteryProfile, label: str = "投注个数"
+) -> None:
+    """为可变 pick 彩种（如快乐8）在策略参数里加入‘选几’配置。"""
+    primary = profile.primary_group
+    if not primary.variable_pick:
+        return
+    schema["pick_count"] = {
+        "type": "choice",
+        "label": label,
+        "choices": list(range(primary.effective_pick_min, primary.effective_pick_max + 1)),
+        "default": primary.effective_pick_max,
+        "tooltip": f"选择投注 {primary.name} 的号码个数（选一到选十）。",
+    }
+
+
 def _make_ticket(profile: LotteryProfile, groups: Dict[str, List[int]], **kwargs) -> Ticket:
     return Ticket(profile=profile, groups=groups, **kwargs)
 
@@ -91,7 +122,7 @@ class GenericRandomStrategy(_GenericBase):
     _description = "在彩种号池范围内完全随机抽取号码。"
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {
+        schema = {
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -100,6 +131,8 @@ class GenericRandomStrategy(_GenericBase):
                 "max": 999999999,
             }
         }
+        _add_pick_count_schema(schema, self.profile)
+        return schema
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -107,7 +140,8 @@ class GenericRandomStrategy(_GenericBase):
         options = options or {}
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
-        basis = f"完全随机策略：在 {self.profile.name} 号池中等概率随机抽取。"
+        pick = _get_pick_count(options, self.profile)
+        basis = f"完全随机策略：在 {self.profile.name} 号池中等概率随机抽取 {pick} 个号码。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
@@ -115,13 +149,15 @@ class GenericRandomStrategy(_GenericBase):
         for _ in range(count):
             groups: Dict[str, List[int]] = {}
             for g in self.profile.pick_groups:
-                pick = rng.randint(g.effective_pick_min, g.effective_pick_max) if g.variable_pick else g.count
+                current_pick = pick if g.is_primary else g.count
+                if g.variable_pick and not g.is_primary:
+                    current_pick = rng.randint(g.effective_pick_min, g.effective_pick_max)
                 if g.positional:
                     groups[g.key] = [rng.randint(g.lo, g.hi) for _ in range(g.count)]
                 elif g.allow_repeat:
-                    groups[g.key] = sorted(rng.choices(g.values, k=pick))
+                    groups[g.key] = sorted(rng.choices(g.values, k=current_pick))
                 else:
-                    groups[g.key] = sorted(rng.sample(g.values, pick))
+                    groups[g.key] = sorted(rng.sample(g.values, current_pick))
             tickets.append(_make_ticket(self.profile, groups, strategy_name=self.metadata.name, basis=basis))
         return tickets
 
@@ -155,35 +191,30 @@ class GenericOddEvenStrategy(_GenericBase):
                 "max": 999999999,
             },
         }
-        if primary.variable_pick:
-            schema["pick_count"] = {
-                "type": "int",
-                "label": f"{primary.name}投注个数",
-                "default": pick,
-                "min": primary.effective_pick_min,
-                "max": primary.effective_pick_max,
-            }
+        _add_pick_count_schema(schema, self.profile, label=f"{primary.name}投注个数")
         return schema
 
     def validate_options(self, options: Dict[str, Any]) -> None:
         primary = self.profile.primary_group
-        pick = int(options.get("pick_count", primary.effective_pick_max)) if primary.variable_pick else primary.effective_pick_max
+        pick = _get_pick_count(options, self.profile)
         odd_count = options.get("odd_count", pick // 2)
         if not isinstance(odd_count, int) or not (0 <= odd_count <= pick):
             raise ValueError(f"奇数个数必须是 0-{pick} 的整数")
         if primary.variable_pick:
-            pc = options.get("pick_count", primary.effective_pick_max)
-            if not isinstance(pc, int) or not (primary.effective_pick_min <= pc <= primary.effective_pick_max):
-                raise ValueError(
-                    f"投注个数必须在 {primary.effective_pick_min}-{primary.effective_pick_max} 之间"
-                )
+            pc = options.get("pick_count")
+            if pc is not None:
+                pc = int(pc)
+                if not (primary.effective_pick_min <= pc <= primary.effective_pick_max):
+                    raise ValueError(
+                        f"投注个数必须在 {primary.effective_pick_min}-{primary.effective_pick_max} 之间"
+                    )
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
         primary = self.profile.primary_group
-        pick = int(options.get("pick_count", primary.effective_pick_max)) if primary.variable_pick else primary.effective_pick_max
+        pick = _get_pick_count(options, self.profile)
         odd_count = int(options.get("odd_count", pick // 2))
         even_count = pick - odd_count
         seed = options.get("seed")
@@ -234,7 +265,7 @@ class GenericHotColdStrategy(_GenericBase):
     _needs_history = True
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {
+        schema = {
             "mode": {
                 "type": "choice",
                 "label": "模式",
@@ -250,6 +281,8 @@ class GenericHotColdStrategy(_GenericBase):
                 "max": 999999999,
             },
         }
+        _add_pick_count_schema(schema, self.profile)
+        return schema
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -260,6 +293,7 @@ class GenericHotColdStrategy(_GenericBase):
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
         primary = self.profile.primary_group
+        pick = _get_pick_count(options, self.profile)
 
         analyzer = DrawAnalyzer(records, self.profile)
         freq = analyzer.frequency(primary.key)
@@ -270,7 +304,6 @@ class GenericHotColdStrategy(_GenericBase):
         else:
             ranked = sorted(all_vals, key=lambda n: freq.get(n, 0), reverse=True)
 
-        pick = primary.effective_pick_max
         half = pick // 2
         if mode == "hot":
             pool = ranked[: max(pick, len(ranked) // 2)]
@@ -279,7 +312,7 @@ class GenericHotColdStrategy(_GenericBase):
         else:
             pool = ranked[:half] + ranked[-(pick - half):]
 
-        basis = f"冷热号分析策略：{mode} 模式，基于历史频率选取候选池。"
+        basis = f"冷热号分析策略：{mode} 模式，基于历史频率选取候选池，投注 {pick} 个号码。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
@@ -289,8 +322,8 @@ class GenericHotColdStrategy(_GenericBase):
             if primary.positional:
                 groups[primary.key] = [rng.choice(pool) for _ in range(primary.count)]
             else:
-                pick = min(primary.effective_pick_max, len(pool))
-                groups[primary.key] = sorted(rng.sample(pool, pick))
+                chosen = min(pick, len(pool))
+                groups[primary.key] = sorted(rng.sample(pool, chosen))
             self._fill_random_other(groups, rng)
             tickets.append(_make_ticket(self.profile, groups, strategy_name=self.metadata.name, basis=basis))
         return tickets
@@ -428,7 +461,7 @@ class GenericSmartHotColdStrategy(_GenericBase):
     _needs_history = True
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {
+        schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
             "cold_weight": {"type": "int", "label": "冷号权重", "default": 40, "min": 0, "max": 100},
@@ -441,6 +474,8 @@ class GenericSmartHotColdStrategy(_GenericBase):
                 "max": 999999999,
             },
         }
+        _add_pick_count_schema(schema, self.profile)
+        return schema
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -453,6 +488,7 @@ class GenericSmartHotColdStrategy(_GenericBase):
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
         primary = self.profile.primary_group
+        pick = _get_pick_count(options, self.profile)
 
         analyzer = DrawAnalyzer(records, self.profile)
         freq = analyzer.frequency(primary.key)
@@ -470,7 +506,7 @@ class GenericSmartHotColdStrategy(_GenericBase):
 
         basis = (
             f"智能冷热号策略：综合最近 {lookback} 期热号频率（权重 {hot_weight}）"
-            f"与冷号遗漏值（权重 {cold_weight}）加权评分后随机抽取。"
+            f"与冷号遗漏值（权重 {cold_weight}）加权评分后随机抽取 {pick} 个号码。"
         )
         if seed is not None:
             basis += f" 随机种子：{seed}。"
@@ -481,7 +517,6 @@ class GenericSmartHotColdStrategy(_GenericBase):
             if primary.positional:
                 groups[primary.key] = [rng.choices(primary.values, weights=weights, k=1)[0] for _ in range(primary.count)]
             else:
-                pick = primary.effective_pick_max
                 selected = sorted(rng.choices(primary.values, weights=weights, k=pick))
                 # 去重重抽
                 while len(set(selected)) < pick and not primary.allow_repeat:
@@ -516,7 +551,7 @@ class GenericMissingNumberStrategy(_GenericBase):
     def get_config_schema(self) -> Dict[str, Any]:
         primary = self.profile.primary_group
         pick = primary.effective_pick_max
-        return {
+        schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "lookback": {"type": "int", "label": "统计期数", "default": 50, "min": 10, "max": 10000},
             "pool_size": {
@@ -534,6 +569,8 @@ class GenericMissingNumberStrategy(_GenericBase):
                 "max": 999999999,
             },
         }
+        _add_pick_count_schema(schema, self.profile)
+        return schema
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -542,17 +579,17 @@ class GenericMissingNumberStrategy(_GenericBase):
         records = _records_from_options(options)
         lookback = int(options.get("lookback", 50))
         primary = self.profile.primary_group
-        default_pool_size = max(primary.effective_pick_max, min(12, primary.size // 2))
+        pick = _get_pick_count(options, self.profile)
+        default_pool_size = max(pick, min(12, primary.size // 2))
         pool_size = int(options.get("pool_size", default_pool_size))
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
-        primary = self.profile.primary_group
 
         analyzer = DrawAnalyzer(records, self.profile)
         missing = analyzer.missing(primary.key, lookback)
         pool = [n for n, _ in missing[:pool_size]]
 
-        basis = f"遗漏号追踪策略：基于最近 {lookback} 期，从高遗漏值候选池抽取。"
+        basis = f"遗漏号追踪策略：基于最近 {lookback} 期，从高遗漏值候选池抽取 {pick} 个号码。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
@@ -562,8 +599,8 @@ class GenericMissingNumberStrategy(_GenericBase):
             if primary.positional:
                 groups[primary.key] = [rng.choice(pool) for _ in range(primary.count)]
             else:
-                pick = min(primary.effective_pick_max, len(pool))
-                groups[primary.key] = sorted(rng.sample(pool, pick))
+                chosen = min(pick, len(pool))
+                groups[primary.key] = sorted(rng.sample(pool, chosen))
             self._fill_random_other(groups, rng)
             tickets.append(_make_ticket(self.profile, groups, strategy_name=self.metadata.name, basis=basis))
         return tickets
@@ -591,7 +628,7 @@ class GenericBalancedStrategy(_GenericBase):
     _needs_history = True
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {
+        schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
             "max_attempts": {"type": "int", "label": "最大尝试次数", "default": 1000, "min": 100, "max": 10000},
@@ -603,6 +640,8 @@ class GenericBalancedStrategy(_GenericBase):
                 "max": 999999999,
             },
         }
+        _add_pick_count_schema(schema, self.profile)
+        return schema
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -614,6 +653,7 @@ class GenericBalancedStrategy(_GenericBase):
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
         primary = self.profile.primary_group
+        pick = _get_pick_count(options, self.profile)
 
         analyzer = DrawAnalyzer(records, self.profile)
         odd_ratio, _ = analyzer.odd_even_ratio(lookback)
@@ -623,8 +663,8 @@ class GenericBalancedStrategy(_GenericBase):
         std_sum = (sum_stats["max"] - sum_stats["min"]) / 6.0 or 1.0
         sum_min = max(avg_sum - 1.5 * std_sum, sum_stats["min"])
         sum_max = min(avg_sum + 1.5 * std_sum, sum_stats["max"])
-        target_odd = round(primary.effective_pick_max * odd_ratio)
-        target_high = round(primary.effective_pick_max * high_ratio)
+        target_odd = round(pick * odd_ratio)
+        target_high = round(pick * high_ratio)
 
         freq = analyzer.frequency(primary.key)
         max_freq = max(freq.values()) if freq else 1
@@ -632,13 +672,12 @@ class GenericBalancedStrategy(_GenericBase):
 
         basis = (
             f"历史均衡策略：基于最近 {lookback} 期，"
-            f"使奇偶比、大小比、和值接近历史平均。"
+            f"使 {pick} 个号码的奇偶比、大小比、和值接近历史平均。"
         )
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
         tickets: List[Ticket] = []
-        pick = primary.effective_pick_max
         for _ in range(count):
             best: Optional[Dict[str, List[int]]] = None
             best_score = float("inf")
@@ -715,15 +754,7 @@ class _GenericMLStrategy(_GenericBase):
             },
         }
         # 快乐8 额外让玩家选择投注个数
-        for g in self.profile.pick_groups:
-            if g.variable_pick:
-                schema["pick_count"] = {
-                    "type": "int",
-                    "label": "投注个数",
-                    "default": g.effective_pick_max,
-                    "min": g.effective_pick_min,
-                    "max": g.effective_pick_max,
-                }
+        _add_pick_count_schema(schema, self.profile, label="投注个数")
         return schema
 
     def validate_options(self, options: Dict[str, Any]) -> None:
@@ -733,6 +764,15 @@ class _GenericMLStrategy(_GenericBase):
         history_count = options.get("history_count", -1)
         if not isinstance(history_count, int) or history_count < -1:
             raise ValueError("使用历史记录期数必须大于等于 -1")
+        primary = self.profile.primary_group
+        if primary.variable_pick:
+            pc = options.get("pick_count")
+            if pc is not None:
+                pc = int(pc)
+                if not (primary.effective_pick_min <= pc <= primary.effective_pick_max):
+                    raise ValueError(
+                        f"投注个数必须在 {primary.effective_pick_min}-{primary.effective_pick_max} 之间"
+                    )
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
@@ -747,11 +787,12 @@ class _GenericMLStrategy(_GenericBase):
             records = records[-history_count:]
 
         lookback = compute_lookback(len(records))
-        prefix = (
-            self.profile.xgboost_prefix()
-            if self._backend == "xgboost"
-            else self.profile.lightgbm_prefix()
-        )
+        if self._backend == "xgboost":
+            prefix = self.profile.xgboost_prefix()
+        elif self._backend == "lightgbm":
+            prefix = self.profile.lightgbm_prefix()
+        else:
+            prefix = self.profile.catboost_prefix()
         model_path = find_current_model(
             records, lookback, prefix=prefix, options=options
         ) or new_model_path(
@@ -814,38 +855,42 @@ class _GenericMLStrategy(_GenericBase):
         # 每组默认 pick 数
         group_picks = {}
         for g in self.profile.pick_groups:
-            pick = g.effective_pick_max
-            if g.variable_pick and "pick_count" in options:
-                pick = int(options["pick_count"])
+            pick = _get_pick_count(options, self.profile) if g.is_primary else g.count
             group_picks[g.key] = pick
-
-        # 第一组：每个组取概率最高的前 pick 个（按位取每位概率最高）
-        first_groups: Dict[str, List[int]] = {}
-        for g in self.profile.pick_groups:
-            if g.key not in proba:
-                raise ValueError(f"模型未返回号码组 {g.name} 的概率")
-            p = proba[g.key]
-            if g.positional:
-                first_groups[g.key] = [int(np.argmax(p[pos])) + g.lo for pos in range(g.count)]
-            else:
-                pick = min(group_picks[g.key], len(p))
-                top_indices = np.argsort(p)[-pick:]
-                first_groups[g.key] = sorted(int(idx) + g.lo for idx in top_indices)
 
         tickets: List[Ticket] = []
         if count <= 0:
             return tickets
-        tickets.append(
-            _make_ticket(
-                self.profile,
-                first_groups,
-                strategy_name=self.metadata.name,
-                basis=basis + " 第一组为模型预测概率最高的号码。",
-                details=details,
-            )
-        )
 
-        for i in range(1, count):
+        # 七乐彩与快乐8 取消“第一组使用预测概率最高号码”规则，全部使用加权采样
+        if self.profile.key in ("qlc", "kl8"):
+            start_idx = 0
+        else:
+            # 第一组：每个组取概率最高的前 pick 个（按位取每位概率最高）
+            first_groups: Dict[str, List[int]] = {}
+            for g in self.profile.pick_groups:
+                if g.key not in proba:
+                    raise ValueError(f"模型未返回号码组 {g.name} 的概率")
+                p = proba[g.key]
+                if g.positional:
+                    first_groups[g.key] = [int(np.argmax(p[pos])) + g.lo for pos in range(g.count)]
+                else:
+                    pick = min(group_picks[g.key], len(p))
+                    top_indices = np.argsort(p)[-pick:]
+                    first_groups[g.key] = sorted(int(idx) + g.lo for idx in top_indices)
+
+            tickets.append(
+                _make_ticket(
+                    self.profile,
+                    first_groups,
+                    strategy_name=self.metadata.name,
+                    basis=basis + " 第一组为模型预测概率最高的号码。",
+                    details=details,
+                )
+            )
+            start_idx = 1
+
+        for i in range(start_idx, count):
             np_rng = np.random.RandomState(seed + i)
             rec_groups = predictor.recommend(group_picks=group_picks, diversity_boost=diversity, rng=np_rng)
             tickets.append(

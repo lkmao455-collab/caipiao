@@ -106,6 +106,16 @@ class NumberGroup:
             raise ValueError(f"{self.name}号码不能重复")
 
 
+# 彩种分类常量
+LOTTERY_CATEGORY_WELFARE = "welfare"
+LOTTERY_CATEGORY_SPORTS = "sports"
+
+CATEGORY_LABELS = {
+    LOTTERY_CATEGORY_WELFARE: "福利彩票",
+    LOTTERY_CATEGORY_SPORTS: "体育彩票",
+}
+
+
 @dataclass(frozen=True)
 class LotteryProfile:
     """一个彩种的完整档案。"""
@@ -119,6 +129,7 @@ class LotteryProfile:
     storage_file: str
     model_prefix: str  # 机器学习模型文件前缀基名（会拼接后端名）
     subtitle: str = ""
+    category: str = LOTTERY_CATEGORY_WELFARE  # 彩种大类：福利彩票 / 体育彩票
 
     # --- 便捷查询 ---
     def group(self, key: str) -> NumberGroup:
@@ -165,6 +176,8 @@ _BLUE = "#1976D2"
 _GREEN = "#388E3C"
 _ORANGE = "#F57C00"
 _PURPLE = "#7B1FA2"
+_TEAL = "#00897B"
+_CYAN = "#00ACC1"
 
 
 # 双色球：6 红(1-33) + 1 蓝(1-16)。红球为主统计组。
@@ -236,9 +249,105 @@ KL8 = LotteryProfile(
     model_prefix="kl8",
 )
 
+# 超级大乐透：5 前区(1-35) + 2 后区(1-12)。周一/三/六开奖。
+DLT = LotteryProfile(
+    key="dlt",
+    name="超级大乐透",
+    subtitle="5 前区 (1-35) + 2 后区 (1-12)",
+    groups=(
+        NumberGroup("front", "前区", 1, 35, 5, color=_RED, is_primary=True),
+        NumberGroup("back", "后区", 1, 12, 2, color=_BLUE),
+    ),
+    data_url="http://data.17500.cn/dlt_asc.txt",
+    parser_key="dlt",
+    draw_weekdays=(1, 3, 6),  # 周一/三/六
+    storage_file="draws_dlt.json",
+    model_prefix="dlt",
+    category=LOTTERY_CATEGORY_SPORTS,
+)
+
+# 排列3：3 位数字，每位 0-9，可重复、按位。每日开奖。
+PL3 = LotteryProfile(
+    key="pl3",
+    name="排列3",
+    subtitle="3 位数字 (每位 0-9，可重复)",
+    groups=(
+        NumberGroup(
+            "pos", "号码", 0, 9, 3,
+            positional=True, allow_repeat=True, color=_ORANGE, pad=1,
+            is_primary=True,
+        ),
+    ),
+    data_url="http://data.17500.cn/pl3_asc.txt",
+    parser_key="pl3",
+    draw_weekdays=(),  # 每日
+    storage_file="draws_pl3.json",
+    model_prefix="pl3",
+    category=LOTTERY_CATEGORY_SPORTS,
+)
+
+# 排列5：5 位数字，每位 0-9，可重复、按位。每日开奖。
+PL5 = LotteryProfile(
+    key="pl5",
+    name="排列5",
+    subtitle="5 位数字 (每位 0-9，可重复)",
+    groups=(
+        NumberGroup(
+            "pos", "号码", 0, 9, 5,
+            positional=True, allow_repeat=True, color=_GREEN, pad=1,
+            is_primary=True,
+        ),
+    ),
+    data_url="http://data.17500.cn/pl5_asc.txt",
+    parser_key="pl5",
+    draw_weekdays=(),  # 每日
+    storage_file="draws_pl5.json",
+    model_prefix="pl5",
+    category=LOTTERY_CATEGORY_SPORTS,
+)
+
+# 7星彩：7 位数字，每位 0-9，可重复、按位。周二/五/日开奖。
+QXC = LotteryProfile(
+    key="qxc",
+    name="7星彩",
+    subtitle="7 位数字 (每位 0-9，可重复)",
+    groups=(
+        NumberGroup(
+            "pos", "号码", 0, 9, 7,
+            positional=True, allow_repeat=True, color=_CYAN, pad=1,
+            is_primary=True,
+        ),
+    ),
+    data_url="http://data.17500.cn/7xc_asc.txt",
+    parser_key="qxc",
+    draw_weekdays=(2, 4, 6),  # 周二/五/日
+    storage_file="draws_qxc.json",
+    model_prefix="qxc",
+    category=LOTTERY_CATEGORY_SPORTS,
+)
+
+# 广东36选7：7 个基本号 + 1 个特别号，均来自 1-36。周一/三/五开奖。
+# 注意：广东36选7 暂无可用的公开文本数据源（17500.cn 未提供），
+# 因此当前未注册到 PROFILES。找到稳定数据源后取消注释即可启用。
+GD36X7 = LotteryProfile(
+    key="gd36x7",
+    name="广东36选7",
+    subtitle="7 基本号 + 1 特别号 (1-36)",
+    groups=(
+        NumberGroup("basic", "基本号", 1, 36, 7, color=_RED, is_primary=True),
+        NumberGroup("special", "特别号", 1, 36, 1, color=_BLUE, draw_only=True),
+    ),
+    data_url="",
+    parser_key="gd36x7",
+    draw_weekdays=(0, 2, 4),  # 周一/三/五
+    storage_file="draws_gd36x7.json",
+    model_prefix="gd36x7",
+    category=LOTTERY_CATEGORY_SPORTS,
+)
+
 
 PROFILES: Dict[str, LotteryProfile] = {
-    p.key: p for p in (SSQ, FC3D, QLC, KL8)
+    p.key: p for p in (SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC)
 }
 
 DEFAULT_KEY = "ssq"
@@ -256,4 +365,23 @@ def get_profile(key: str) -> LotteryProfile:
 
 def list_profiles() -> List[LotteryProfile]:
     """按固定顺序返回全部彩种档案。"""
-    return [SSQ, FC3D, QLC, KL8]
+    return [SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC]
+
+
+def list_profiles_by_category() -> Dict[str, List[LotteryProfile]]:
+    """按彩种大类（福利彩票/体育彩票）分组返回档案。"""
+    result: Dict[str, List[LotteryProfile]] = {}
+    for p in list_profiles():
+        result.setdefault(p.category, []).append(p)
+    # 保持已知分类的展示顺序
+    ordered: Dict[str, List[LotteryProfile]] = {}
+    for cat in (LOTTERY_CATEGORY_WELFARE, LOTTERY_CATEGORY_SPORTS):
+        if cat in result:
+            ordered[cat] = result.pop(cat)
+    ordered.update(result)
+    return ordered
+
+
+def category_label(category: str) -> str:
+    """返回彩种大类的中文名称。"""
+    return CATEGORY_LABELS.get(category, category)
