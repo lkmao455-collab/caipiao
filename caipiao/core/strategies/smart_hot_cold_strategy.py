@@ -87,7 +87,15 @@ class SmartHotColdStrategy(GenerationStrategy):
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
 
-        records = [r if isinstance(r, DrawRecord) else r for r in history]
+        records = [
+            r if isinstance(r, DrawRecord) else DrawRecord(
+                issue="",
+                draw_date=r.generated_at,
+                profile=r.profile.key,
+                groups=r.groups,
+            )
+            for r in history
+        ]
         analyzer = LotteryAnalyzer(records)
 
         # Build red scores

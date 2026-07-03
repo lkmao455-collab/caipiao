@@ -147,7 +147,7 @@ class GenericMLPredictor:
             pick = (
                 group_picks[g.key]
                 if group_picks and g.key in group_picks
-                else g.effective_pick_max
+                else getattr(g, "effective_pick_max", g.count)
             )
             if g.positional:
                 result[g.key] = self._recommend_positional(g, p, rng)
@@ -193,6 +193,8 @@ class GenericMLPredictor:
         rng: np.random.RandomState,
     ) -> List[int]:
         """按位组：每位按概率取最高或加权采样。"""
+        if proba.ndim != 2 or proba.shape != (group.count, group.size):
+            raise ValueError("按位概率矩阵形状与组定义不匹配")
         result = []
         for pos in range(group.count):
             weights = proba[pos] + 0.05

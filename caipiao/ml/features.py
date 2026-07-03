@@ -28,6 +28,8 @@ def build_features(
     """
     if any(r.profile.key != "ssq" for r in records):
         raise ValueError("features.build_features 仅支持双色球记录")
+    if lookback <= 0:
+        raise ValueError("lookback 必须大于 0")
     if len(records) <= lookback:
         return np.array([]), np.array([]), np.array([])
 
@@ -45,12 +47,13 @@ def build_features(
 
         red_label = np.zeros(RED_COUNT, dtype=np.int32)
         for n in next_record.red_balls:
-            red_label[n - 1] = 1
+            if 1 <= n <= RED_COUNT:
+                red_label[n - 1] = 1
         y_red.append(red_label)
 
         blue_label = np.zeros(BLUE_COUNT, dtype=np.int32)
         blue = next_record.blue_ball
-        if blue is not None:
+        if blue is not None and 1 <= blue <= BLUE_COUNT:
             blue_label[blue - 1] = 1
         y_blue.append(blue_label)
 
@@ -63,6 +66,8 @@ def build_prediction_features(
     """为最新一期构建预测特征（仅支持双色球）。"""
     if any(r.profile.key != "ssq" for r in records):
         raise ValueError("features.build_prediction_features 仅支持双色球记录")
+    if lookback <= 0:
+        raise ValueError("lookback 必须大于 0")
     if len(records) < lookback:
         return np.array([])
     window = records[-lookback:]

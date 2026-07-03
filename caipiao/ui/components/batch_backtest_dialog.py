@@ -359,5 +359,7 @@ class BatchBacktestDialog(QDialog):
     def closeEvent(self, event) -> None:  # noqa: N802
         if self._thread and self._thread.isRunning():
             self._thread.requestInterruption()
-            self._thread.wait(3000)
+            if not self._thread.wait(5000):
+                self._thread.terminate()
+                self._thread.wait(1000)
         super().closeEvent(event)

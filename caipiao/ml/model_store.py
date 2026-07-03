@@ -92,10 +92,10 @@ def _format_params(options: Optional[Dict[str, Any]]) -> str:
     if isinstance(history_count, int) and history_count > 0:
         parts.append(f"hist{history_count}")
     diversity = options.get("diversity_boost")
-    if diversity is not None:
+    if isinstance(diversity, (int, float)):
         parts.append(f"div{int(diversity)}")
     overlap = options.get("max_red_overlap")
-    if overlap is not None:
+    if isinstance(overlap, (int, float)):
         parts.append(f"ovl{int(overlap)}")
     if not parts:
         return "default"
@@ -183,10 +183,14 @@ def is_model_current(
 def model_info(model_path: Path) -> Dict[str, Any]:
     """读取模型的元数据信息摘要."""
     meta = _model_meta(model_path)
+    try:
+        mtime = model_path.stat().st_mtime
+    except FileNotFoundError:
+        mtime = 0.0
     info = {
         "path": str(model_path),
         "name": model_path.name,
-        "modified": datetime.fromtimestamp(model_path.stat().st_mtime).isoformat(),
+        "modified": datetime.fromtimestamp(mtime).isoformat(),
     }
     info.update(meta)
     return info

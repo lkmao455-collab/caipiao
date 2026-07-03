@@ -236,7 +236,7 @@ class HistoryPanel(QWidget):
             rows.append(
                 f"<tr>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;'><b>{idx:02d}.</b></td>"
-                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{ticket.generated_at.strftime('%Y-%m-%d %H:%M:%S')}</td>"
+                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{ticket.generated_at.strftime('%Y-%m-%d %H:%M:%S') if ticket.generated_at else '-'}</td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{''.join(balls_html)}</td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;color:#666;'>{ticket.strategy_name}</td>"
                 f"</tr>"

@@ -19,7 +19,10 @@ class HistoryManager:
 
     def __init__(self, storage_path: Path | str, max_entries: int = 1000) -> None:
         self.storage_path = Path(storage_path)
-        self.max_entries = max_entries
+        try:
+            self.max_entries = max(1, int(max_entries))
+        except (ValueError, TypeError):
+            self.max_entries = 1000
         self._tickets: List[Ticket] = []
         self._load()
 
@@ -30,8 +33,10 @@ class HistoryManager:
         try:
             with self.storage_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
+            if not isinstance(data, list):
+                raise ValueError("JSON root must be a list")
             self._tickets = [Ticket.from_dict(item) for item in data]
-        except Exception as exc:  # noqa: BLE001
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
             logger.error("加载历史记录失败: %s", exc)
             self._tickets = []
 
@@ -93,8 +98,11 @@ class HistoryManager:
 
     def get_recent(self, days: int = 30) -> List[Ticket]:
         """获取最近 N 天的记录."""
-        cutoff = datetime.now() - timedelta(days=days)
-        return [t for t in self._tickets if t.generated_at >= cutoff]
+        now = datetime.now()
+        if self._tickets and self._tickets[0].generated_at and self._tickets[0].generated_at.tzinfo is not None:
+            now = now.astimezone(self._tickets[0].generated_at.tzinfo)
+        cutoff = now - timedelta(days=days)
+        return [t for t in self._tickets if t.generated_at and t.generated_at >= cutoff]
 
     def clear(self) -> None:
         """清空历史."""
@@ -118,14 +126,20 @@ class HistoryManager:
             # 动态列头：按第一个有号票的 render_groups 决定（全部票同彩种）
             sample = self._tickets[0] if self._tickets else None
             group_names = [rg.name for rg in sample.render_groups()] if sample else ["红球", "蓝球"]
+            if not group_names:
+                group_names = ["号码"]
             writer.writerow(["时间", "策略"] + group_names + ["紧凑格式", "依据"])
             for t in self._tickets:
                 row = [
-                    t.generated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    t.generated_at.strftime("%Y-%m-%d %H:%M:%S") if t.generated_at else "-",
                     t.strategy_name,
                 ]
-                for rg in t.render_groups():
-                    row.append(" ".join(f"{n:0{rg.pad}d}" for n in rg.numbers))
+                groups = list(t.render_groups())
+                if not groups:
+                    row.append("")
+                else:
+                    for rg in groups:
+                        row.append(" ".join(f"{n:0{rg.pad}d}" for n in rg.numbers))
                 row.extend([t.format_compact(), t.basis])
                 writer.writerow(row)
 
@@ -139,8 +153,14 @@ class HistoryManager:
     def import_from_json(self, path: Path | str) -> int:
         """从 JSON 导入历史记录."""
         path = Path(path)
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        imported = [Ticket.from_dict(item) for item in data]
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                raise ValueError("JSON root must be a list")
+            imported = [Ticket.from_dict(item) for item in data]
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.error("导入历史记录失败: %s", exc)
+            return 0
         self.add_many(imported)
         return len(imported)

@@ -68,6 +68,7 @@ def test_next_period_info_same_year(tmp_path):
     # 最新一期为周五（2024-01-05），下一期开奖应为周日 2024-01-07
     repo.update(make_records())
     info = repo.next_period_info()
+    assert info is not None
     assert info["base_issue"] == "2024003"
     assert info["next_issue"] == "2024004"
     assert info["next_date"] == datetime(2024, 1, 7)
@@ -78,5 +79,6 @@ def test_next_period_info_cross_year(tmp_path):
     # 2024-12-31 为周二，下一期开奖为 2025-01-02（周四），期号跨年重置为 001
     repo.update([DrawRecord("2024150", datetime(2024, 12, 31), [1, 2, 3, 4, 5, 6], 7)])
     info = repo.next_period_info()
+    assert info is not None
     assert info["next_issue"] == "2025001"
     assert info["next_date"] == datetime(2025, 1, 2)

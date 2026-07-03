@@ -63,6 +63,8 @@ class LotteryLightGBMModel:
         """
         if X.shape[0] == 0:
             raise ValueError("训练数据为空")
+        if y_red.ndim != 2 or y_blue.ndim != 2:
+            raise ValueError("y_red/y_blue 必须是二维数组")
 
         # 总步数 = 33 个红球分类器 + 1 个蓝球多输出分类器
         total = int(y_red.shape[1]) + 1
@@ -83,8 +85,7 @@ class LotteryLightGBMModel:
             logger.debug("红球 %02d 模型训练完成", i + 1)
 
         # 训练蓝球多输出分类器
-        blue_clf = self._create_classifier()
-        blue_clf.set_params(scale_pos_weight=5.0)
+        blue_clf = self._create_classifier().set_params(scale_pos_weight=5.0)
         self.blue_model = MultiOutputClassifier(blue_clf, n_jobs=1)
         self.blue_model.fit(X, y_blue)
         if progress_callback is not None:
@@ -114,12 +115,12 @@ class LotteryLightGBMModel:
                 message="X does not have valid feature names",
                 category=UserWarning,
             )
-            red_proba = np.array(
-                [model.predict_proba(X)[0, 1] for model in self.red_models]
-            )
-            blue_proba = np.array(
-                [est.predict_proba(X)[0, 1] for est in self.blue_model.estimators_]
-            )
+            def _binary_proba(model):
+                probs = model.predict_proba(X)[0]
+                return probs[1] if probs.shape[0] > 1 else float(model.classes_[0] == 1)
+
+            red_proba = np.array([_binary_proba(model) for model in self.red_models])
+            blue_proba = np.array([_binary_proba(est) for est in self.blue_model.estimators_])
         return red_proba, blue_proba
 
     def save(self, path: Path | str) -> None:

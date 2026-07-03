@@ -36,16 +36,20 @@ class DrawAnalyzer:
 
     def cold(self, group_key: str, top_n: int = 10, last_n: Optional[int] = None) -> List[int]:
         freq = self.frequency(group_key, last_n)
+        if group_key not in self.profile.group_keys:
+            raise ValueError(f"Group {group_key} not found in profile {self.profile.key}")
         group = self.profile.group(group_key)
         return sorted(group.values, key=lambda n: freq.get(n, 0))[:top_n]
 
     def missing(self, group_key: str, last_n: int = 50) -> List[Tuple[int, int]]:
         records = self._slice(last_n)
+        if group_key not in self.profile.group_keys:
+            raise ValueError(f"Group {group_key} not found in profile {self.profile.key}")
         group = self.profile.group(group_key)
         missing: Dict[int, int] = {n: last_n for n in group.values}
         for idx, record in enumerate(reversed(records)):
             for ball in record.groups.get(group_key, []):
-                if missing[ball] == last_n:
+                if ball in missing and missing[ball] == last_n:
                     missing[ball] = idx
         return sorted(missing.items(), key=lambda x: x[1], reverse=True)
 
@@ -152,6 +156,8 @@ class DrawAnalyzer:
     def _slice(self, last_n: Optional[int]) -> List[DrawRecord]:
         if last_n is None or last_n >= len(self.records):
             return self.records
+        if last_n <= 0:
+            return []
         return self.records[-last_n:]
 
     def summary(self) -> Dict:

@@ -346,9 +346,16 @@ class GenericExcludeIncludeStrategy(_GenericBase):
         for g in self.profile.pick_groups:
             include = set(options.get(f"include_{g.key}", []))
             exclude = set(options.get(f"exclude_{g.key}", []))
+            valid_range = set(g.values)
+            if not (include <= valid_range):
+                raise ValueError(f"必含 {g.name} 包含越界号码")
+            if not (exclude <= valid_range):
+                raise ValueError(f"排除 {g.name} 包含越界号码")
             if include & exclude:
                 raise ValueError(f"{g.name} 中同一号码不能同时必含和排除")
-            available = set(g.values) - exclude
+            if len(include) > g.effective_pick_max:
+                raise ValueError(f"必含 {g.name} 数量不能超过 {g.effective_pick_max}")
+            available = valid_range - exclude
             if len(available) < g.effective_pick_min:
                 raise ValueError(f"{g.name} 排除后剩余号码不足")
             if not (include <= available):
@@ -383,11 +390,12 @@ class GenericExcludeIncludeStrategy(_GenericBase):
                 if g.positional:
                     # 按位：必含/排除作用于每一位独立选择
                     pos_chosen = []
+                    pool = list(set(g.values) - exclude)
                     for _ in range(g.count):
-                        pool = list(include) if include and rng.random() < 0.5 else available
-                        if not pool:
-                            pool = g.values[:]
-                        pos_chosen.append(rng.choice(pool))
+                        pos_pool = list(include) if include and rng.random() < 0.5 else pool
+                        if not pos_pool:
+                            pos_pool = g.values[:]
+                        pos_chosen.append(rng.choice(pos_pool))
                     groups[g.key] = pos_chosen
                 else:
                     if g.variable_pick:
@@ -533,7 +541,9 @@ class GenericMissingNumberStrategy(_GenericBase):
         options = options or {}
         records = _records_from_options(options)
         lookback = int(options.get("lookback", 50))
-        pool_size = int(options.get("pool_size", 12))
+        primary = self.profile.primary_group
+        default_pool_size = max(primary.effective_pick_max, min(12, primary.size // 2))
+        pool_size = int(options.get("pool_size", default_pool_size))
         seed = options.get("seed")
         rng = random.Random(seed) if seed is not None else random.Random()
         primary = self.profile.primary_group
@@ -764,6 +774,8 @@ class _GenericMLStrategy(_GenericBase):
         # 图表可用的分组概率描述
         group_probabilities = []
         for g in self.profile.pick_groups:
+            if g.key not in proba_lists:
+                raise ValueError(f"模型未返回号码组 {g.name} 的概率")
             p = proba_lists[g.key]
             if g.positional:
                 # 按位：拆成 count 个子图
@@ -810,6 +822,8 @@ class _GenericMLStrategy(_GenericBase):
         # 第一组：每个组取概率最高的前 pick 个（按位取每位概率最高）
         first_groups: Dict[str, List[int]] = {}
         for g in self.profile.pick_groups:
+            if g.key not in proba:
+                raise ValueError(f"模型未返回号码组 {g.name} 的概率")
             p = proba[g.key]
             if g.positional:
                 first_groups[g.key] = [int(np.argmax(p[pos])) + g.lo for pos in range(g.count)]

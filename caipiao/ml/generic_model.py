@@ -85,6 +85,8 @@ class LotteryGenericModel:
         factory = BACKENDS.get(self.backend, _create_xgb_classifier)
         clf = factory()
         if positional:
+            if num_class <= 1:
+                raise ValueError("按位组的 num_class 必须大于 1")
             if self.backend == "xgboost":
                 clf.set_params(objective="multi:softprob", num_class=num_class)
             else:
@@ -99,11 +101,15 @@ class LotteryGenericModel:
     ) -> None:
         if X.shape[0] == 0:
             raise ValueError("训练数据为空")
+        if X.ndim != 2:
+            raise ValueError("X 必须是二维数组")
 
         total_steps = 0
         plan: List[Tuple[str, Any]] = []  # (group_key, task_description)
         for g in self.profile.groups:
-            y = y_dict[g.key]
+            y = y_dict.get(g.key)
+            if y is None or y.ndim != 2 or y.shape[0] != X.shape[0]:
+                raise ValueError(f"组 {g.key} 标签缺失或维度与 X 不匹配")
             if g.positional:
                 total_steps += g.count
                 plan.append((g.key, "positional"))
@@ -123,8 +129,11 @@ class LotteryGenericModel:
                     unique = np.unique(y_pos)
                     if len(unique) == 1:
                         # 退化：该位置所有样本标签相同，使用常数概率
+                        val = int(unique[0])
+                        if not (g.lo <= val <= g.hi):
+                            raise ValueError(f"按位标签 {val} 超出范围 [{g.lo}, {g.hi}]")
                         const = np.zeros(g.size, dtype=np.float32)
-                        const[int(unique[0]) - g.lo] = 1.0
+                        const[val - g.lo] = 1.0
                         models.append(const)
                     else:
                         model = self._create_classifier(positional=True, num_class=g.size)
@@ -140,7 +149,10 @@ class LotteryGenericModel:
                     unique = np.unique(y_i)
                     if len(unique) == 1:
                         # 退化：该号码所有样本标签相同
-                        models.append(float(unique[0]))
+                        val = float(unique[0])
+                        if val not in (0.0, 1.0):
+                            raise ValueError(f"二分类标签必须为 0/1， got {val}")
+                        models.append(val)
                     else:
                         model = self._create_classifier()
                         pos = int(y_i.sum())

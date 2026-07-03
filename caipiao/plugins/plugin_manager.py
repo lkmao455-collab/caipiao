@@ -31,7 +31,7 @@ class PluginManager:
 
     def discover(self) -> List[Path]:
         """发现插件文件."""
-        if not self.plugin_dir.exists():
+        if not self.plugin_dir.is_dir():
             return []
         files = [
             p
@@ -53,7 +53,11 @@ class PluginManager:
 
     def load(self, plugin_path: Path) -> List[str]:
         """加载单个插件文件."""
-        before_ids = {s.metadata.id for s in self.engine.list_strategies()}
+        before_ids = {
+            s.metadata.id
+            for s in self.engine.list_strategies()
+            if getattr(s, "metadata", None) is not None
+        }
         spec = importlib.util.spec_from_file_location(
             f"caipiao_plugin_{plugin_path.stem}", plugin_path
         )
@@ -61,7 +65,10 @@ class PluginManager:
             raise ImportError(f"无法加载插件: {plugin_path}")
 
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        try:
+            spec.loader.exec_module(module)
+        except Exception as exc:
+            raise ImportError(f"无法执行插件: {plugin_path}") from exc
         self._loaded_plugins.append(module)
 
         loaded_ids: List[str] = []
@@ -71,7 +78,10 @@ class PluginManager:
             module, "register_strategies", None
         )
         if callable(register_func):
-            register_func(self.engine)
+            try:
+                register_func(self.engine)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("register_strategies 失败 %s: %s", plugin_path, exc)
 
         # 方式2：自动发现模块中的 GenerationStrategy 子类
         for _, obj in inspect.getmembers(module, inspect.isclass):
@@ -88,14 +98,20 @@ class PluginManager:
                     logger.error("实例化策略失败 %s: %s", obj.__name__, exc)
 
         # 记录本插件新增的策略 ID（方式1 通过前后对比补充）
-        after_ids = {s.metadata.id for s in self.engine.list_strategies()}
+        after_ids = {
+            s.metadata.id
+            for s in self.engine.list_strategies()
+            if getattr(s, "metadata", None) is not None
+        }
         new_ids = list(after_ids - before_ids)
-        self._plugin_strategy_ids.extend(new_ids)
-        return loaded_ids + new_ids
+        self._plugin_strategy_ids.extend(
+            sid for sid in new_ids if sid not in self._plugin_strategy_ids
+        )
+        return list(dict.fromkeys(loaded_ids + new_ids))
 
     def unload_all(self) -> None:
         """卸载所有已加载插件（仅移除插件策略，保留内置策略）。"""
         for sid in self._plugin_strategy_ids:
-            self.engine._strategies.pop(sid, None)
+            self.engine.unregister(sid)
         self._plugin_strategy_ids.clear()
         self._loaded_plugins.clear()

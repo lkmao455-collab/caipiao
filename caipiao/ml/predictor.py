@@ -139,6 +139,11 @@ class MLPredictor:
         if rng is None:
             rng = np.random.RandomState()
 
+        if not 1 <= red_count <= 33:
+            raise ValueError("red_count 必须在 1..33 之间")
+        if not 0 <= blue_count <= 16:
+            raise ValueError("blue_count 必须在 0..16 之间")
+
         red_proba, blue_proba = self.predict()
 
         # 对概率进行加权随机采样，既尊重模型预测又保证多样性

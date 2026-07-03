@@ -36,9 +36,9 @@ def _detect_encoding_from_bytes(raw):
     if raw.startswith(b"\xef\xbb\xbf"):
         return "utf-8-sig"
     if raw.startswith(b"\xff\xfe"):
-        return "utf-16-le"
+        return "utf-16"
     if raw.startswith(b"\xfe\xff"):
-        return "utf-16-be"
+        return "utf-16"
 
     # 尝试 UTF-8
     try:
@@ -88,7 +88,7 @@ def detect_file_encoding(filepath):
         str: 检测到的编码名称
     """
     with open(filepath, "rb") as f:
-        raw = f.read()
+        raw = f.read(65536)
     return _detect_encoding_from_bytes(raw)
 
 
@@ -114,17 +114,18 @@ def read_text_file_with_info(filepath):
         print(f"[EncodingUtils] Warning: Could not detect encoding for {filepath}, "
               f"falling back to latin-1. Content may be garbled.")
 
+    text = raw.decode(encoding)
+
     # 检测换行符
-    if b"\r\n" in raw:
+    if "\r\n" in text:
         line_ending = "CRLF"
-    elif b"\n" in raw:
+    elif "\n" in text:
         line_ending = "LF"
-    elif b"\r" in raw:
+    elif "\r" in text:
         line_ending = "CR"
     else:
         line_ending = "LF"
 
-    text = raw.decode(encoding)
     return text, encoding.upper(), line_ending
 
 

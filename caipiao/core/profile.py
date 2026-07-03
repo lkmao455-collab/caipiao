@@ -141,6 +141,8 @@ class LotteryProfile:
         for g in self.groups:
             if g.is_primary:
                 return g
+        if not self.groups:
+            raise ValueError(f"彩种 {self.key} 没有定义任何号码组")
         return self.groups[0]
 
     @property

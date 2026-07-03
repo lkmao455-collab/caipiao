@@ -48,6 +48,8 @@ class DrawRecord:
             }
         else:
             self.profile = SSQ
+            if blue_ball is None:
+                raise ValueError("双色球开奖记录必须提供蓝球")
             self.groups = {
                 "red": sorted(int(x) for x in (red_balls or [])),
                 "blue": [int(blue_ball)],
@@ -67,11 +69,15 @@ class DrawRecord:
     # --- 序列化 ---
     def to_dict(self) -> dict:
         if self.profile.key == "ssq":
+            reds = self.groups.get("red", [])
+            blues = self.groups.get("blue", [])
+            if not reds or not blues:
+                raise ValueError("双色球开奖记录缺少红球或蓝球，无法序列化")
             return {
                 "issue": self.issue,
                 "draw_date": self.draw_date.strftime("%Y-%m-%d"),
-                "red_balls": list(self.groups["red"]),
-                "blue_ball": self.groups["blue"][0],
+                "red_balls": list(reds),
+                "blue_ball": blues[0],
             }
         return {
             "issue": self.issue,
@@ -99,10 +105,14 @@ class DrawRecord:
 
     def __repr__(self) -> str:
         if self.profile.key == "ssq":
-            reds = " ".join(f"{r:02d}" for r in self.groups["red"])
+            reds = self.groups.get("red", [])
+            blues = self.groups.get("blue", [])
+            if not reds or not blues:
+                return f"DrawRecord({self.issue} {self.draw_date.date()} 无效记录)"
+            reds_str = " ".join(f"{r:02d}" for r in reds)
             return (
                 f"DrawRecord({self.issue} {self.draw_date.date()} "
-                f"红:{reds} 蓝:{self.groups['blue'][0]:02d})"
+                f"红:{reds_str} 蓝:{blues[0]:02d})"
             )
         parts = []
         for g in self.profile.groups:

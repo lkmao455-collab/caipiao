@@ -16,7 +16,11 @@ def make_records(count: int = 120):
     base = datetime(2024, 1, 1)
     for i in range(count):
         # Generate deterministic pseudo-random numbers
-        nums = [(i * 7 + j * 13) % 33 + 1 for j in range(6)]
+        base_offset = (i * 7) % 33
+        nums = sorted({((base_offset + j * 13) % 33) + 1 for j in range(6)})
+        while len(nums) < 6:
+            nums.append(next(n for n in range(1, 34) if n not in nums))
+            nums.sort()
         blue = (i * 5 + 3) % 16 + 1
         records.append(
             DrawRecord(
@@ -92,7 +96,9 @@ def test_lightgbm_model_save_load(tmp_path):
     assert model.is_trained
 
     X_pred = build_prediction_features(records, lookback=50)
-    red_before, blue_before = model.predict_proba(X_pred)
+    proba = model.predict_proba(X_pred)
+    assert isinstance(proba, tuple) and len(proba) == 2
+    red_before, blue_before = proba
 
     path = tmp_path / "lightgbm_model.pkl"
     model.save(path)

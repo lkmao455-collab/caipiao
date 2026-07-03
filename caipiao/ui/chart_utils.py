@@ -94,6 +94,8 @@ def build_group_probability_chart_pixmap(
     _configure_matplotlib_fonts()
 
     n = len(group_probabilities)
+    if n == 0:
+        raise ValueError("group_probabilities 不能为空")
     fig, axes = plt.subplots(n, 1, figsize=(12, 5 * n), dpi=150)
     if n == 1:
         axes = [axes]
@@ -126,6 +128,8 @@ def build_group_probability_charts_html(
     _configure_matplotlib_fonts()
 
     n = len(group_probabilities)
+    if n == 0:
+        raise ValueError("group_probabilities 不能为空")
     fig, axes = plt.subplots(n, 1, figsize=(10, 4 * n), dpi=120)
     if n == 1:
         axes = [axes]
@@ -224,6 +228,8 @@ class ChartGraphicsView(QGraphicsView):
             factor = 1 / 1.2
 
         current_scale = self.transform().m11()
+        if current_scale == 0:
+            current_scale = self._min_scale
         new_scale = current_scale * factor
         if new_scale < self._min_scale:
             factor = self._min_scale / current_scale

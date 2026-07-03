@@ -96,6 +96,8 @@ class DrawRepository:
         return self._records[:]
 
     def get_recent(self, count: int = 100) -> List[DrawRecord]:
+        if count <= 0:
+            return []
         return self._records[-count:]
 
     def get_count(self) -> int:
@@ -121,6 +123,8 @@ class DrawRepository:
         nxt = last_date + timedelta(days=1)
         if self.profile.is_daily:
             return nxt
+        if not self.profile.draw_weekdays:
+            raise ValueError("draw_weekdays must not be empty for non-daily profile")
         while nxt.weekday() not in self.profile.draw_weekdays:
             nxt += timedelta(days=1)
         return nxt
@@ -128,10 +132,12 @@ class DrawRepository:
     @staticmethod
     def _next_issue(latest_issue: str, next_date: datetime) -> str:
         issue = latest_issue.strip()
+        if len(issue) < 4 or not issue[:4].isdigit():
+            return ""
         try:
             year = int(issue[:4])
             sequence = int(issue[4:])
-        except (ValueError, IndexError):
+        except ValueError:
             return ""
         if next_date.year != year:
             return f"{next_date.year}001"

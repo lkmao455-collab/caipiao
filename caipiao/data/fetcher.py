@@ -43,12 +43,17 @@ class LotteryDataFetcher:
                 "Chrome/120.0.0.0 Safari/537.36"
             )
         }
-        self._parser: Callable[[List[str], str], Optional[DrawRecord]] = {
+        parser_map = {
             "ssq": self._parse_ssq,
             "3d": self._parse_3d,
             "qlc": self._parse_qlc,
             "kl8": self._parse_kl8,
-        }.get(self.profile.parser_key, self._parse_ssq)
+        }
+        if self.profile.parser_key not in parser_map:
+            raise ValueError(f"Unsupported parser_key: {self.profile.parser_key}")
+        self._parser: Callable[[List[str], str], Optional[DrawRecord]] = parser_map[self.profile.parser_key]
+        if max_retries < 1:
+            raise ValueError("max_retries must be >= 1")
 
     # ------------------------------------------------------------------ #
     # 行解析器
@@ -122,6 +127,7 @@ class LotteryDataFetcher:
                 if response.status_code == 200:
                     return response
                 last_exc = Exception(f"HTTP {response.status_code}")
+                response.close()
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
             if attempt < self.max_retries - 1:
@@ -151,7 +157,10 @@ class LotteryDataFetcher:
         """获取全部历史记录."""
         logger.info("Fetching data from %s", self.profile.data_url)
         response = self._get_with_retry(self.profile.data_url)
-        text = self._decode_response(response)
+        try:
+            text = self._decode_response(response)
+        finally:
+            response.close()
 
         records: List[DrawRecord] = []
         for line in text.strip().split("\n"):
@@ -175,12 +184,15 @@ class LotteryDataFetcher:
         """获取最新一期开奖记录."""
         try:
             response = self._get_with_retry(self.profile.data_url)
-            text = self._decode_response(response)
+            try:
+                text = self._decode_response(response)
+            finally:
+                response.close()
             lines = text.strip().split("\n")
             if lines:
                 parts = lines[-1].strip().split()
                 if len(parts) >= 3:
                     return self._parser(parts, lines[-1])
-        except Exception as exc:  # noqa: BLE001
+        except (requests.RequestException, ValueError, IndexError) as exc:
             logger.debug("获取 %s 最新一期失败: %s", self.profile.name, exc)
         return None

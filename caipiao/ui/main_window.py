@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
                 pending.append((attr, thread))
 
         # 批量回测对话框可能是独立窗口，关闭主窗口时也要中断它
-        for dialog in self.findChildren(type):
+        for dialog in self.findChildren(QDialog):
             if hasattr(dialog, "_thread"):
                 thread = getattr(dialog, "_thread", None)
                 if thread and thread.isRunning():
@@ -351,7 +351,8 @@ class MainWindow(QMainWindow):
 
         path_layout = QHBoxLayout()
         path_layout.addWidget(QLabel("插件目录:"))
-        self.plugin_dir_edit = QLineEdit(str(self.plugin_managers[self.current_key].plugin_dir))
+        pm = self.plugin_managers.get(self.current_key)
+        self.plugin_dir_edit = QLineEdit(str(pm.plugin_dir) if pm else "")
         self.plugin_dir_edit.setToolTip("当前插件所在的目录。插件可扩展生成策略。")
         self.plugin_dir_edit.setReadOnly(True)
         path_layout.addWidget(self.plugin_dir_edit)
@@ -551,7 +552,8 @@ class MainWindow(QMainWindow):
         self._refresh_data_stats()
 
         # 插件页刷新
-        self.plugin_dir_edit.setText(str(self.plugin_managers[self.current_key].plugin_dir))
+        pm = self.plugin_managers.get(self.current_key)
+        self.plugin_dir_edit.setText(str(pm.plugin_dir) if pm else "")
         self._refresh_plugin_list()
 
         # 清空生成结果（避免旧彩种结果残留）
@@ -725,7 +727,7 @@ class MainWindow(QMainWindow):
                 f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}",
                 f"最近 100 期连号出现比例: {summary['consecutive_ratio']:.2%}",
             ]
-            if self.current.profile.key == "3d":
+            if self.current.profile.key == "3d" and hasattr(self.current.data_analyzer, "span"):
                 span = self.current.data_analyzer.span(100)
                 lines.append(f"最近 100 期跨度: 最小={span['min']}, 最大={span['max']}, 平均={span['avg']:.1f}")
         self.data_stats_text.setText("\n".join(lines))
@@ -1153,7 +1155,12 @@ class MainWindow(QMainWindow):
                 )
                 return
         elif self.current.profile.key != "ssq" and is_ml_strategy(strategy_id):
-            backend = "xgboost" if strategy_id.startswith("xgboost_") else "lightgbm"
+            if strategy_id.startswith("xgboost_"):
+                backend = "xgboost"
+            elif strategy_id.startswith("lightgbm_"):
+                backend = "lightgbm"
+            else:
+                raise ValueError(f"未知机器学习策略: {strategy_id}")
             prefix = (
                 self.current.profile.xgboost_prefix()
                 if backend == "xgboost"
@@ -1238,7 +1245,9 @@ class MainWindow(QMainWindow):
         info = self.current.data_repository.next_period_info()
         if not info:
             return
-        next_date = info["next_date"]
+        next_date = info.get("next_date")
+        if not next_date:
+            return
         meta = {
             "target_issue": info["next_issue"],
             "target_date": next_date.strftime("%Y-%m-%d"),

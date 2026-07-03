@@ -27,7 +27,11 @@ class AppSettings:
 
     @default_count.setter
     def default_count(self, value: int) -> None:
-        self.set("default_count", max(1, min(100, int(value))))
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("default_count", max(1, min(100, value)))
 
     @property
     def last_strategy_id(self) -> str:
@@ -39,7 +43,10 @@ class AppSettings:
 
     @property
     def dark_theme(self) -> bool:
-        return self.get("dark_theme", False) in (True, "true", "True", 1, "1")
+        raw = self.get("dark_theme", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
 
     @dark_theme.setter
     def dark_theme(self, value: bool) -> None:
@@ -55,7 +62,10 @@ class AppSettings:
 
     @property
     def auto_update_on_start(self) -> bool:
-        return self.get("auto_update_on_start", True) in (True, "true", "True", 1, "1")
+        raw = self.get("auto_update_on_start", True)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
 
     @auto_update_on_start.setter
     def auto_update_on_start(self, value: bool) -> None:
@@ -67,7 +77,11 @@ class AppSettings:
 
     @auto_update_interval_days.setter
     def auto_update_interval_days(self, value: int) -> None:
-        self.set("auto_update_interval_days", max(1, min(30, int(value))))
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 1
+        self.set("auto_update_interval_days", max(1, min(30, value)))
 
     @property
     def last_data_update(self) -> str:
@@ -83,7 +97,7 @@ class AppSettings:
 
     @boss_key.setter
     def boss_key(self, value: str) -> None:
-        self.set("boss_key", value.strip())
+        self.set("boss_key", value.strip() if value else "")
 
     @property
     def last_history_count(self) -> int:
@@ -95,7 +109,11 @@ class AppSettings:
 
     @last_history_count.setter
     def last_history_count(self, value: int) -> None:
-        self.set("last_history_count", int(value))
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = -1
+        self.set("last_history_count", value)
 
     @property
     def last_backtest_options(self) -> dict:
@@ -110,7 +128,10 @@ class AppSettings:
 
     @last_backtest_options.setter
     def last_backtest_options(self, value: dict) -> None:
-        self.set("last_backtest_options", json.dumps(value or {}, ensure_ascii=False))
+        try:
+            self.set("last_backtest_options", json.dumps(value or {}, ensure_ascii=False))
+        except TypeError:
+            self.set("last_backtest_options", "{}")
 
     @property
     def last_backtest_date(self) -> str:
@@ -129,7 +150,11 @@ class AppSettings:
 
     @last_backtest_count.setter
     def last_backtest_count(self, value: int) -> None:
-        self.set("last_backtest_count", max(1, min(50, int(value))))
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("last_backtest_count", max(1, min(50, value)))
 
     @property
     def last_strategy_options(self) -> dict:
@@ -144,7 +169,10 @@ class AppSettings:
 
     @last_strategy_options.setter
     def last_strategy_options(self, value: dict) -> None:
-        self.set("last_strategy_options", json.dumps(value or {}, ensure_ascii=False))
+        try:
+            self.set("last_strategy_options", json.dumps(value or {}, ensure_ascii=False))
+        except TypeError:
+            self.set("last_strategy_options", "{}")
 
     def sync(self) -> None:
         """同步写入磁盘."""

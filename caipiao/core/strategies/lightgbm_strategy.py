@@ -102,7 +102,15 @@ class LightGBMStrategy(GenerationStrategy):
         # 在相同历史数据和参数下每次输出一致。
         FIXED_SEED = 42
 
-        records = [r if isinstance(r, DrawRecord) else r for r in history]
+        records = [
+            r if isinstance(r, DrawRecord) else DrawRecord(
+                issue="",
+                draw_date=r.generated_at,
+                profile=r.profile.key,
+                groups=r.groups,
+            )
+            for r in history
+        ]
         lookback = compute_lookback(len(records))
         model_path = find_current_model(
             records, lookback, prefix=MODEL_PREFIX, options=options

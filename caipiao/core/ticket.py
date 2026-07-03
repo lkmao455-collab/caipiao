@@ -52,6 +52,8 @@ class Ticket:
             # 兼容旧的双色球构造：Ticket(red_balls, blue_ball)
             self.profile = SSQ
             reds = sorted(int(getattr(b, "number", b)) for b in (red_balls or []))
+            if blue_ball is None:
+                raise ValueError("双色球投注单必须提供蓝球")
             blue = int(getattr(blue_ball, "number", blue_ball))
             self.groups = {"red": reds, "blue": [blue]}
 
@@ -135,8 +137,12 @@ class Ticket:
 
     def format_pretty(self) -> str:
         if self.profile.key == "ssq":
-            reds = " ".join(f"{n:02d}" for n in self.groups["red"])
-            return f"红球: {reds} | 蓝球: {self.groups['blue'][0]:02d}"
+            reds = self.groups.get("red", [])
+            blues = self.groups.get("blue", [])
+            if not reds or not blues:
+                raise ValueError("双色球投注单缺少红球或蓝球")
+            reds_str = " ".join(f"{n:02d}" for n in reds)
+            return f"红球: {reds_str} | 蓝球: {blues[0]:02d}"
         parts = []
         for rg in self.render_groups():
             nums = " ".join(f"{n:0{rg.pad}d}" for n in rg.numbers)
@@ -145,8 +151,12 @@ class Ticket:
 
     def format_compact(self) -> str:
         if self.profile.key == "ssq":
-            reds = " ".join(f"{n:02d}" for n in self.groups["red"])
-            return f"{reds} + {self.groups['blue'][0]:02d}"
+            reds = self.groups.get("red", [])
+            blues = self.groups.get("blue", [])
+            if not reds or not blues:
+                raise ValueError("双色球投注单缺少红球或蓝球")
+            reds_str = " ".join(f"{n:02d}" for n in reds)
+            return f"{reds_str} + {blues[0]:02d}"
         parts = []
         for rg in self.render_groups():
             parts.append(" ".join(f"{n:0{rg.pad}d}" for n in rg.numbers))
@@ -158,9 +168,13 @@ class Ticket:
     def to_dict(self) -> dict:
         if self.profile.key == "ssq":
             # 保持旧格式，历史文件向后兼容
+            reds = self.groups.get("red", [])
+            blues = self.groups.get("blue", [])
+            if not reds or not blues:
+                raise ValueError("双色球投注单缺少红球或蓝球，无法序列化")
             return {
-                "red": list(self.groups["red"]),
-                "blue": self.groups["blue"][0],
+                "red": list(reds),
+                "blue": blues[0],
                 "generated_at": self.generated_at.isoformat(),
                 "strategy_name": self.strategy_name,
                 "basis": self.basis,
@@ -187,6 +201,8 @@ class Ticket:
         if "groups" in data:  # 通用格式
             return cls(profile=data.get("profile", "ssq"), groups=data["groups"], **common)
         # 旧的双色球格式
+        if "red" not in data or "blue" not in data:
+            raise ValueError("旧格式双色球数据缺少 red/blue 字段")
         return cls(red_balls=data["red"], blue_ball=data["blue"], **common)
 
     # ------------------------------------------------------------------ #

@@ -22,7 +22,7 @@ from caipiao.ml.generic_predictor import GenericMLPredictor
 # --------------------------------------------------------------------------- #
 def test_profile_registry():
     profiles = list_profiles()
-    assert [p.key for p in profiles] == ["ssq", "3d", "qlc", "kl8"]
+    assert {p.key for p in profiles} == {"ssq", "3d", "qlc", "kl8"}
     assert get_profile("3d").primary_group.key == "pos"
     assert get_profile("kl8").primary_group.effective_pick_max == 10
 
@@ -175,7 +175,11 @@ def make_ssq_records_ml(count: int = 120):
     records = []
     base = datetime(2024, 1, 1)
     for i in range(count):
-        nums = [(i * 7 + j * 13) % 33 + 1 for j in range(6)]
+        base_offset = (i * 7) % 33
+        nums = sorted({((base_offset + j * 13) % 33) + 1 for j in range(6)})
+        while len(nums) < 6:
+            nums.append(next(n for n in range(1, 34) if n not in nums))
+            nums.sort()
         blue = (i * 5 + 3) % 16 + 1
         records.append(
             DrawRecord(

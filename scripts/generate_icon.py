@@ -11,11 +11,20 @@ from PIL import Image, ImageDraw
 
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    if not isinstance(hex_color, str):
+        raise TypeError("hex_color must be a string")
     hex_color = hex_color.lstrip("#")
+    if len(hex_color) == 3:
+        hex_color = "".join(c * 2 for c in hex_color)
+    if len(hex_color) != 6 or not all(c in "0123456789ABCDEFabcdef" for c in hex_color):
+        raise ValueError(f"Invalid hex color: {hex_color!r}")
     return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
 
 def interpolate_color(c1: tuple, c2: tuple, t: float) -> tuple[int, int, int]:
+    if len(c1) < 3 or len(c2) < 3:
+        raise ValueError("Colors must have at least 3 components")
+    t = max(0.0, min(1.0, t))
     return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
 
 
@@ -23,6 +32,8 @@ def draw_radial_gradient(
     draw: ImageDraw.ImageDraw, size: int, center_color: str, edge_color: str
 ) -> None:
     """Draw a radial gradient."""
+    if size <= 0:
+        return
     c1 = hex_to_rgb(center_color)
     c2 = hex_to_rgb(edge_color)
     cx, cy = size // 2, size // 2
@@ -36,6 +47,8 @@ def draw_radial_gradient(
 
 def draw_hex_grid(draw: ImageDraw.ImageDraw, size: int, color: tuple, spacing: int) -> None:
     """Draw a subtle hexagonal grid pattern."""
+    if spacing <= 0:
+        return
     h = spacing * math.sqrt(3) / 2
     for row in range(-1, int(size / h) + 2):
         for col in range(-1, int(size / spacing) + 2):
@@ -67,6 +80,8 @@ def draw_ball(
     glow_color: str,
 ) -> None:
     """Draw a 3D glossy lottery ball with outer glow."""
+    if radius <= 0:
+        return
     draw = ImageDraw.Draw(img, "RGBA")
     base = hex_to_rgb(base_color)
 
@@ -126,6 +141,8 @@ def draw_drop_shadow(img: Image.Image, size: int, corner_radius: int) -> None:
 
 def create_icon(size: int = 512) -> Image.Image:
     """Create the application icon at the given size."""
+    if size < 16:
+        raise ValueError("Icon size must be at least 16")
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
 
     corner_radius = size // 6
@@ -202,6 +219,8 @@ def create_icon(size: int = 512) -> Image.Image:
 
 def create_ico_file(images: list[Image.Image], path: Path) -> None:
     """Manually write a multi-resolution ICO file from PNG data."""
+    if not images:
+        raise ValueError("images list must not be empty")
     png_data_list: list[bytes] = []
     for img in images:
         buffer = io.BytesIO()
@@ -254,7 +273,8 @@ def main() -> None:
 
     ico_path = resources_dir / "icon.ico"
     sizes = [16, 24, 32, 48, 64, 128, 256]
-    icons = [source.resize((s, s), Image.Resampling.LANCZOS) for s in sizes]
+    resample = getattr(Image.Resampling, "LANCZOS", Image.LANCZOS)
+    icons = [source.resize((s, s), resample) for s in sizes]
     create_ico_file(icons, ico_path)
     print(f"Saved ICO: {ico_path}")
 

@@ -26,6 +26,8 @@ def build_features(
         y_dict: 每个号码组的标签矩阵；组合组为 (samples, group.size)，
                 按位组(3D)为 (samples, group.count) 的整数类别标签。
     """
+    if lookback <= 0:
+        raise ValueError("lookback 必须大于 0")
     if len(records) <= lookback:
         return np.array([]), {}
 
@@ -43,7 +45,8 @@ def build_features(
             else:
                 label = np.zeros(g.size, dtype=np.int32)
                 for n in nums:
-                    label[n - g.lo] = 1
+                    if g.lo <= n <= g.hi:
+                        label[n - g.lo] = 1
             y_dict[g.key].append(label)
 
     return np.array(X, dtype=np.float32), {
@@ -57,6 +60,8 @@ def build_prediction_features(
     lookback: int = 50,
 ) -> np.ndarray:
     """为最新一期构建预测特征."""
+    if lookback <= 0:
+        raise ValueError("lookback 必须大于 0")
     if len(records) < lookback:
         return np.array([])
     window = records[-lookback:]
@@ -95,6 +100,8 @@ def _number_features(window: List[DrawRecord], group: NumberGroup, number: int) 
 
 def _window_stats(window: List[DrawRecord], profile: LotteryProfile) -> List[float]:
     primary = profile.primary_group
+    if primary is None:
+        raise ValueError("profile 缺少 primary_group")
     sums = []
     odd_counts = []
     high_counts = []

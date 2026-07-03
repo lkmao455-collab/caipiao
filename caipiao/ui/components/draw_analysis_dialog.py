@@ -72,8 +72,8 @@ def _analyze_adjacent(records: List[DrawRecord]) -> Tuple[AdjacentStats, List[Op
         if 0 <= overlap <= 6:
             stats.red_same_counts[overlap] += 1
 
-        prev_blue = prev.groups.get("blue", [None])[0]
-        curr_blue = curr.groups.get("blue", [None])[0]
+        prev_blue = next(iter(prev.groups.get("blue", [])), None)
+        curr_blue = next(iter(curr.groups.get("blue", [])), None)
         blue_same = prev_blue is not None and curr_blue is not None and prev_blue == curr_blue
         blue_sames.append(blue_same)
         if blue_same:
@@ -245,7 +245,7 @@ class DrawAnalysisDialog(QDialog):
         self.record_table.setRowCount(len(records))
         for idx, record in enumerate(records):
             reds = record.groups.get("red", [])
-            blue = record.groups.get("blue", [None])[0]
+            blue = next(iter(record.groups.get("blue", [])), None)
 
             self.record_table.setItem(idx, 0, QTableWidgetItem(record.issue))
             date_item = QTableWidgetItem(record.draw_date.strftime("%Y-%m-%d"))
