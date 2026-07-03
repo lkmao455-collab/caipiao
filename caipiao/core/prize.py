@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 def _ssq_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
@@ -28,23 +28,39 @@ def _ssq_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
     return ("未中奖", 0)
 
 
-def _fc3d_prize(hits: Dict[str, int], groups: Dict[str, List[int]]) -> Tuple[str, int | None]:
+def _fc3d_prize(
+    hits: Dict[str, int],
+    ticket_groups: Dict[str, List[int]],
+    actual_groups: Optional[Dict[str, List[int]]] = None,
+) -> Tuple[str, int | None]:
     """福彩3D奖金：按直选/组选3/组选6判断。
 
-    直选：命中 3 位且位置全对。
-    组选：号码全部命中但位置不对（或顺序无关）。
+    直选：3 位数字及顺序与开奖完全相同。
+    组选：投注号码是开奖号码的任意排列（顺序无关）。
+
+    必须有真实开奖号码 ``actual_groups`` 才能判定；否则统一视为未中奖，
+    避免只根据投注号码自身特征误发奖金。
     """
-    pos_hits = hits.get("pos", 0)
-    if pos_hits == 3:
+    if actual_groups is None:
+        return ("未中奖", 0)
+
+    actual = actual_groups.get("pos", [])
+    ticket = ticket_groups.get("pos", [])
+    if len(actual) != 3 or len(ticket) != 3:
+        return ("未中奖", 0)
+
+    # 直选：位置、数字、重复次数全部一致
+    if list(actual) == list(ticket):
         return ("直选", 1040)
 
-    nums = groups.get("pos", [])
-    if len(nums) == 3:
-        unique = len(set(nums))
+    # 组选：号码 multiset 一致即可（任意排列）
+    if sorted(actual) == sorted(ticket):
+        unique = len(set(actual))
         if unique == 2:
             return ("组选3", 346)
         if unique == 3:
             return ("组选6", 173)
+
     return ("未中奖", 0)
 
 
@@ -93,12 +109,40 @@ def _kl8_prize(hits: Dict[str, int], groups: Dict[str, List[int]]) -> Tuple[str,
     return ("未中奖", 0)
 
 
+def fc3d_bet_type(numbers: List[int]) -> str:
+    """根据福彩3D投注号码判断可购买的投注方式。
+
+    规则：
+    - 三位数字各不相同：可买组选6（顺序不限）。
+    - 恰好两位相同：可买组选3（顺序不限）。
+    - 三位全相同：豹子号，只能直选（或按站点规则购买）。
+
+    返回的字符串用于界面展示，如 "组选6"、"组选3"、"豹子号（直选）"。
+    """
+    if len(numbers) != 3:
+        return "未知"
+    unique = len(set(numbers))
+    if unique == 3:
+        return "组选6"
+    if unique == 2:
+        return "组选3"
+    return "豹子号（直选）"
+
+
 def calculate_prize(
     profile_key: str,
     hits: Dict[str, int],
-    groups: Dict[str, List[int]],
+    ticket_groups: Dict[str, List[int]],
+    actual_groups: Optional[Dict[str, List[int]]] = None,
 ) -> Tuple[str, int | None]:
-    """根据彩种、命中数与投注号码计算理论奖金。
+    """根据彩种、命中数、投注号码与真实开奖号码计算理论奖金。
+
+    Args:
+        profile_key: 彩种标识。
+        hits: 各号码组命中数。
+        ticket_groups: 当前投注号码分组。
+        actual_groups: 当期真实开奖号码分组。福彩 3D 的组选/直选判定
+            依赖真实号码；其他彩种可省略。
 
     Returns:
         (奖级描述, 奖金)。奖金为 None 表示浮动奖（如一等奖）。
@@ -106,9 +150,9 @@ def calculate_prize(
     if profile_key == "ssq":
         return _ssq_prize(hits)
     if profile_key == "3d":
-        return _fc3d_prize(hits, groups)
+        return _fc3d_prize(hits, ticket_groups, actual_groups)
     if profile_key == "qlc":
         return _qlc_prize(hits)
     if profile_key == "kl8":
-        return _kl8_prize(hits, groups)
+        return _kl8_prize(hits, ticket_groups)
     return ("未知彩种", 0)

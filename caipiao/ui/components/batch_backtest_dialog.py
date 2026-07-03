@@ -81,7 +81,7 @@ class BatchBacktestDialog(QDialog):
 
         control_layout.addWidget(QLabel("每期注数:"))
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 50)
+        self.count_spin.setRange(1, 1000)
         self.count_spin.setValue(5)
         control_layout.addWidget(self.count_spin)
 
@@ -125,7 +125,7 @@ class BatchBacktestDialog(QDialog):
         self.summary_label.setWordWrap(True)
         self.summary_label.setStyleSheet(
             "QLabel { color: #0A2540; background-color: #E3F2FD; "
-            "border-radius: 4px; padding: 6px; font-size: 14px; font-weight: bold; }"
+            "border-radius: 4px; padding: 6px; font-size: 11pt; font-weight: bold; }"
         )
         result_layout.addWidget(self.summary_label)
 

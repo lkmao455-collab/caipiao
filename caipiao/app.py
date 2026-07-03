@@ -27,6 +27,14 @@ def run() -> int:
     font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
     app.setFont(font)
 
+    # 样式表统一使用 pt 单位，避免 QFont::setPointSize 因解析 px 字体产生 pointSize=-1 的警告。
+    app.setStyleSheet("""
+        QToolTip {
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+            font-size: 10pt;
+        }
+    """)
+
     # 设置应用图标（任务栏显示）
     icon_path = Path(__file__).resolve().parent / "ui" / "resources" / "icon.ico"
     if icon_path.exists():

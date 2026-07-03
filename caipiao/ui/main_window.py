@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.profile import get_profile, list_profiles, profile_keys
+from ..core.prize import fc3d_bet_type
 from ..core.strategies.generic import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
@@ -245,7 +246,7 @@ class MainWindow(QMainWindow):
         count_layout = QHBoxLayout()
         count_layout.addWidget(QLabel("生成注数:"))
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 100)
+        self.count_spin.setRange(1, 1000)
         self.count_spin.setValue(self.settings.default_count)
         self.count_spin.setSuffix(" 注")
         self.count_spin.setToolTip("设置一次生成的彩票注数。")
@@ -390,7 +391,7 @@ class MainWindow(QMainWindow):
         count_layout.addWidget(QLabel("默认生成注数:"))
         self.settings_count_spin = QSpinBox()
         self.settings_count_spin.setToolTip("设置主界面每次默认生成的彩票注数。")
-        self.settings_count_spin.setRange(1, 100)
+        self.settings_count_spin.setRange(1, 1000)
         self.settings_count_spin.setValue(self.settings.default_count)
         count_layout.addWidget(self.settings_count_spin)
         count_layout.addStretch()
@@ -419,7 +420,7 @@ class MainWindow(QMainWindow):
             "建议：Ctrl+Shift+B、Alt+M。修改后点击“保存设置”即可生效。"
         )
         self.boss_key_hint.setWordWrap(True)
-        self.boss_key_hint.setStyleSheet("color: #666; font-size: 12px;")
+        self.boss_key_hint.setStyleSheet("color: #666; font-size: 9pt;")
         layout.addWidget(self.boss_key_hint)
 
         # 保存按钮
@@ -439,7 +440,7 @@ class MainWindow(QMainWindow):
 
         # 状态区
         self.data_status_label = QLabel(self._data_status_text())
-        self.data_status_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.data_status_label.setStyleSheet("font-size: 11pt; font-weight: bold;")
         layout.addWidget(self.data_status_label)
 
         # 按钮区
@@ -1314,6 +1315,8 @@ class MainWindow(QMainWindow):
         text_lines = []
         for idx, ticket in enumerate(tickets, start=1):
             line = f"{idx:02d}. {ticket.format_compact()}"
+            if ticket.profile.key == "3d":
+                line += f"  [{fc3d_bet_type(ticket.groups.get('pos', []))}]"
             if ticket.basis:
                 line += f"  [{ticket.basis}]"
             text_lines.append(line)
@@ -1465,12 +1468,15 @@ class MainWindow(QMainWindow):
                         f'text-align:center;border-radius:14px;background:{rg.color};color:#fff;'
                         f'margin:2px;font-weight:bold;">{n:0{rg.pad}d}</span>'
                     )
+            compact = ticket.format_compact()
+            if ticket.profile.key == "3d":
+                compact += f"  [{fc3d_bet_type(ticket.groups.get('pos', []))}]"
             rows.append(
                 f"<tr><td style='padding:8px;border-bottom:1px solid #ddd;'>"
                 f"<b>{idx:02d}.</b></td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{''.join(balls_html)}</td>"
                 f"<td style='padding:8px;border-bottom:1px solid #ddd;color:#666;'>"
-                f"{ticket.format_compact()}</td></tr>"
+                f"{compact}</td></tr>"
             )
             if ticket.basis:
                 rows.append(
@@ -1716,7 +1722,7 @@ class MainWindow(QMainWindow):
         return """
         QWidget {
             font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-            font-size: 13px;
+            font-size: 10pt;
             color: #0A2540;
             background-color: #EEF4F9;
         }
@@ -1746,7 +1752,7 @@ class MainWindow(QMainWindow):
                 stop:0 #D90429, stop:1 #8D0801);
             color: #FFFFFF;
             border: 1px solid #EF233C;
-            font-size: 15px;
+            font-size: 12pt;
             padding: 10px 18px;
         }
         QPushButton#generate_btn:hover {
@@ -1783,7 +1789,7 @@ class MainWindow(QMainWindow):
             color: #0A2540;
         }
         QLabel#app_title {
-            font-size: 24px;
+            font-size: 18pt;
             font-weight: bold;
             color: #023E8A;
             padding: 8px;
@@ -1829,7 +1835,7 @@ class MainWindow(QMainWindow):
         return """
         QWidget {
             font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-            font-size: 13px;
+            font-size: 10pt;
             color: #E0F7FF;
             background-color: #05070A;
         }
@@ -1859,7 +1865,7 @@ class MainWindow(QMainWindow):
                 stop:0 #FF4D6D, stop:1 #D90429);
             color: #FFFFFF;
             border: 1px solid #FF758F;
-            font-size: 15px;
+            font-size: 12pt;
             padding: 10px 18px;
         }
         QPushButton#generate_btn:hover {
@@ -1896,7 +1902,7 @@ class MainWindow(QMainWindow):
             color: #E0F7FF;
         }
         QLabel#app_title {
-            font-size: 24px;
+            font-size: 18pt;
             font-weight: bold;
             color: #48CAE4;
             padding: 8px;

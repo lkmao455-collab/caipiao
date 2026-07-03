@@ -27,6 +27,7 @@ import matplotlib
 matplotlib.use("Agg")  # 无头后端，适合服务器/后台生成
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def _configure_matplotlib_fonts() -> None:
@@ -124,17 +125,35 @@ def build_group_probability_charts_html(
     diversity_boost: int | str = "-",
     model_name: str = "XGBoost",
 ) -> str:
-    """生成适合 PDF/打印的通用概率折线图 HTML（base64 图片）."""
+    """生成适合 PDF/打印的通用概率折线图 HTML（base64 图片）.
+
+    为避免 PDF 中图片被压得很小并与文字重叠，子图按横向网格排列：
+    - 1~3 组图：排成 1 行。
+    - 4~6 组图：2 行 × 3 列。
+    - 更多：每行 3 列自动换行。
+    图片使用 ``width:100%`` + ``display:block``，在 QTextDocument 中独占一行。
+    """
     _configure_matplotlib_fonts()
 
     n = len(group_probabilities)
     if n == 0:
         raise ValueError("group_probabilities 不能为空")
-    fig, axes = plt.subplots(n, 1, figsize=(10, 4 * n), dpi=120)
-    if n == 1:
-        axes = [axes]
+
+    if n <= 3:
+        rows, cols = 1, n
+    elif n <= 6:
+        rows, cols = 2, 3
+    else:
+        rows = (n + 2) // 3
+        cols = 3
+
+    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 4 * rows), dpi=120)
+    axes = np.asarray(axes).flatten() if n > 1 else [axes]
     for ax, (title, probs, color, highlight, xlabel) in zip(axes, group_probabilities):
         _plot_single(ax, probs, title=title, xlabel=xlabel, color=color, highlight_top_n=highlight)
+    # 隐藏多余的子图
+    for ax in axes[n:]:
+        ax.axis("off")
     fig.tight_layout()
 
     buf = io.BytesIO()
@@ -144,14 +163,14 @@ def build_group_probability_charts_html(
     b64 = base64.b64encode(buf.read()).decode("ascii")
 
     return f"""
-    <div style="font-family: 'Microsoft YaHei', sans-serif; font-size: 14px;">
+    <div style="font-family: 'Microsoft YaHei', sans-serif; font-size: 14px; margin: 16px 0; page-break-inside: avoid;">
         <h3 style="color:#0A2540;margin:8px 0;">
             {model_name} 预测概率折线图（回看 {lookback} 期，多样性增强 {diversity_boost}）
         </h3>
         <p style="color:#666;font-size:12px;margin:4px 0;">
             橙色标记为每组概率最高的推荐号码。
         </p>
-        <p><img src="data:image/png;base64,{b64}" width="100%"></p>
+        <img src="data:image/png;base64,{b64}" style="width:100%; height:auto; display:block; margin:8px 0;">
         <p style="color:#888;font-size:11px;margin-top:6px;">
             注：概率为模型基于历史数据的预测倾向，数值越高被采样选中的可能性越大，但不代表未来开奖概率。
         </p>

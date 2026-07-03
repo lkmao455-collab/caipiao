@@ -80,7 +80,7 @@ class BacktestDialog(QDialog):
 
         control_layout.addWidget(QLabel("预测注数:"))
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 50)
+        self.count_spin.setRange(1, 1000)
         self.count_spin.setValue(5)
         control_layout.addWidget(self.count_spin)
 
@@ -118,7 +118,7 @@ class BacktestDialog(QDialog):
         self.data_scope_label.setWordWrap(True)
         self.data_scope_label.setStyleSheet(
             "color: #1B5E20; background: #E8F5E9; border: 1px solid #A5D6A7;"
-            " border-radius: 4px; padding: 6px; font-size: 12px;"
+            " border-radius: 4px; padding: 6px; font-size: 9pt;"
         )
         self.data_scope_label.setVisible(False)
         result_layout.addWidget(self.data_scope_label)
@@ -127,7 +127,7 @@ class BacktestDialog(QDialog):
         self.summary_label.setWordWrap(True)
         self.summary_label.setStyleSheet(
             "QLabel { color: #0A2540; background-color: #E3F2FD; "
-            "border-radius: 4px; padding: 6px; font-size: 13px; font-weight: bold; }"
+            "border-radius: 4px; padding: 6px; font-size: 10pt; font-weight: bold; }"
         )
         self.summary_label.setVisible(False)
         result_layout.addWidget(self.summary_label)
@@ -319,25 +319,27 @@ class BacktestDialog(QDialog):
         ticket_results: List[Dict[str, Any]] = []
 
         for idx, ticket in enumerate(tickets, start=1):
-            ticket_numbers: set[int] = set()
-            for g in self.profile.pick_groups:
-                ticket_numbers.update(ticket.groups.get(g.key, []))
             hits: Dict[str, int] = {}
             hit_parts = []
             for g in self.profile.groups:
-                actual_set = set(actual.groups.get(g.key, []))
-                if g.draw_only:
-                    predicted_set = ticket_numbers
+                actual_nums = actual.groups.get(g.key, [])
+                predicted_nums = ticket.groups.get(g.key, [])
+                if g.positional:
+                    h = sum(1 for a, p in zip(actual_nums, predicted_nums) if a == p)
+                elif g.draw_only:
+                    ticket_numbers: set[int] = set()
+                    for pg in self.profile.pick_groups:
+                        ticket_numbers.update(ticket.groups.get(pg.key, []))
+                    h = len(set(actual_nums) & ticket_numbers)
                 else:
-                    predicted_set = set(ticket.groups.get(g.key, []))
-                h = len(actual_set & predicted_set)
+                    h = len(set(actual_nums) & set(predicted_nums))
                 hits[g.key] = h
                 if not g.draw_only:
                     hit_parts.append(f"{g.name}{h}")
             hit_text = "，".join(hit_parts)
 
             prize_name, prize_amount = calculate_prize(
-                self.profile.key, hits, ticket.groups
+                self.profile.key, hits, ticket.groups, actual.groups
             )
             if prize_amount is None:
                 prize_text = f"{prize_name}（浮动奖金）"
@@ -366,7 +368,7 @@ class BacktestDialog(QDialog):
             hit_label = QLabel(f"命中：{hit_text}\n{prize_text}")
             hit_label.setStyleSheet(
                 "QLabel { color: #B71C1C; background-color: #FFEBEE; "
-                "border-radius: 4px; padding: 4px; font-weight: bold; font-size: 13px; }"
+                "border-radius: 4px; padding: 4px; font-weight: bold; font-size: 10pt; }"
             )
             hit_label.setWordWrap(True)
             row_layout.addWidget(hit_label)

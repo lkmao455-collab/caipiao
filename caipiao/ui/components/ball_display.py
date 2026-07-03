@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from ...core.ball import Ball, BallColor
+from ...core.prize import fc3d_bet_type
 
 
 class BallWidget(QFrame):
@@ -86,7 +87,7 @@ class TicketRowWidget(QWidget):
         for gi, rg in enumerate(render_groups):
             if gi > 0:
                 sep = QLabel("+")
-                sep.setStyleSheet("color: #999; font-size: 16px; margin: 0 4px;")
+                sep.setStyleSheet("color: #999; font-size: 12pt; margin: 0 4px;")
                 row_layout.addWidget(sep)
             for n in rg.numbers:
                 row_layout.addWidget(BallWidget(number=n, color=rg.color, pad=rg.pad, size=36))
@@ -94,8 +95,19 @@ class TicketRowWidget(QWidget):
         row_layout.addStretch()
         self.layout.addWidget(row)
 
+        # 福彩3D 显示投注方式建议
+        if ticket.profile.key == "3d":
+            nums = ticket.groups.get("pos", [])
+            bet_type = fc3d_bet_type(nums)
+            bet_label = QLabel(f"建议投注方式：{bet_type}")
+            bet_label.setStyleSheet(
+                "color: #0A2540; background-color: #FFF3E0; "
+                "border-radius: 4px; padding: 2px 8px; font-size: 9pt; font-weight: bold;"
+            )
+            self.layout.addWidget(bet_label)
+
         if ticket.basis:
             basis_label = QLabel(ticket.basis)
             basis_label.setWordWrap(True)
-            basis_label.setStyleSheet("color: #888; font-size: 12px; margin-left: 28px;")
+            basis_label.setStyleSheet("color: #888; font-size: 9pt; margin-left: 28px;")
             self.layout.addWidget(basis_label)

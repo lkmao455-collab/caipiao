@@ -4,6 +4,7 @@ import pytest
 
 from caipiao.core.ball import Ball, BallColor
 from caipiao.core.engine import GenerationEngine
+from caipiao.core.prize import calculate_prize, fc3d_bet_type
 from caipiao.core.strategies import (
     ExcludeIncludeStrategy,
     HotColdStrategy,
@@ -104,3 +105,64 @@ def test_hot_cold_strategy_with_draw_records():
     for t in tickets:
         assert len(t.red_balls) == 6
         assert 1 <= t.blue_ball.number <= 16
+
+
+# --------------------------------------------------------------------------- #
+# 福彩 3D 奖金判定回归测试
+# --------------------------------------------------------------------------- #
+def test_fc3d_prize_straight():
+    actual = {"pos": [1, 2, 3]}
+    # 完全相同：直选
+    assert calculate_prize("3d", {"pos": 3}, {"pos": [1, 2, 3]}, actual) == ("直选", 1040)
+
+
+def test_fc3d_prize_group6():
+    actual = {"pos": [3, 7, 5]}
+    # 排列不同：组选6
+    assert calculate_prize("3d", {"pos": 0}, {"pos": [7, 5, 3]}, actual) == ("组选6", 173)
+
+
+def test_fc3d_prize_group3():
+    actual = {"pos": [1, 6, 1]}
+    # 排列不同：组选3
+    assert calculate_prize("3d", {"pos": 1}, {"pos": [6, 1, 1]}, actual) == ("组选3", 346)
+
+
+def test_fc3d_prize_no_win():
+    actual = {"pos": [1, 2, 3]}
+    # 号码不完全相同：未中奖
+    assert calculate_prize("3d", {"pos": 2}, {"pos": [1, 2, 4]}, actual) == ("未中奖", 0)
+    assert calculate_prize("3d", {"pos": 2}, {"pos": [3, 4, 5]}, actual) == ("未中奖", 0)
+
+
+def test_fc3d_prize_requires_actual():
+    # 不传入真实开奖时，必须视为未中奖，避免 100% 误中奖
+    assert calculate_prize("3d", {"pos": 3}, {"pos": [1, 2, 3]}) == ("未中奖", 0)
+
+
+# --------------------------------------------------------------------------- #
+# 福彩 3D 投注方式识别测试
+# --------------------------------------------------------------------------- #
+def test_fc3d_bet_type():
+    assert fc3d_bet_type([3, 7, 5]) == "组选6"
+    assert fc3d_bet_type([1, 6, 1]) == "组选3"
+    assert fc3d_bet_type([7, 7, 7]) == "豹子号（直选）"
+    assert fc3d_bet_type([1, 2]) == "未知"
+
+
+# --------------------------------------------------------------------------- #
+# 概率折线图 HTML 生成测试
+# --------------------------------------------------------------------------- #
+def test_group_probability_charts_html_layout():
+    """PDF/打印用概率图应使用横向网格布局，且图片独占一行。"""
+    from caipiao.ui.chart_utils import build_group_probability_charts_html
+
+    group_probs = [
+        ("第1位概率", [0.1] * 10, "#F57C00", 1, "数字 (0-9)"),
+        ("第2位概率", [0.1] * 10, "#F57C00", 1, "数字 (0-9)"),
+        ("第3位概率", [0.1] * 10, "#F57C00", 1, "数字 (0-9)"),
+    ]
+    html = build_group_probability_charts_html(group_probs, lookback=100, diversity_boost=3, model_name="LightGBM")
+    assert "data:image/png;base64," in html
+    assert 'style="width:100%; height:auto; display:block;' in html
+    assert "LightGBM 预测概率折线图" in html

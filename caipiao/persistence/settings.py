@@ -31,7 +31,7 @@ class AppSettings:
             value = int(value)
         except (ValueError, TypeError):
             value = 5
-        self.set("default_count", max(1, min(100, value)))
+        self.set("default_count", max(1, min(1000, value)))
 
     @property
     def last_strategy_id(self) -> str:
@@ -154,7 +154,7 @@ class AppSettings:
             value = int(value)
         except (ValueError, TypeError):
             value = 5
-        self.set("last_backtest_count", max(1, min(50, value)))
+        self.set("last_backtest_count", max(1, min(1000, value)))
 
     @property
     def last_strategy_options(self) -> dict:

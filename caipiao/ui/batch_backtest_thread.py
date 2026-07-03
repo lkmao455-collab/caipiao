@@ -142,19 +142,23 @@ class BatchBacktestThread(QThread):
                     if self.isInterruptionRequested():
                         stopped = True
                         break
-                    ticket_numbers: set[int] = set()
-                    for g in self.profile.pick_groups:
-                        ticket_numbers.update(ticket.groups.get(g.key, []))
                     hits: Dict[str, int] = {}
                     for g in self.profile.groups:
-                        actual_set = set(actual.groups.get(g.key, []))
-                        if g.draw_only:
-                            predicted_set = ticket_numbers
+                        actual_nums = actual.groups.get(g.key, [])
+                        predicted_nums = ticket.groups.get(g.key, [])
+                        if g.positional:
+                            hits[g.key] = sum(
+                                1 for a, p in zip(actual_nums, predicted_nums) if a == p
+                            )
+                        elif g.draw_only:
+                            ticket_numbers: set[int] = set()
+                            for pg in self.profile.pick_groups:
+                                ticket_numbers.update(ticket.groups.get(pg.key, []))
+                            hits[g.key] = len(set(actual_nums) & ticket_numbers)
                         else:
-                            predicted_set = set(ticket.groups.get(g.key, []))
-                        hits[g.key] = len(actual_set & predicted_set)
+                            hits[g.key] = len(set(actual_nums) & set(predicted_nums))
                     prize_name, prize_amount = calculate_prize(
-                        self.profile.key, hits, ticket.groups
+                        self.profile.key, hits, ticket.groups, actual.groups
                     )
                     result.total_cost += 2
                     is_winner = _is_winner(prize_amount)

@@ -179,7 +179,7 @@ class DrawAnalysisDialog(QDialog):
         self.stats_text.setReadOnly(True)
         self.stats_text.setStyleSheet(
             "QLabel { color: #0A2540; background-color: #E8F5E9; "
-            "border-radius: 4px; padding: 6px; font-size: 13px; }"
+            "border-radius: 4px; padding: 6px; font-size: 10pt; }"
         )
         stats_layout.addWidget(self.stats_text)
         right_layout.addWidget(stats_box, 1)
