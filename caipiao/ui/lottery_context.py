@@ -18,6 +18,7 @@ from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
 from ..core.strategies import (
     BalancedStrategy,
+    CatBoostStrategy,
     ExcludeIncludeStrategy,
     HotColdStrategy,
     LightGBMStrategy,
@@ -82,6 +83,7 @@ class LotteryContext(QObject):
             self.engine.register(BalancedStrategy())
             self.engine.register(XGBoostStrategy())
             self.engine.register(LightGBMStrategy())
+            self.engine.register(CatBoostStrategy())
         else:
             for strategy in build_generic_strategies(self.profile):
                 self.engine.register(strategy)

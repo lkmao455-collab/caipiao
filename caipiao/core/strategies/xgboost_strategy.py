@@ -57,9 +57,9 @@ class XGBoostStrategy(GenerationStrategy):
                 "type": "int",
                 "label": "与上期红球最大允许重复数",
                 "default": 4,
-                "min": 1,
+                "min": 0,
                 "max": 6,
-                "tooltip": "生成的红球与上一期红球重复超过该值时，会舍弃重选。",
+                "tooltip": "生成的红球与上一期红球重复超过该值时，会舍弃重选。0 表示不允许与上一期红球重复。",
             },
             "history_count": {
                 "type": "int",
@@ -69,6 +69,12 @@ class XGBoostStrategy(GenerationStrategy):
                 "max": 10000,
                 "tooltip": "-1 表示使用全部历史记录；正数表示只使用最近 N 期训练模型。",
             },
+            "allow_blue_repeat": {
+                "type": "bool",
+                "label": "允许蓝球与上期重复",
+                "default": True,
+                "tooltip": "勾选后生成的蓝球可以与上一期相同；不勾选则过滤掉与上期相同的蓝球。",
+            },
         }
 
     def validate_options(self, options: Dict[str, Any]) -> None:
@@ -76,8 +82,8 @@ class XGBoostStrategy(GenerationStrategy):
         if len(history) < 100:
             raise ValueError("XGBoost 策略需要至少 100 期历史数据")
         overlap = options.get("max_red_overlap", 4)
-        if not isinstance(overlap, int) or not (1 <= overlap <= 6):
-            raise ValueError("与上期红球最大允许重复数必须在 1-6 之间")
+        if not isinstance(overlap, int) or not (0 <= overlap <= 6):
+            raise ValueError("与上期红球最大允许重复数必须在 0-6 之间")
         history_count = options.get("history_count", -1)
         if not isinstance(history_count, int) or history_count < -1:
             raise ValueError("使用历史记录期数必须大于等于 -1")
@@ -89,6 +95,7 @@ class XGBoostStrategy(GenerationStrategy):
         history = options.get("history", [])
         diversity = int(options.get("diversity_boost", 3)) / 10.0
         max_red_overlap = int(options.get("max_red_overlap", 4))
+        allow_blue_repeat = bool(options.get("allow_blue_repeat", True))
 
         # 根据 history_count 截取历史记录
         history_count = options.get("history_count", -1)
@@ -130,7 +137,8 @@ class XGBoostStrategy(GenerationStrategy):
         basis = (
             f"XGBoost 智能分析策略：基于最近 {len(records)} 期历史数据训练模型，"
             f"特征回看期数 {lookback}，按预测概率加权采样，多样性增强 {int(diversity * 10)}，"
-            f"与上期红球最大允许重复数 {max_red_overlap}。"
+            f"与上期红球最大允许重复数 {max_red_overlap}，"
+            f"{'允许' if allow_blue_repeat else '不允许'}蓝球与上期重复。"
         )
 
         tickets: List[Ticket] = []
@@ -168,8 +176,8 @@ class XGBoostStrategy(GenerationStrategy):
                 key = self._ticket_key(ticket)
                 if key in seen:
                     continue
-                # 蓝球不能与上一期相同
-                if last_blue is not None and ticket.groups.get("blue", [None])[0] == last_blue:
+                # 蓝球重复规则
+                if not allow_blue_repeat and last_blue is not None and ticket.groups.get("blue", [None])[0] == last_blue:
                     continue
                 # 红球与上期重复数不能超过阈值
                 reds = ticket.groups.get("red", [])

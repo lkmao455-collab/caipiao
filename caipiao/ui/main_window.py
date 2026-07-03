@@ -35,12 +35,14 @@ from ..core.profile import get_profile, list_profiles, profile_keys
 from ..core.strategies.generic import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
+from ..ml.catboost_model import LotteryCatBoostModel
 from ..ml.lgbm_model import LotteryLightGBMModel
 from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
 from ..persistence.settings import AppSettings
 from ..plugins.plugin_manager import PluginManager
+from ..utils import app_data_dir
 from .chart_utils import (
     ProbabilityChartDialog,
     build_group_probability_charts_html,
@@ -67,6 +69,7 @@ from .workers import (
 ML_MODEL_STRATEGIES = {
     "xgboost": (LotteryXGBoostModel, "xgboost"),
     "lightgbm": (LotteryLightGBMModel, "lightgbm"),
+    "catboost": (LotteryCatBoostModel, "catboost"),
 }
 
 logger = logging.getLogger(__name__)
@@ -88,8 +91,8 @@ class MainWindow(QMainWindow):
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
-        # 数据目录
-        self.data_dir = Path.home() / ".caipiao"
+        # 数据目录（应用目录下的 .caipiao）
+        self.data_dir = app_data_dir()
         self.data_dir.mkdir(exist_ok=True)
 
         # 设置
@@ -739,7 +742,7 @@ class MainWindow(QMainWindow):
 
     def _model_status_text(self) -> str:
         """模型状态文本（同时检查 XGBoost 与 LightGBM 模型）。"""
-        model_dir = Path.home() / ".caipiao" / "models"
+        model_dir = app_data_dir() / "models"
         prefixes = {self.current.profile.xgboost_prefix()}
         if self.current.profile.key != "ssq":
             prefixes.add(self.current.profile.lightgbm_prefix())
@@ -886,7 +889,7 @@ class MainWindow(QMainWindow):
             self.current.profile.xgboost_prefix(),
             self.current.profile.lightgbm_prefix(),
         }
-        model_dir = Path.home() / ".caipiao" / "models"
+        model_dir = app_data_dir() / "models"
         model_files = []
         if model_dir.exists():
             for prefix in prefixes:
@@ -1062,6 +1065,11 @@ class MainWindow(QMainWindow):
         batch_backtest_action.triggered.connect(self._show_batch_backtest_dialog)
         tools_menu.addAction(batch_backtest_action)
 
+        backtest_history_action = QAction("回测记录", self)
+        backtest_history_action.setToolTip("查看已保存的单期/批量回测结果。")
+        backtest_history_action.triggered.connect(self._show_backtest_history_dialog)
+        tools_menu.addAction(backtest_history_action)
+
         draw_analysis_action = QAction("开奖记录分析", self)
         draw_analysis_action.setToolTip(
             "查看开奖记录，并统计相邻两期之间红球/蓝球的重合情况。"
@@ -1087,6 +1095,8 @@ class MainWindow(QMainWindow):
         for label, filename in (
             ("使用帮助", "help.md"),
             ("XGBoost 使用教程", "XGBoost_TUTORIAL.md"),
+            ("LightGBM 使用教程", "LightGBM_TUTORIAL.md"),
+            ("CatBoost 使用教程", "CatBoost_TUTORIAL.md"),
             ("XGBoost 采样说明", "XGBoost_SAMPLING.md"),
         ):
             doc_action = QAction(label, self)
@@ -1671,6 +1681,12 @@ class MainWindow(QMainWindow):
             )
             return
         dialog = BatchBacktestDialog(self.current, self)
+        dialog.exec()
+
+    def _show_backtest_history_dialog(self) -> None:
+        from .components.backtest_history_dialog import BacktestHistoryDialog
+
+        dialog = BacktestHistoryDialog(self)
         dialog.exec()
 
     def _show_draw_analysis_dialog(self) -> None:

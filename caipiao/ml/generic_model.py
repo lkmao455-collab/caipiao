@@ -60,9 +60,24 @@ def _create_lgbm_classifier() -> Any:
     )
 
 
+def _create_catboost_classifier() -> Any:
+    from catboost import CatBoostClassifier
+
+    return CatBoostClassifier(
+        iterations=100,
+        depth=4,
+        learning_rate=0.1,
+        loss_function="Logloss",
+        random_seed=42,
+        verbose=False,
+        thread_count=1,
+    )
+
+
 BACKENDS = {
     "xgboost": _create_xgb_classifier,
     "lightgbm": _create_lgbm_classifier,
+    "catboost": _create_catboost_classifier,
 }
 
 
@@ -89,6 +104,8 @@ class LotteryGenericModel:
                 raise ValueError("按位组的 num_class 必须大于 1")
             if self.backend == "xgboost":
                 clf.set_params(objective="multi:softprob", num_class=num_class)
+            elif self.backend == "catboost":
+                clf.set_params(loss_function="MultiClass", classes_count=num_class)
             else:
                 clf.set_params(objective="multiclass", num_class=num_class)
         return clf

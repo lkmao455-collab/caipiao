@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...persistence.backtest_db import BacktestDatabase
 from ...persistence.settings import AppSettings
 from ...core.profile import LotteryProfile
 from ...core.prize import calculate_prize
@@ -49,7 +50,9 @@ class BacktestDialog(QDialog):
         self.profile: LotteryProfile = context.profile
         self.data_repository = context.data_repository
         self.settings = AppSettings()
+        self._db = BacktestDatabase()
         self._generate_thread: Optional[QThread] = None
+        self._last_ticket_results: List[Dict[str, Any]] = []
 
         self.setWindowTitle(f"{self.profile.name}历史回测")
         self.resize(900, 700)
@@ -313,6 +316,7 @@ class BacktestDialog(QDialog):
         total_fixed_prize = 0
         float_prize_count = 0
         hit_count = 0
+        ticket_results: List[Dict[str, Any]] = []
 
         for idx, ticket in enumerate(tickets, start=1):
             ticket_numbers: set[int] = set()
@@ -346,6 +350,13 @@ class BacktestDialog(QDialog):
             else:
                 prize_text = "未中奖"
 
+            ticket_results.append({
+                "ticket": ticket,
+                "hits": hits,
+                "prize_name": prize_name,
+                "prize_amount": prize_amount,
+            })
+
             row_widget = QWidget()
             row_layout = QHBoxLayout(row_widget)
             row_layout.setContentsMargins(0, 0, 0, 0)
@@ -371,3 +382,44 @@ class BacktestDialog(QDialog):
             f"中奖 {hit_count} 次 | 盈亏 {profit:+d} 元"
         )
         self.summary_label.setVisible(True)
+
+        # 持久化到 SQLite
+        self._last_ticket_results = ticket_results
+        self._save_single_backtest(
+            actual, tickets_count=len(tickets), total_cost=total_cost,
+            total_fixed_prize=total_fixed_prize, float_prize_count=float_prize_count,
+            hit_count=hit_count, tickets=ticket_results,
+        )
+
+    def _save_single_backtest(
+        self,
+        actual,
+        tickets_count: int,
+        total_cost: int,
+        total_fixed_prize: int,
+        float_prize_count: int,
+        hit_count: int,
+        tickets: List[Dict[str, Any]],
+    ) -> None:
+        """保存本次单期回测结果到数据库."""
+        try:
+            options = self.strategy_panel.current_options()
+            user_options = {k: v for k, v in options.items() if k != "history"}
+            self._db.save_single(
+                profile_key=self.profile.key,
+                strategy_id=self.strategy_panel.current_strategy_id(),
+                target_date=actual.draw_date.strftime("%Y-%m-%d"),
+                issue=actual.issue or "",
+                tickets_count=tickets_count,
+                options=user_options,
+                actual_groups={g.key: list(actual.groups.get(g.key, [])) for g in self.profile.groups},
+                total_cost=total_cost,
+                total_fixed_prize=total_fixed_prize,
+                float_prize_count=float_prize_count,
+                hit_count=hit_count,
+                tickets=tickets,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # 保存失败不应影响主流程，仅记录日志
+            import logging
+            logging.getLogger(__name__).warning("保存单期回测结果失败: %s", exc)

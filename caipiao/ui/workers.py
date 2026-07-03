@@ -10,6 +10,7 @@ from PySide6.QtCore import QThread, Signal
 from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile, SSQ
 from ..data.fetcher import LotteryDataFetcher
+from ..utils import app_data_dir
 
 
 class FetchAllDataThread(QThread):
@@ -141,7 +142,7 @@ class TrainModelThread(QThread):
                 from ..ml.predictor import MLPredictor
 
                 if self.model_path is None:
-                    model_dir = Path.home() / ".caipiao" / "models"
+                    model_dir = app_data_dir() / "models"
                     model_dir.mkdir(parents=True, exist_ok=True)
                     self.model_path = model_dir / f"{self.prefix}_lookback{self.lookback}.pkl"
 

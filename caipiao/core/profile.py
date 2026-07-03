@@ -155,6 +155,9 @@ class LotteryProfile:
     def lightgbm_prefix(self) -> str:
         return f"{self.model_prefix}_lightgbm" if self.key != "ssq" else "lightgbm"
 
+    def catboost_prefix(self) -> str:
+        return f"{self.model_prefix}_catboost" if self.key != "ssq" else "catboost"
+
 
 # --- 颜色常量（与现有双色球界面一致）---
 _RED = "#D32F2F"

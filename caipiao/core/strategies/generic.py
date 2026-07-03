@@ -874,6 +874,13 @@ class GenericLightGBMStrategy(_GenericMLStrategy):
     _description = "基于 LightGBM 模型分析历史数据，生成概率优先的号码组合。"
 
 
+class GenericCatBoostStrategy(_GenericMLStrategy):
+    _backend = "catboost"
+    _id_base = "catboost"
+    _name_base = "CatBoost 智能分析"
+    _description = "基于 CatBoost 模型分析历史数据，生成概率优先的号码组合。"
+
+
 # --------------------------------------------------------------------------- #
 # 工厂
 # --------------------------------------------------------------------------- #
@@ -887,6 +894,7 @@ _GENERIC_STRATEGY_CLASSES: List[Type[_GenericBase]] = [
     GenericBalancedStrategy,
     GenericXGBoostStrategy,
     GenericLightGBMStrategy,
+    GenericCatBoostStrategy,
 ]
 
 
@@ -897,11 +905,11 @@ def build_strategies(profile: LotteryProfile) -> List[GenerationStrategy]:
 
 def needs_history(strategy_id: str) -> bool:
     """判断策略是否需要历史开奖数据。"""
-    for key in ("hot_cold", "smart_hot_cold", "missing_number", "balanced", "xgboost", "lightgbm"):
+    for key in ("hot_cold", "smart_hot_cold", "missing_number", "balanced", "xgboost", "lightgbm", "catboost"):
         if strategy_id.startswith(key):
             return True
     return False
 
 
 def is_ml_strategy(strategy_id: str) -> bool:
-    return strategy_id.startswith("xgboost_") or strategy_id.startswith("lightgbm_")
+    return strategy_id.startswith("xgboost_") or strategy_id.startswith("lightgbm_") or strategy_id.startswith("catboost_")

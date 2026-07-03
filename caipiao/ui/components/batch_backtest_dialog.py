@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...persistence.backtest_db import BacktestDatabase
 from ...core.profile import LotteryProfile
 from ...core.strategies.generic import needs_history
 from ..batch_backtest_thread import BatchBacktestThread
@@ -40,6 +41,7 @@ class BatchBacktestDialog(QDialog):
         self.context = context
         self.profile: LotteryProfile = context.profile
         self.data_repository = context.data_repository
+        self._db = BacktestDatabase()
         self._thread: Optional[BatchBacktestThread] = None
 
         self.setWindowTitle(f"{self.profile.name}批量历史回测")
@@ -330,6 +332,9 @@ class BatchBacktestDialog(QDialog):
             )
             return
 
+        # 持久化批量回测汇总
+        self._save_batch_backtest(result)
+
         profit = result.total_fixed_prize - result.total_cost
         first_rate = (
             result.first_ticket_hit_count / max(result.total_rounds, 1) * 100
@@ -355,6 +360,30 @@ class BatchBacktestDialog(QDialog):
 
         if not self._detail_lines:
             self.detail_text.setText("没有中奖记录。")
+
+    def _save_batch_backtest(self, result) -> None:
+        """保存批量回测汇总结果到数据库."""
+        try:
+            options = self.strategy_panel.current_options()
+            user_options = {k: v for k, v in options.items() if k != "history"}
+            self._db.save_batch(
+                profile_key=self.profile.key,
+                strategy_id=self.strategy_panel.current_strategy_id(),
+                start_date=self.start_date_edit.date().toString("yyyy-MM-dd"),
+                end_date=self.end_date_edit.date().toString("yyyy-MM-dd"),
+                tickets_per_round=self.count_spin.value(),
+                options=user_options,
+                total_cost=result.total_cost,
+                total_fixed_prize=result.total_fixed_prize,
+                float_prize_count=result.float_prize_count,
+                hit_count=result.hit_count,
+                total_rounds=result.total_rounds,
+                first_ticket_hit_count=result.first_ticket_hit_count,
+                ticket_index_hits=result.ticket_index_hits,
+            )
+        except Exception as exc:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning("保存批量回测结果失败: %s", exc)
 
     def closeEvent(self, event) -> None:  # noqa: N802
         if self._thread and self._thread.isRunning():

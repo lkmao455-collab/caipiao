@@ -1,6 +1,7 @@
 """内置生成策略."""
 
 from .balanced_strategy import BalancedStrategy
+from .catboost_strategy import CatBoostStrategy
 from .exclude_include_strategy import ExcludeIncludeStrategy
 from .hot_cold_strategy import HotColdStrategy
 from .lightgbm_strategy import LightGBMStrategy
@@ -20,4 +21,5 @@ __all__ = [
     "BalancedStrategy",
     "XGBoostStrategy",
     "LightGBMStrategy",
+    "CatBoostStrategy",
 ]

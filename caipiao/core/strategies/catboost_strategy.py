@@ -1,4 +1,4 @@
-"""LightGBM 机器学习策略."""
+"""CatBoost 机器学习策略."""
 
 from __future__ import annotations
 
@@ -8,13 +8,11 @@ from typing import Any, Dict, List, Optional, Set
 import numpy as np
 
 from ...data.models import DrawRecord
-from ...ml.lgbm_model import LotteryLightGBMModel
+from ...ml.catboost_model import LotteryCatBoostModel
 from ...ml.model_store import compute_lookback, find_current_model, new_model_path
 from ...ml.predictor import MLPredictor
 from ..strategy import GenerationStrategy, StrategyMetadata
 from ..ticket import Ticket
-
-MODEL_PREFIX = "lightgbm"
 
 logger = logging.getLogger(__name__)
 
@@ -31,19 +29,20 @@ def _red_overlap(reds: List[int], last_reds: List[int]) -> int:
     return len(set(reds) & set(last_reds))
 
 
-class LightGBMStrategy(GenerationStrategy):
-    """基于 LightGBM 机器学习的号码生成策略.
+class CatBoostStrategy(GenerationStrategy):
+    """基于 CatBoost 机器学习的号码生成策略.
 
-    使用历史开奖数据训练模型，预测各号码出现概率后生成号码。
-    结构与 XGBoost 策略一致，底层换用 LightGBM 模型。
+    结构与 XGBoost/LightGBM 策略一致，底层换用 CatBoost 模型。
     """
+
+    PREFIX = "catboost"
 
     @property
     def metadata(self) -> StrategyMetadata:
         return StrategyMetadata(
-            id="lightgbm",
-            name="LightGBM 智能分析",
-            description="基于 LightGBM 模型分析历史数据，生成概率优先的号码组合。",
+            id="catboost",
+            name="CatBoost 智能分析",
+            description="基于 CatBoost 模型分析历史数据，生成概率优先的号码组合。",
             configurable=True,
         )
 
@@ -84,7 +83,7 @@ class LightGBMStrategy(GenerationStrategy):
     def validate_options(self, options: Dict[str, Any]) -> None:
         history = options.get("history", [])
         if len(history) < 100:
-            raise ValueError("LightGBM 策略需要至少 100 期历史数据")
+            raise ValueError("CatBoost 策略需要至少 100 期历史数据")
         overlap = options.get("max_red_overlap", 4)
         if not isinstance(overlap, int) or not (0 <= overlap <= 6):
             raise ValueError("与上期红球最大允许重复数必须在 0-6 之间")
@@ -105,8 +104,6 @@ class LightGBMStrategy(GenerationStrategy):
         if isinstance(history_count, int) and history_count > 0 and len(history) > history_count:
             history = history[-history_count:]
 
-        # LightGBM 作为科学实验应保持确定性：使用固定种子，
-        # 在相同历史数据和参数下每次输出一致。
         FIXED_SEED = 42
 
         records = [
@@ -120,16 +117,14 @@ class LightGBMStrategy(GenerationStrategy):
         ]
         lookback = compute_lookback(len(records))
         model_path = find_current_model(
-            records, lookback, prefix=MODEL_PREFIX, options=options
-        ) or new_model_path(
-            records, lookback, prefix=MODEL_PREFIX, options=options
-        )
+            records, lookback, prefix=self.PREFIX, options=options
+        ) or new_model_path(records, lookback, prefix=self.PREFIX, options=options)
 
         predictor = MLPredictor(
             records,
             lookback=lookback,
             model_path=model_path,
-            model_class=LotteryLightGBMModel,
+            model_class=LotteryCatBoostModel,
         )
         if not predictor.is_ready():
             predictor.train()
@@ -145,7 +140,7 @@ class LightGBMStrategy(GenerationStrategy):
         }
 
         basis = (
-            f"LightGBM 智能分析策略：基于最近 {len(records)} 期历史数据训练模型，"
+            f"CatBoost 智能分析策略：基于最近 {len(records)} 期历史数据训练模型，"
             f"特征回看期数 {lookback}，按预测概率加权采样，多样性增强 {int(diversity * 10)}，"
             f"与上期红球最大允许重复数 {max_red_overlap}，"
             f"{'允许' if allow_blue_repeat else '不允许'}蓝球与上期重复。"
@@ -185,7 +180,6 @@ class LightGBMStrategy(GenerationStrategy):
                 key = self._ticket_key(ticket)
                 if key in seen:
                     continue
-                # 蓝球重复规则
                 if not allow_blue_repeat and last_blue is not None and ticket.groups.get("blue", [None])[0] == last_blue:
                     continue
                 reds = ticket.groups.get("red", [])
@@ -198,7 +192,7 @@ class LightGBMStrategy(GenerationStrategy):
 
         if len(tickets) < count:
             logger.warning(
-                "LightGBM 策略经过 %d 次尝试仍只生成 %d 注有效号码（目标 %d 注）",
+                "CatBoost 策略经过 %d 次尝试仍只生成 %d 注有效号码（目标 %d 注）",
                 seed_offset, len(tickets), count
             )
 
@@ -219,7 +213,6 @@ class LightGBMStrategy(GenerationStrategy):
         basis: str,
         details: Dict[str, Any],
     ) -> List[Ticket]:
-        """生成一批候选投注单（包含模型概率最高的第一注 + 加权采样）."""
         tickets: List[Ticket] = []
 
         top_red_indices = np.argsort(red_proba)[-6:]

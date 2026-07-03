@@ -15,12 +15,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..data.models import DrawRecord
+from ..utils import app_data_dir
 
 
 def model_dir() -> Path:
-    """模型保存目录（不存在时自动创建）."""
-    d = Path.home() / ".caipiao" / "models"
+    """模型保存目录（位于应用数据目录下；不存在时自动创建）."""
+    d = app_data_dir() / "models"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

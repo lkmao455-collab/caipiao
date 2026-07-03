@@ -128,7 +128,7 @@ XGBoost 是一种梯度提升决策树算法，擅长处理表格型特征。软
 输出：该号码在下一期出现的概率
 ```
 
-模型训练后会以时间戳命名缓存在 `~/.caipiao/models/xgboost_lookback{lookback}_{时间戳}.pkl`（保留历史版本），删除后可重新训练。
+模型训练后会以时间戳命名缓存在应用目录下的 `.caipiao/models/xgboost_lookback{lookback}_{时间戳}.pkl`（保留历史版本），删除后可重新训练。
 
 ### 4.4 为什么不能预测开奖？
 

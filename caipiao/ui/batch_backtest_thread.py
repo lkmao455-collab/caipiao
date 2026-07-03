@@ -23,7 +23,10 @@ from ..core.strategies.generic import is_ml_strategy, needs_history
 from ..core.ticket import Ticket
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
+from ..ml.catboost_model import LotteryCatBoostModel
 from ..ml.generic_predictor import GenericMLPredictor
+from ..ml.lgbm_model import LotteryLightGBMModel
+from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, new_model_path
 from ..ml.predictor import MLPredictor
 
@@ -80,6 +83,7 @@ class BatchBacktestThread(QThread):
         self._is_ml = is_ml_strategy(strategy_id) or strategy_id in {
             "xgboost",
             "lightgbm",
+            "catboost",
         }
 
     def run(self) -> None:
@@ -206,15 +210,15 @@ class BatchBacktestThread(QThread):
     ) -> Dict[str, Any]:
         """对 ML 策略：用当前历史数据训练临时模型并返回概率选项."""
         if self.profile.key == "ssq":
-            from ..ml.model import LotteryXGBoostModel
-            from ..ml.lgbm_model import LotteryLightGBMModel
-
-            model_class = (
-                LotteryLightGBMModel
-                if self.strategy_id.startswith("lightgbm")
-                else LotteryXGBoostModel
-            )
-            prefix = "lightgbm" if self.strategy_id.startswith("lightgbm") else "xgboost"
+            if self.strategy_id.startswith("lightgbm"):
+                model_class = LotteryLightGBMModel
+                prefix = "lightgbm"
+            elif self.strategy_id.startswith("catboost"):
+                model_class = LotteryCatBoostModel
+                prefix = "catboost"
+            else:
+                model_class = LotteryXGBoostModel
+                prefix = "xgboost"
             lookback = compute_lookback(len(history))
             model_path = new_model_path(history, lookback, prefix=prefix, options=self.options)
             predictor = MLPredictor(
@@ -224,18 +228,20 @@ class BatchBacktestThread(QThread):
                 model_class=model_class,
             )
             predictor.train()
-            # MLPredictor 训练后不会注入 options，直接让策略内部重新加载模型
             return options
 
-        backend = (
-            "lightgbm"
-            if self.strategy_id.startswith("lightgbm")
-            else "xgboost"
-        )
+        if self.strategy_id.startswith("lightgbm"):
+            backend = "lightgbm"
+        elif self.strategy_id.startswith("catboost"):
+            backend = "catboost"
+        else:
+            backend = "xgboost"
         lookback = compute_lookback(len(history))
         prefix = (
             self.profile.lightgbm_prefix()
             if backend == "lightgbm"
+            else self.profile.catboost_prefix()
+            if backend == "catboost"
             else self.profile.xgboost_prefix()
         )
         model_path = new_model_path(history, lookback, prefix=prefix, options=self.options)
