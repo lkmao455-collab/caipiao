@@ -222,3 +222,62 @@ def test_batch_thread_cancellation():
     assert exception is None
     assert result is not None
     assert result.total_rounds == 50
+
+def test_batch_thread_ml_strategy():
+    """验证 BatchBacktestThread 能正确运行 ML 策略（xgboost）。"""
+    pytest.importorskip("xgboost")
+
+    records = _make_ml_records(120)
+    engine = GenerationEngine()
+    engine.register(RandomStrategy())
+
+    thread = BatchBacktestThread(
+        engine=engine,
+        strategy_id="xgboost",
+        profile=SSQ,
+        start_date=datetime(2024, 4, 25),
+        end_date=datetime(2024, 4, 29),
+        tickets_per_round=1,
+        options={"batch_backtest_workers": 1},
+        data_repository=MockRepository(records),
+        parent=None,
+    )
+
+    result = None
+    exception = None
+
+    def on_finished(r, exc):
+        nonlocal result, exception
+        result = r
+        exception = exc
+
+    thread.result_ready.connect(on_finished)
+    thread.run()
+
+    assert exception is None, exception
+    assert result is not None
+    assert result.total_rounds == 5
+    assert result.total_cost == 10
+    assert len(result.errors) == 0
+
+
+def _make_ml_records(n=120):
+    """生成足够用于 ML 训练的历史记录（>=100 期）。"""
+    records = []
+    base = datetime(2024, 1, 1)
+    for i in range(n):
+        base_offset = (i * 7) % 33
+        nums = sorted({((base_offset + j * 13) % 33) + 1 for j in range(6)})
+        while len(nums) < 6:
+            nums.append(next(num for num in range(1, 34) if num not in nums))
+            nums.sort()
+        blue = (i * 5 + 3) % 16 + 1
+        records.append(
+            DrawRecord(
+                issue=f"2024{i+1:03d}",
+                draw_date=base + timedelta(days=i),
+                red_balls=sorted(nums),
+                blue_ball=blue,
+            )
+        )
+    return records

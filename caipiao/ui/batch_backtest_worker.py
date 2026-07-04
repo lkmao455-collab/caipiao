@@ -145,12 +145,9 @@ def prepare_ml_options(
     """基于历史数据为 ML 策略训练临时模型，并返回（可能已更新的）options。
 
     此函数为纯函数：不依赖 ``self``、Qt 对象或闭包，输入/输出均可被 pickle
-    序列化，可在子进程中执行。``draw_date`` 与 ``temp_dir`` 为后续扩展预留：
-    ``temp_dir`` 未来将透传给底层训练器作为 CatBoost / XGBoost / LightGBM 的
-    训练临时目录。
+    序列化，可在子进程中执行。``temp_dir`` 会透传给底层训练器，作为 CatBoost
+    的 ``train_dir`` 以及各后端线程隔离的临时根目录。
     """
-    # TODO: 当前 MLPredictor / GenericMLPredictor 未暴露训练临时目录参数，
-    # 后续应把 temp_dir 透传给 CatBoost / XGBoost / LightGBM 的训练临时目录。
     strategy_id = options.get("strategy_id")
     if not strategy_id:
         return dict(options)
@@ -185,6 +182,7 @@ def prepare_ml_options(
             lookback=lookback,
             model_path=model_path,
             model_class=model_class,
+            temp_dir=temp_dir,
         )
         predictor.train()
         return result
@@ -216,6 +214,7 @@ def prepare_ml_options(
         lookback=lookback,
         model_path=model_path,
         backend=backend,
+        temp_dir=temp_dir,
     )
     predictor.train()
     return result
@@ -247,10 +246,15 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
         if context.needs_history:
             options["history"] = history
 
-        # TODO: ML 模型训练需要把 _prepare_ml_options 的逻辑搬到这里
-        # 暂时只支持非 ML 策略
         if context.is_ml:
-            return RoundResult(index=task.index, error="ML not yet supported in worker")
+            options["strategy_id"] = context.strategy_id
+            options = prepare_ml_options(
+                history,
+                options,
+                context.profile_key,
+                task.actual.draw_date,
+                _get_worker_temp_dir(),
+            )
 
         tickets = engine.generate(
             context.strategy_id,

@@ -28,8 +28,9 @@ except ImportError as exc:  # pragma: no cover
 class LotteryCatBoostModel:
     """基于 CatBoost 的彩票号码分析模型."""
 
-    def __init__(self, lookback: int = 50) -> None:
+    def __init__(self, lookback: int = 50, temp_dir: Optional[str] = None) -> None:
         self.lookback = lookback
+        self.temp_dir = temp_dir
         self.red_models: List[Any] = []
         self.blue_model: Optional[MultiOutputClassifier] = None
         self.is_trained = False
@@ -45,6 +46,7 @@ class LotteryCatBoostModel:
             random_seed=42,
             verbose=False,
             thread_count=1,
+            train_dir=self.temp_dir or "catboost_info",
         )
 
     def fit(

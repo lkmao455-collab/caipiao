@@ -23,8 +23,9 @@ class LotteryLightGBMModel:
     输出下一期各号码出现的概率。
     """
 
-    def __init__(self, lookback: int = 50) -> None:
+    def __init__(self, lookback: int = 50, temp_dir: Optional[str] = None) -> None:
         self.lookback = lookback
+        self.temp_dir = temp_dir
         self.red_models: List[lgb.LGBMClassifier] = []
         self.blue_model: Optional[MultiOutputClassifier] = None
         self.is_trained = False
@@ -41,6 +42,7 @@ class LotteryLightGBMModel:
             colsample_bytree=0.8,
             objective="binary",
             n_jobs=1,
+            num_threads=1,
             random_state=42,
             verbose=-1,
         )

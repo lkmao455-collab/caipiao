@@ -32,13 +32,14 @@ class GenericMLPredictor:
         lookback: int = 50,
         model_path: Optional[Path] = None,
         backend: str = "xgboost",
+        temp_dir: Optional[str] = None,
     ) -> None:
         self.profile = profile
         self.records = sorted(records, key=lambda r: r.draw_date)
         self.lookback = lookback
         self.model_path = model_path
         self.backend = backend
-        self.model = LotteryGenericModel(profile, lookback=lookback, backend=backend)
+        self.model = LotteryGenericModel(profile, lookback=lookback, backend=backend, temp_dir=temp_dir)
         self._needs_training = True
 
         if model_path and model_path.exists():

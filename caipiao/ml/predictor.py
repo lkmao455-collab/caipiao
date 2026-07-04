@@ -26,10 +26,11 @@ class MLPredictor:
         lookback: int = 50,
         model_path: Optional[Path] = None,
         model_class: type = LotteryXGBoostModel,
+        temp_dir: Optional[str] = None,
     ) -> None:
         self.records = sorted(records, key=lambda r: r.draw_date)
         self.lookback = lookback
-        self.model = model_class(lookback=lookback)
+        self.model = model_class(lookback=lookback, temp_dir=temp_dir)
         self.model_path = model_path
         self._needs_training = True
 

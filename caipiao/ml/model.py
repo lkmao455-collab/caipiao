@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
-import pickle
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -14,14 +16,63 @@ from sklearn.multioutput import MultiOutputClassifier
 logger = logging.getLogger(__name__)
 
 
+def _save_booster(model: xgb.XGBClassifier, directory: Path) -> None:
+    """保存 XGBoost 分类器到目录（原生 save_model + JSON 元数据）."""
+    directory.mkdir(parents=True, exist_ok=True)
+    model.save_model(str(directory / "model.json"))
+    meta = {
+        "type": "XGBClassifier",
+        "classes_": model.classes_.tolist() if hasattr(model, "classes_") else [],
+        "n_features_in": int(getattr(model, "n_features_in_", 0)),
+    }
+    with (directory / "meta.json").open("w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+
+def _load_booster(directory: Path) -> xgb.XGBClassifier:
+    """从目录加载 XGBoost 分类器."""
+    clf = xgb.XGBClassifier()
+    clf.load_model(str(directory / "model.json"))
+    meta_path = directory / "meta.json"
+    if meta_path.exists():
+        with meta_path.open("r", encoding="utf-8") as f:
+            meta = json.load(f)
+        if "classes_" in meta:
+            clf.classes_ = np.array(meta["classes_"])
+    return clf
+
+
+def _save_multioutput(moc: MultiOutputClassifier, directory: Path) -> None:
+    """保存 MultiOutputClassifier 包装器到目录."""
+    directory.mkdir(parents=True, exist_ok=True)
+    estimator_dirs = []
+    for idx, est in enumerate(moc.estimators_):
+        est_dir = directory / f"estimator_{idx:02d}"
+        _save_booster(est, est_dir)
+        estimator_dirs.append(str(est_dir.relative_to(directory)))
+    with (directory / "meta.json").open("w", encoding="utf-8") as f:
+        json.dump({"type": "MultiOutputClassifier", "estimators": estimator_dirs}, f, ensure_ascii=False, indent=2)
+
+
+def _load_multioutput(directory: Path) -> MultiOutputClassifier:
+    """从目录加载 MultiOutputClassifier 包装器."""
+    with (directory / "meta.json").open("r", encoding="utf-8") as f:
+        meta = json.load(f)
+    estimators = [_load_booster(directory / p) for p in meta["estimators"]]
+    moc = MultiOutputClassifier(xgb.XGBClassifier(), n_jobs=1)
+    moc.estimators_ = estimators
+    return moc
+
+
 class LotteryXGBoostModel:
     """基于 XGBoost 的彩票号码分析模型.
 
     为每个红球和每个蓝球训练二分类器，输出下一期出现的概率。
     """
 
-    def __init__(self, lookback: int = 50) -> None:
+    def __init__(self, lookback: int = 50, temp_dir: Optional[str] = None) -> None:
         self.lookback = lookback
+        self.temp_dir = temp_dir
         self.red_models: List[xgb.XGBClassifier] = []
         self.blue_model: Optional[MultiOutputClassifier] = None
         self.is_trained = False
@@ -38,6 +89,7 @@ class LotteryXGBoostModel:
             eval_metric="logloss",
             use_label_encoder=False,
             n_jobs=1,
+            nthread=1,
             random_state=42,
             verbosity=0,
         )
@@ -112,28 +164,74 @@ class LotteryXGBoostModel:
         return red_proba, blue_proba
 
     def save(self, path: Path | str) -> None:
-        """保存模型到文件."""
+        """保存模型到文件.
+
+        使用 XGBoost 原生 ``save_model`` 格式，避免 pickle 跨版本兼容性问题。
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("wb") as f:
-            pickle.dump(
-                {
-                    "red_models": self.red_models,
-                    "blue_model": self.blue_model,
-                    "lookback": self.lookback,
-                    "is_trained": self.is_trained,
-                },
-                f,
+        tmp_root = Path(tempfile.mkdtemp(prefix="lottery_model_save_"))
+        try:
+            model_root = tmp_root / "model"
+            model_root.mkdir(parents=True, exist_ok=True)
+            red_dirs = []
+            for idx, model in enumerate(self.red_models):
+                d = model_root / f"red_{idx:02d}"
+                _save_booster(model, d)
+                red_dirs.append(str(d.relative_to(model_root)))
+            blue_dir = model_root / "blue"
+            _save_multioutput(self.blue_model, blue_dir)
+            manifest = {
+                "version": 2,
+                "lookback": self.lookback,
+                "is_trained": self.is_trained,
+                "red_models": red_dirs,
+                "blue_model": str(blue_dir.relative_to(model_root)),
+            }
+            with (model_root / "manifest.json").open("w", encoding="utf-8") as f:
+                json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+            # 打包为压缩文件，避免外部路径依赖
+            archive = shutil.make_archive(
+                base_name=str(tmp_root / "archive"),
+                format="gztar",
+                root_dir=str(model_root),
             )
+            shutil.copyfile(archive, str(path))
+        finally:
+            shutil.rmtree(tmp_root, ignore_errors=True)
         logger.info("模型已保存到 %s", path)
 
     def load(self, path: Path | str) -> None:
-        """从文件加载模型."""
+        """从文件加载模型.
+
+        优先加载原生 ``save_model`` 格式；遇到旧版 pickle 文件时删除并抛出异常，
+        让上层重新训练。
+        """
         path = Path(path)
-        with path.open("rb") as f:
-            data = pickle.load(f)
-        self.red_models = data["red_models"]
-        self.blue_model = data["blue_model"]
-        self.lookback = data["lookback"]
-        self.is_trained = data["is_trained"]
+        tmp_root = Path(tempfile.mkdtemp(prefix="lottery_model_load_"))
+        try:
+            try:
+                shutil.unpack_archive(str(path), extract_dir=str(tmp_root), format="gztar")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("模型文件不是新版压缩格式，删除旧模型: %s", exc)
+                path.unlink(missing_ok=True)
+                raise RuntimeError("旧模型格式不兼容，将重新训练") from exc
+
+            manifest_path = tmp_root / "manifest.json"
+            if not manifest_path.exists():
+                raise RuntimeError("模型压缩包中缺少 manifest.json")
+            with manifest_path.open("r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            if manifest.get("version") != 2:
+                raise RuntimeError(f"不支持的模型版本: {manifest.get('version')}")
+
+            self.lookback = manifest["lookback"]
+            self.is_trained = manifest["is_trained"]
+            self.red_models = [
+                _load_booster(tmp_root / d) for d in manifest["red_models"]
+            ]
+            self.blue_model = _load_multioutput(tmp_root / manifest["blue_model"])
+        finally:
+            shutil.rmtree(tmp_root, ignore_errors=True)
         logger.info("模型已从 %s 加载", path)
