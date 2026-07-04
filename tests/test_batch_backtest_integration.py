@@ -261,6 +261,57 @@ def test_batch_thread_ml_strategy():
     assert len(result.errors) == 0
 
 
+def test_normalize_max_workers():
+    from caipiao.ui.batch_backtest_thread import (
+        _DEFAULT_MAX_WORKERS,
+        _normalize_max_workers,
+    )
+
+    assert _normalize_max_workers(1, cpu_count=4) == 1
+    assert _normalize_max_workers(4, cpu_count=4) == 4
+    assert _normalize_max_workers(8, cpu_count=4) == 4
+    assert _normalize_max_workers(0, cpu_count=4) == 1
+    assert _normalize_max_workers(-1, cpu_count=4) == 1
+    assert _normalize_max_workers("2", cpu_count=4) == 2
+    assert _normalize_max_workers("invalid", cpu_count=4) == _DEFAULT_MAX_WORKERS
+    assert _normalize_max_workers(None, cpu_count=4) == _DEFAULT_MAX_WORKERS
+
+
+def test_batch_thread_invalid_max_workers_uses_default():
+    """非法的 batch_backtest_workers 应被归一化为有效值，不影响回测执行。"""
+    records = _make_records(5)
+    engine = GenerationEngine()
+    engine.register(RandomStrategy())
+
+    thread = BatchBacktestThread(
+        engine=engine,
+        strategy_id="random",
+        profile=SSQ,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 5),
+        tickets_per_round=1,
+        options={"batch_backtest_workers": "invalid"},
+        data_repository=MockRepository(records),
+        parent=None,
+    )
+
+    result = None
+    exception = None
+
+    def on_finished(r, exc):
+        nonlocal result, exception
+        result = r
+        exception = exc
+
+    thread.result_ready.connect(on_finished)
+    thread.run()
+
+    assert exception is None, exception
+    assert result is not None
+    assert result.total_rounds == 5
+    assert result.total_cost == 10
+
+
 def _make_ml_records(n=120):
     """生成足够用于 ML 训练的历史记录（>=100 期）。"""
     records = []

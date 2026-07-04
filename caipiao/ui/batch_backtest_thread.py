@@ -37,6 +37,24 @@ from ..data.repository import DrawRepository
 _DEFAULT_MAX_WORKERS = max(1, min(os.cpu_count() // 2, 4))
 
 
+def _normalize_max_workers(value: Any, cpu_count: Optional[int] = None) -> int:
+    """校验并归一化 worker 数量.
+
+    - 转换为整数，失败时使用默认值。
+    - 最小值为 1。
+    - 最大值为 ``os.cpu_count()``（取不到时按 4 兜底），防止用户配置过大导致 OOM。
+    """
+    try:
+        max_workers = int(value)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_WORKERS
+
+    upper = cpu_count if cpu_count is not None else os.cpu_count()
+    if upper is None or upper < 1:
+        upper = 4
+    return max(1, min(max_workers, upper))
+
+
 class BatchBacktestThread(QThread):
     """批量回测工作线程."""
 
@@ -108,8 +126,8 @@ class BatchBacktestThread(QThread):
                 RoundTask(index=i, actual=r) for i, r in enumerate(target_records)
             ]
 
-            max_workers = self.options.get(
-                "batch_backtest_workers", _DEFAULT_MAX_WORKERS
+            max_workers = _normalize_max_workers(
+                self.options.get("batch_backtest_workers", _DEFAULT_MAX_WORKERS)
             )
             executor = None
             futures = []

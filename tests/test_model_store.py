@@ -108,6 +108,20 @@ def test_find_current_model_matches_fingerprint(tmp_path):
     assert model_store.is_model_current(records, lookback, directory=tmp_path)
 
 
+def test_model_dir_respects_env_var(tmp_path, monkeypatch):
+    """model_dir 应优先使用 CAIPIAO_MODEL_DIR 环境变量。"""
+    monkeypatch.setenv("CAIPIAO_MODEL_DIR", str(tmp_path))
+    assert model_store.model_dir() == tmp_path
+
+
+def test_model_dir_env_var_creates_directory(tmp_path, monkeypatch):
+    """CAIPIAO_MODEL_DIR 指向的目录不存在时应自动创建。"""
+    target = tmp_path / "nested" / "models"
+    monkeypatch.setenv("CAIPIAO_MODEL_DIR", str(target))
+    assert model_store.model_dir() == target
+    assert target.exists()
+
+
 def test_find_current_model_prefers_newest(tmp_path):
     records = make_records(120)
     lookback = model_store.compute_lookback(len(records))

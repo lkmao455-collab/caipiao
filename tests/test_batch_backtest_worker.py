@@ -5,6 +5,7 @@ from caipiao.ui.batch_backtest_worker import (
     RoundBacktestContext,
     RoundTask,
     RoundResult,
+    _detect_ml_strategy,
     merge_round_results,
     worker_round_backtest,
 )
@@ -147,3 +148,32 @@ class TestLuckyStrategy(GenerationStrategy):
     assert result.total_cost == 4
     assert result.hit_count == 2
     assert result.first_ticket_hit_count == 1
+
+
+def test_detect_ml_strategy_with_custom_plugin_id():
+    """自定义 ID 的插件 ML 策略应通过 is_ml 属性被识别为 ML。"""
+    from caipiao.core.engine import GenerationEngine
+    from caipiao.core.strategy import GenerationStrategy, StrategyMetadata
+    from caipiao.core.ticket import Ticket
+
+    class PluginMLStrategy(GenerationStrategy):
+        is_ml = True
+
+        @property
+        def metadata(self) -> StrategyMetadata:
+            return StrategyMetadata(
+                id="custom_plugin_ml",
+                name="自定义插件 ML",
+                description="测试用插件 ML 策略",
+            )
+
+        def generate(self, count: int = 1, options=None) -> list:
+            return [Ticket(red_balls=[1, 2, 3, 4, 5, 6], blue_ball=7) for _ in range(count)]
+
+    engine = GenerationEngine()
+    engine.register(PluginMLStrategy())
+
+    assert _detect_ml_strategy(engine, "custom_plugin_ml", False) is True
+    assert _detect_ml_strategy(engine, "custom_plugin_ml", True) is True
+    assert _detect_ml_strategy(engine, "nonexistent", True) is True
+    assert _detect_ml_strategy(engine, "nonexistent", False) is False

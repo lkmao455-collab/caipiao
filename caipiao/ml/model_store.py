@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,8 +20,16 @@ from ..utils import app_data_dir
 
 
 def model_dir() -> Path:
-    """模型保存目录（位于应用数据目录下；不存在时自动创建）."""
-    d = app_data_dir() / "models"
+    """模型保存目录（位于应用数据目录下；不存在时自动创建）.
+
+    若环境变量 ``CAIPIAO_MODEL_DIR`` 已设置，则优先使用该路径，
+    以便批量回测 worker 将各进程的模型缓存隔离到独立临时目录。
+    """
+    env_dir = os.environ.get("CAIPIAO_MODEL_DIR")
+    if env_dir:
+        d = Path(env_dir)
+    else:
+        d = app_data_dir() / "models"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

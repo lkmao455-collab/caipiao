@@ -34,6 +34,8 @@ class XGBoostStrategy(GenerationStrategy):
     使用历史开奖数据训练模型，预测各号码出现概率后生成号码。
     """
 
+    is_ml = True
+
     @property
     def metadata(self) -> StrategyMetadata:
         return StrategyMetadata(

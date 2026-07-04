@@ -28,6 +28,10 @@ class GenerationStrategy(ABC):
     策略可通过插件机制动态加载。
     """
 
+    #: 标记该策略是否为机器学习策略；批量回测 worker 会据此决定
+    #: 是否在子进程中预先训练模型。插件 ML 策略也应置为 True。
+    is_ml: bool = False
+
     @property
     @abstractmethod
     def metadata(self) -> StrategyMetadata:

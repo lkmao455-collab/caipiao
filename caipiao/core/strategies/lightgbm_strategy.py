@@ -38,6 +38,8 @@ class LightGBMStrategy(GenerationStrategy):
     结构与 XGBoost 策略一致，底层换用 LightGBM 模型。
     """
 
+    is_ml = True
+
     @property
     def metadata(self) -> StrategyMetadata:
         return StrategyMetadata(

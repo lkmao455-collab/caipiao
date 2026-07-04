@@ -36,6 +36,7 @@ class CatBoostStrategy(GenerationStrategy):
     """
 
     PREFIX = "catboost"
+    is_ml = True
 
     @property
     def metadata(self) -> StrategyMetadata:

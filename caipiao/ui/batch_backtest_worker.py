@@ -237,10 +237,24 @@ def prepare_ml_options(
 def init_worker_process(seed: int):
     """每个子进程启动时调用。"""
     _configure_worker_threads()
-    _get_worker_temp_dir()
+    worker_tmp = _get_worker_temp_dir()
+    # 将模型缓存目录重定向到 worker 私有临时目录，避免多进程并发写入冲突。
+    os.environ["CAIPIAO_MODEL_DIR"] = worker_tmp
     atexit.register(_cleanup_worker_temp_dir)
     random.seed(seed)
     np.random.seed(seed)
+
+
+def _detect_ml_strategy(engine: GenerationEngine, strategy_id: str, context_is_ml: bool) -> bool:
+    """判断策略是否需要预先训练 ML 模型.
+
+    优先根据策略实例的 ``is_ml`` 属性判断（支持插件 ML 策略），
+    同时保留主线程传入的 ``context.is_ml`` 作为兼容兜底。
+    """
+    if context_is_ml:
+        return True
+    strategy = engine.get(strategy_id)
+    return strategy is not None and getattr(strategy, "is_ml", False)
 
 
 def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> RoundResult:
@@ -260,7 +274,7 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
         if context.needs_history:
             options["history"] = history
 
-        if context.is_ml:
+        if _detect_ml_strategy(engine, context.strategy_id, context.is_ml):
             options["strategy_id"] = context.strategy_id
             options = prepare_ml_options(
                 history,

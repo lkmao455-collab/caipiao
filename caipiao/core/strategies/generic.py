@@ -733,6 +733,7 @@ class _GenericMLStrategy(_GenericBase):
     _name_base = "XGBoost 智能分析"
     _description = "基于 XGBoost 模型分析历史数据，生成概率优先的号码组合。"
     _needs_history = True
+    is_ml = True
 
     def get_config_schema(self) -> Dict[str, Any]:
         schema: Dict[str, Any] = {
