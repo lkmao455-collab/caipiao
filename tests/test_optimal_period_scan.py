@@ -4,6 +4,93 @@ from caipiao.ui.optimal_period_config import (
     STRATEGY_PARAM_MAP,
     resolve_optimal_param,
 )
+from caipiao.ui.batch_backtest_result import BatchBacktestResult
+from caipiao.ui.batch_backtest_worker import RoundBacktestContext, RoundTask
+from caipiao.data.models import DrawRecord
+from datetime import datetime
+
+
+class _MockExecutor:
+    """在单进程内立即执行提交的函数，便于测试 scan_param_values."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def submit(self, fn, *args, **kwargs):
+        class F:
+            def result(self):
+                return fn(*args, **kwargs)
+
+            def cancel(self):
+                pass
+
+        return F()
+
+    def shutdown(self, *args, **kwargs):
+        pass
+
+
+def test_scan_param_values_returns_results(monkeypatch):
+    """scan_param_values 应返回每个参数值对应的 BatchBacktestResult."""
+    from caipiao.ui.optimal_period_scan_thread import scan_param_values
+
+    record = DrawRecord(
+        issue="2024001",
+        draw_date=datetime(2024, 1, 1),
+        red_balls=[1, 2, 3, 4, 5, 6],
+        blue_ball=7,
+    )
+    context = RoundBacktestContext(
+        strategy_id="random",
+        profile_key="ssq",
+        tickets_per_round=1,
+        options={},
+        is_ml=False,
+        needs_history=False,
+        records=[record],
+        seed=42,
+    )
+    tasks = [RoundTask(index=0, actual=record)]
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor", _MockExecutor
+    )
+
+    results = scan_param_values(context, tasks, "lookback", [10, 20])
+    assert len(results) == 2
+    assert all(isinstance(r[1], BatchBacktestResult) for r in results)
+
+
+def test_scan_param_values_supports_none_value(monkeypatch):
+    """参数值为 None 时，不应向 options 注入参数，用于无参策略扫描."""
+    from caipiao.ui.optimal_period_scan_thread import scan_param_values
+
+    record = DrawRecord(
+        issue="2024001",
+        draw_date=datetime(2024, 1, 1),
+        red_balls=[1, 2, 3, 4, 5, 6],
+        blue_ball=7,
+    )
+    context = RoundBacktestContext(
+        strategy_id="random",
+        profile_key="ssq",
+        tickets_per_round=1,
+        options={},
+        is_ml=False,
+        needs_history=False,
+        records=[record],
+        seed=42,
+    )
+    tasks = [RoundTask(index=0, actual=record)]
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor", _MockExecutor
+    )
+
+    results = scan_param_values(context, tasks, "unused_param", [None])
+    assert len(results) == 1
+    assert results[0][0] is None
+    assert isinstance(results[0][1], BatchBacktestResult)
 
 
 def test_resolve_param_for_smart_hot_cold():
@@ -202,7 +289,9 @@ def test_scan_thread_skips_failed_values(monkeypatch):
         _MockProcessPoolExecutor,
     )
 
-    original = OptimalPeriodScanThread._run_one_value
+    from caipiao.ui.optimal_period_scan_thread import _run_one_value
+
+    original = _run_one_value
 
     def _patched_run_one_value(context, tasks, total_rounds):
         if context.options.get("lookback") == 50:
@@ -210,9 +299,8 @@ def test_scan_thread_skips_failed_values(monkeypatch):
         return original(context, tasks, total_rounds)
 
     monkeypatch.setattr(
-        OptimalPeriodScanThread,
-        "_run_one_value",
-        staticmethod(_patched_run_one_value),
+        "caipiao.ui.optimal_period_scan_thread._run_one_value",
+        _patched_run_one_value,
     )
 
     thread = OptimalPeriodScanThread(
@@ -259,9 +347,8 @@ def test_scan_thread_failed_value_not_optimal(monkeypatch):
         return BatchBacktestResult(total_rounds=total_rounds)
 
     monkeypatch.setattr(
-        OptimalPeriodScanThread,
-        "_run_one_value",
-        staticmethod(_patched_run_one_value),
+        "caipiao.ui.optimal_period_scan_thread._run_one_value",
+        _patched_run_one_value,
     )
 
     thread = OptimalPeriodScanThread(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QThread, Signal
 
@@ -38,6 +38,104 @@ class ScanResult:
     def all_values(self) -> List[int]:
         """所有扫描过的参数值."""
         return [value for value, _ in self.all_results]
+
+
+def _build_context(
+    base_context: RoundBacktestContext,
+    param_name: str,
+    value: Optional[int],
+) -> RoundBacktestContext:
+    """根据参数值构建对应的回测上下文.
+
+    当 ``value`` 为 ``None`` 时，不向 options 注入参数，用于无参策略扫描.
+    """
+    options = dict(base_context.options)
+    if value is not None:
+        options[param_name] = value
+    return RoundBacktestContext(
+        strategy_id=base_context.strategy_id,
+        profile_key=base_context.profile_key,
+        tickets_per_round=base_context.tickets_per_round,
+        options=options,
+        is_ml=base_context.is_ml,
+        needs_history=base_context.needs_history,
+        records=base_context.records,
+        seed=base_context.seed,
+        plugin_dir=base_context.plugin_dir,
+    )
+
+
+def _run_one_value(
+    context: RoundBacktestContext, tasks: List[RoundTask], total_rounds: int
+) -> BatchBacktestResult:
+    """扫描单个参数值，返回汇总结果."""
+    round_results = [worker_round_backtest(context, task) for task in tasks]
+    return merge_round_results(round_results, total_rounds=total_rounds)
+
+
+def scan_param_values(
+    base_context: RoundBacktestContext,
+    tasks: List[RoundTask],
+    param_name: str,
+    param_values: List[Optional[int]],
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+    status_callback: Optional[Callable[[str], None]] = None,
+    interruption_callback: Optional[Callable[[], bool]] = None,
+) -> List[Tuple[Optional[int], BatchBacktestResult]]:
+    """对单一策略扫描多个参数取值，返回每个取值对应的结果.
+
+    ``param_values`` 中可包含 ``None``，用于无参策略的占位扫描.
+    """
+    all_results: List[Tuple[Optional[int], BatchBacktestResult]] = []
+    max_workers = _normalize_max_workers(
+        base_context.options.get("batch_backtest_workers")
+    )
+    completed = 0
+    total = len(param_values)
+
+    executor = None
+    futures: List[Any] = []
+    try:
+        executor = ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=init_worker_process,
+            initargs=(base_context.seed,),
+        )
+
+        for value in param_values:
+            context = _build_context(base_context, param_name, value)
+            futures.append(
+                (
+                    value,
+                    executor.submit(
+                        _run_one_value, context, tasks, len(tasks)
+                    ),
+                )
+            )
+
+        for value, future in futures:
+            if interruption_callback is not None and interruption_callback():
+                break
+            try:
+                result = future.result()
+            except Exception as exc:  # noqa: BLE001
+                result = BatchBacktestResult(
+                    total_rounds=len(tasks),
+                    errors=[repr(exc)],
+                )
+            all_results.append((value, result))
+            completed += 1
+            if progress_callback is not None:
+                progress_callback(completed, total)
+            if status_callback is not None:
+                status_callback(f"已完成 {param_name}={value} 的扫描（{completed}/{total}）")
+    finally:
+        if executor is not None:
+            for _, f in futures:
+                f.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    return all_results
 
 
 class OptimalPeriodScanThread(QThread):
@@ -124,56 +222,18 @@ class OptimalPeriodScanThread(QThread):
                 RoundTask(index=i, actual=r) for i, r in enumerate(target_records)
             ]
 
-            all_results: List[Tuple[int, BatchBacktestResult]] = []
-            max_workers = _normalize_max_workers(
-                self.base_options.get("batch_backtest_workers")
+            all_results = scan_param_values(
+                base_context,
+                tasks,
+                param_name,
+                param_values,
+                progress_callback=lambda completed, total: self.progress.emit(
+                    completed, total
+                ),
+                status_callback=lambda msg: self.status_message.emit(msg),
+                interruption_callback=self.isInterruptionRequested,
             )
-            completed = 0
-            total = len(param_values)
-
-            executor = None
-            futures: List[Any] = []
-            interrupted = False
-            try:
-                executor = ProcessPoolExecutor(
-                    max_workers=max_workers,
-                    initializer=init_worker_process,
-                    initargs=(base_context.seed,),
-                )
-
-                for value in param_values:
-                    context = self._build_context(base_context, param_name, value)
-                    futures.append(
-                        (
-                            value,
-                            executor.submit(
-                                self._run_one_value, context, tasks, len(tasks)
-                            ),
-                        )
-                    )
-
-                for value, future in futures:
-                    if self.isInterruptionRequested():
-                        interrupted = True
-                        break
-                    try:
-                        result = future.result()
-                    except Exception as exc:  # noqa: BLE001
-                        result = BatchBacktestResult(
-                            total_rounds=len(tasks),
-                            errors=[repr(exc)],
-                        )
-                    all_results.append((value, result))
-                    completed += 1
-                    self.progress.emit(completed, total)
-                    self.status_message.emit(
-                        f"已完成 {param_name}={value} 的扫描（{completed}/{total}）"
-                    )
-            finally:
-                if executor is not None:
-                    for _, f in futures:
-                        f.cancel()
-                    executor.shutdown(wait=False, cancel_futures=True)
+            interrupted = len(all_results) < len(param_values)
 
             if not all_results:
                 self.result_ready.emit(
@@ -219,26 +279,15 @@ class OptimalPeriodScanThread(QThread):
         param_name: str,
         value: int,
     ) -> RoundBacktestContext:
-        options = dict(base_context.options)
-        options[param_name] = value
-        return RoundBacktestContext(
-            strategy_id=base_context.strategy_id,
-            profile_key=base_context.profile_key,
-            tickets_per_round=base_context.tickets_per_round,
-            options=options,
-            is_ml=base_context.is_ml,
-            needs_history=base_context.needs_history,
-            records=base_context.records,
-            seed=base_context.seed,
-            plugin_dir=base_context.plugin_dir,
-        )
+        """根据参数值构建对应的回测上下文."""
+        return _build_context(base_context, param_name, value)
 
     @staticmethod
     def _run_one_value(
         context: RoundBacktestContext, tasks: List[RoundTask], total_rounds: int
     ) -> BatchBacktestResult:
-        round_results = [worker_round_backtest(context, task) for task in tasks]
-        return merge_round_results(round_results, total_rounds=total_rounds)
+        """扫描单个参数值，返回汇总结果."""
+        return _run_one_value(context, tasks, total_rounds)
 
     @staticmethod
     def _pick_best(
