@@ -76,3 +76,11 @@ def test_merge_round_results_skips_error_rounds():
     assert merged.total_cost == 4
     assert merged.hit_count == 1
     assert merged.total_rounds == 3
+
+
+def test_prepare_ml_options_signature():
+    # 仅验证函数可导入并返回 dict
+    from caipiao.ui.batch_backtest_worker import prepare_ml_options
+
+    result = prepare_ml_options([], {}, "ssq", datetime(2024, 1, 1), "/tmp")
+    assert isinstance(result, dict)

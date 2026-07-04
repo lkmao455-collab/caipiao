@@ -11,6 +11,7 @@ import os
 import random
 import shutil
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -31,6 +32,12 @@ from caipiao.core.strategies import (
     XGBoostStrategy,
 )
 from caipiao.core.strategies.generic import build_strategies
+from caipiao.ml.catboost_model import LotteryCatBoostModel
+from caipiao.ml.generic_predictor import GenericMLPredictor
+from caipiao.ml.lgbm_model import LotteryLightGBMModel
+from caipiao.ml.model import LotteryXGBoostModel
+from caipiao.ml.model_store import compute_lookback, new_model_path
+from caipiao.ml.predictor import MLPredictor
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
 
 
@@ -121,6 +128,92 @@ def _build_engine(profile_key: str) -> GenerationEngine:
         for strategy in build_strategies(profile):
             engine.register(strategy)
     return engine
+
+
+def prepare_ml_options(
+    history: list,
+    options: dict,
+    profile_key: str,
+    draw_date,
+    temp_dir: str,
+) -> dict:
+    """基于历史数据为 ML 策略训练临时模型，并返回（可能已更新的）options。
+
+    此函数为纯函数：不依赖 ``self``、Qt 对象或闭包，输入/输出均可被 pickle
+    序列化，可在子进程中执行。``draw_date`` 与 ``temp_dir`` 为后续扩展预留：
+    ``temp_dir`` 未来将透传给底层训练器作为 CatBoost / XGBoost / LightGBM 的
+    训练临时目录。
+    """
+    # TODO: 当前 MLPredictor / GenericMLPredictor 未暴露训练临时目录参数，
+    # 后续应把 temp_dir 透传给 CatBoost / XGBoost / LightGBM 的训练临时目录。
+    strategy_id = options.get("strategy_id")
+    if not strategy_id:
+        return dict(options)
+
+    result = dict(options)
+    lookback = compute_lookback(len(history))
+
+    # 影响模型路径/缓存命名的参数来自用户原始选项，排除运行时注入的字段。
+    path_options = {
+        k: v for k, v in options.items() if k not in ("history", "strategy_id")
+    }
+
+    if profile_key == "ssq":
+        if strategy_id.startswith("lightgbm"):
+            model_class = LotteryLightGBMModel
+            prefix = "lightgbm"
+        elif strategy_id.startswith("catboost"):
+            model_class = LotteryCatBoostModel
+            prefix = "catboost"
+        else:
+            model_class = LotteryXGBoostModel
+            prefix = "xgboost"
+
+        model_path = new_model_path(
+            history,
+            lookback,
+            prefix=prefix,
+            options=path_options,
+        )
+        predictor = MLPredictor(
+            history,
+            lookback=lookback,
+            model_path=model_path,
+            model_class=model_class,
+        )
+        predictor.train()
+        return result
+
+    if strategy_id.startswith("lightgbm"):
+        backend = "lightgbm"
+    elif strategy_id.startswith("catboost"):
+        backend = "catboost"
+    else:
+        backend = "xgboost"
+
+    profile = get_profile(profile_key)
+    prefix = (
+        profile.lightgbm_prefix()
+        if backend == "lightgbm"
+        else profile.catboost_prefix()
+        if backend == "catboost"
+        else profile.xgboost_prefix()
+    )
+    model_path = new_model_path(
+        history,
+        lookback,
+        prefix=prefix,
+        options=path_options,
+    )
+    predictor = GenericMLPredictor(
+        history,
+        profile=profile,
+        lookback=lookback,
+        model_path=model_path,
+        backend=backend,
+    )
+    predictor.train()
+    return result
 
 
 def init_worker_process(seed: int):

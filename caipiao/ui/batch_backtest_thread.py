@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QThread, Signal
 
 from .batch_backtest_result import BatchBacktestResult
+from .batch_backtest_worker import prepare_ml_options
 from ..core.engine import GenerationEngine
 from ..core.prize import calculate_prize
 from ..core.profile import LotteryProfile, SSQ
@@ -24,12 +25,6 @@ from ..core.ticket import Ticket
 from ..ui.components.ball_display import compute_highlight_map
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
-from ..ml.catboost_model import LotteryCatBoostModel
-from ..ml.generic_predictor import GenericMLPredictor
-from ..ml.lgbm_model import LotteryLightGBMModel
-from ..ml.model import LotteryXGBoostModel
-from ..ml.model_store import compute_lookback, new_model_path
-from ..ml.predictor import MLPredictor
 
 
 def _is_winner(prize_amount) -> bool:
@@ -204,48 +199,14 @@ class BatchBacktestThread(QThread):
         self, history: List[DrawRecord], options: Dict[str, Any]
     ) -> Dict[str, Any]:
         """对 ML 策略：用当前历史数据训练临时模型并返回概率选项."""
-        if self.profile.key == "ssq":
-            if self.strategy_id.startswith("lightgbm"):
-                model_class = LotteryLightGBMModel
-                prefix = "lightgbm"
-            elif self.strategy_id.startswith("catboost"):
-                model_class = LotteryCatBoostModel
-                prefix = "catboost"
-            else:
-                model_class = LotteryXGBoostModel
-                prefix = "xgboost"
-            lookback = compute_lookback(len(history))
-            model_path = new_model_path(history, lookback, prefix=prefix, options=self.options)
-            predictor = MLPredictor(
-                history,
-                lookback=lookback,
-                model_path=model_path,
-                model_class=model_class,
-            )
-            predictor.train()
-            return options
-
-        if self.strategy_id.startswith("lightgbm"):
-            backend = "lightgbm"
-        elif self.strategy_id.startswith("catboost"):
-            backend = "catboost"
-        else:
-            backend = "xgboost"
-        lookback = compute_lookback(len(history))
-        prefix = (
-            self.profile.lightgbm_prefix()
-            if backend == "lightgbm"
-            else self.profile.catboost_prefix()
-            if backend == "catboost"
-            else self.profile.xgboost_prefix()
-        )
-        model_path = new_model_path(history, lookback, prefix=prefix, options=self.options)
-        predictor = GenericMLPredictor(
+        options = dict(options)
+        options["strategy_id"] = self.strategy_id
+        # draw_date 与 temp_dir 目前为 prepare_ml_options 的预留接口，
+        # 后续多进程 worker 会传入实际值。
+        return prepare_ml_options(
             history,
-            profile=self.profile,
-            lookback=lookback,
-            model_path=model_path,
-            backend=backend,
+            options,
+            profile_key=self.profile.key,
+            draw_date=None,
+            temp_dir="",
         )
-        predictor.train()
-        return options
