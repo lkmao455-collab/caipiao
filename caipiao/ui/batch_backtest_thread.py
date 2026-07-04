@@ -152,7 +152,7 @@ class BatchBacktestThread(QThread):
                                     "ticket_index": t_idx,
                                 }
                             )
-                        self.round_ready.emit(result.index, len(tasks), round_winners)
+                        self.round_ready.emit(result.index + 1, len(tasks), round_winners)
 
                     completed += 1
                     self.progress.emit(completed, len(tasks))

@@ -105,6 +105,7 @@ def test_batch_thread_progress_and_round_ready():
     assert progress_calls[-1] == (3, 3)
     assert len(round_ready_calls) == 3
     assert all(call[1] == 3 for call in round_ready_calls)
+    assert sorted(call[0] for call in round_ready_calls) == [1, 2, 3]
 
 
 def test_batch_thread_empty_date_range():
