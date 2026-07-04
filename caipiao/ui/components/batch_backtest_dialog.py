@@ -463,14 +463,15 @@ class BatchBacktestDialog(QDialog):
             summary_lines.append("（已中断，结果为部分扫描）")
         self.summary_label.setText("\n".join(summary_lines))
 
+        # 排名规则与 OptimalStrategyScanThread._pick_best_strategy 保持一致：
+        # 固定奖金降序 -> 中奖次数降序 -> 策略 id 升序
         ranked = sorted(
             result.all_results,
             key=lambda item: (
-                item[2].total_fixed_prize,
-                item[2].hit_count,
+                -item[2].total_fixed_prize,
+                -item[2].hit_count,
                 item[0],
             ),
-            reverse=True,
         )
         self.status_text.append("=" * 40)
         self.status_text.append("一键找最优策略和参数扫描结果：")

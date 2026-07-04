@@ -218,8 +218,8 @@ class OptimalStrategyScanThread(QThread):
 
     @staticmethod
     def _pick_best_param(
-        results: List[Tuple[int, BatchBacktestResult]],
-    ) -> Optional[Tuple[int, BatchBacktestResult]]:
+        results: List[Tuple[Optional[int], BatchBacktestResult]],
+    ) -> Optional[Tuple[Optional[int], BatchBacktestResult]]:
         eligible = [item for item in results if not item[1].errors]
         if not eligible:
             return None
@@ -228,7 +228,7 @@ class OptimalStrategyScanThread(QThread):
             key=lambda item: (
                 item[1].total_fixed_prize,
                 item[1].hit_count,
-                -item[0],
+                -item[0] if item[0] is not None else 0,
             ),
         )
 
