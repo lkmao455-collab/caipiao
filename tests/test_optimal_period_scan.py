@@ -236,6 +236,55 @@ def test_scan_thread_skips_failed_values(monkeypatch):
     assert 50 in failed
 
 
+def test_scan_thread_failed_value_not_optimal(monkeypatch):
+    """失败的最小参数值不应被选为最优，即使成功结果奖金均为零."""
+    records = _make_records(120)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor",
+        _MockProcessPoolExecutor,
+    )
+
+    from caipiao.ui.batch_backtest_result import BatchBacktestResult
+
+    def _patched_run_one_value(context, tasks, total_rounds):
+        lookback = context.options.get("lookback")
+        if lookback == 20:
+            return BatchBacktestResult(
+                total_rounds=total_rounds,
+                errors=["simulated failure for lookback=20"],
+            )
+        return BatchBacktestResult(total_rounds=total_rounds)
+
+    monkeypatch.setattr(
+        OptimalPeriodScanThread,
+        "_run_one_value",
+        staticmethod(_patched_run_one_value),
+    )
+
+    thread = OptimalPeriodScanThread(
+        engine=engine,
+        strategy_id="smart_hot_cold",
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2023, 4, 1),
+        end_date=datetime(2023, 4, 10),
+        tickets_per_round=1,
+        base_options={"hot_weight": 60, "cold_weight": 40},
+        plugin_dir=None,
+    )
+
+    result, error = _run_thread(thread)
+
+    assert error is None, error
+    assert isinstance(result, ScanResult)
+    assert result.optimal_value == 50
+    failed = [value for value, res in result.all_results if res.errors]
+    assert 20 in failed
+
+
 def test_scan_thread_insufficient_history():
     """需要历史数据的策略在记录不足 100 期时应返回数据不足错误."""
     records = _make_records(50)

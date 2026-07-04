@@ -196,6 +196,12 @@ class OptimalPeriodScanThread(QThread):
                 return
 
             best = self._pick_best(all_results)
+            if best is None:
+                self.result_ready.emit(
+                    None,
+                    ValueError("所有参数组合均失败"),
+                )
+                return
             scan_result = ScanResult(
                 param_name=param_name,
                 optimal_value=best[0],
@@ -237,9 +243,12 @@ class OptimalPeriodScanThread(QThread):
     @staticmethod
     def _pick_best(
         results: List[Tuple[int, BatchBacktestResult]],
-    ) -> Tuple[int, BatchBacktestResult]:
+    ) -> Optional[Tuple[int, BatchBacktestResult]]:
+        eligible = [item for item in results if not item[1].errors]
+        if not eligible:
+            return None
         return max(
-            results,
+            eligible,
             key=lambda item: (
                 item[1].total_fixed_prize,
                 item[1].hit_count,

@@ -527,11 +527,13 @@ class BatchBacktestDialog(QDialog):
         self.status_text.append("=" * 40)
         self.status_text.append("一键找最优期数扫描结果：")
         for rank, (value, res) in enumerate(ranked, start=1):
+            failed_mark = "（失败）" if res.errors else ""
             self.status_text.append(
                 f"{rank}. {result.param_name}={value}: "
                 f"固定奖金 {res.total_fixed_prize} 元, "
                 f"中奖 {res.hit_count} 次, "
                 f"首注 {res.first_ticket_hit_count} 次"
+                f"{failed_mark}"
             )
         self.status_text.append("=" * 40)
 
