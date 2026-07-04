@@ -31,6 +31,7 @@ from caipiao.core.strategies import (
     XGBoostStrategy,
 )
 from caipiao.core.strategies.generic import build_strategies
+from caipiao.ui.batch_backtest_result import BatchBacktestResult
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ class RoundResult:
     hit_count: int = 0
     total_fixed_prize: int = 0
     float_prize_count: int = 0
+    first_ticket_hit_count: int = 0
     winners: list[int] = field(default_factory=list)
     ticket_results: list[dict] = field(default_factory=list)
     ticket_index_hits: dict[int, int] = field(default_factory=dict)
@@ -73,6 +75,11 @@ class RoundResult:
 def _is_winner(prize_amount) -> bool:
     """奖金为 None（浮动奖）或 >0 均视为中奖."""
     return prize_amount is None or prize_amount > 0
+
+
+def _ticket_is_first(ticket_index: int) -> bool:
+    """判断是否为第一注."""
+    return ticket_index == 0
 
 
 def _get_worker_temp_dir() -> str:
@@ -157,6 +164,7 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
         hit_count = 0
         total_fixed_prize = 0
         float_prize_count = 0
+        first_ticket_hit_count = 0
         winners = []
         ticket_results = []
         ticket_index_hits: dict[int, int] = {}
@@ -203,6 +211,8 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
             if is_winner:
                 winners.append(t_idx)
                 ticket_index_hits[t_idx] = ticket_index_hits.get(t_idx, 0) + 1
+                if _ticket_is_first(t_idx):
+                    first_ticket_hit_count += 1
 
         return RoundResult(
             index=task.index,
@@ -210,9 +220,31 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
             hit_count=hit_count,
             total_fixed_prize=total_fixed_prize,
             float_prize_count=float_prize_count,
+            first_ticket_hit_count=first_ticket_hit_count,
             winners=winners,
             ticket_results=ticket_results,
             ticket_index_hits=ticket_index_hits,
         )
     except Exception as e:
         return RoundResult(index=task.index, error=repr(e))
+
+
+def merge_round_results(results: list[RoundResult], total_rounds: int) -> BatchBacktestResult:
+    """按 index 排序合并各期结果，保证最终顺序与日期顺序一致."""
+    merged = BatchBacktestResult(total_rounds=total_rounds)
+    sorted_results = sorted(results, key=lambda r: r.index)
+
+    for r in sorted_results:
+        if r.error:
+            # 错误期数不影响汇总，仅记录
+            continue
+        merged.total_cost += r.total_cost
+        merged.hit_count += r.hit_count
+        merged.total_fixed_prize += r.total_fixed_prize
+        merged.float_prize_count += r.float_prize_count
+        merged.first_ticket_hit_count += r.first_ticket_hit_count
+        merged.ticket_results.extend(r.ticket_results)
+        for k, v in r.ticket_index_hits.items():
+            merged.ticket_index_hits[k] = merged.ticket_index_hits.get(k, 0) + v
+
+    return merged

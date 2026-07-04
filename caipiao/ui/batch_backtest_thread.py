@@ -9,18 +9,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QThread, Signal
 
+from .batch_backtest_result import BatchBacktestResult
 from ..core.engine import GenerationEngine
 from ..core.prize import calculate_prize
 from ..core.profile import LotteryProfile, SSQ
 from ..core.strategies.generic import is_ml_strategy, needs_history
 from ..core.ticket import Ticket
+from ..ui.components.ball_display import compute_highlight_map
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
 from ..ml.catboost_model import LotteryCatBoostModel
@@ -29,20 +30,6 @@ from ..ml.lgbm_model import LotteryLightGBMModel
 from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, new_model_path
 from ..ml.predictor import MLPredictor
-
-
-@dataclass
-class BatchBacktestResult:
-    """批量回测汇总结果."""
-
-    total_cost: int = 0  # 总花费（每注 2 元）
-    total_fixed_prize: int = 0  # 固定奖金合计
-    float_prize_count: int = 0  # 中得浮动奖次数
-    hit_count: int = 0  # 中奖次数（含浮动奖）
-    total_rounds: int = 0  # 回测期数
-    first_ticket_hit_count: int = 0  # 第一注中奖次数
-    ticket_index_hits: Dict[int, int] = field(default_factory=dict)  # 第 n 注中奖次数
-    ticket_results: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _is_winner(prize_amount) -> bool:
@@ -180,6 +167,9 @@ class BatchBacktestThread(QThread):
                         "issue": issue_str,
                         "ticket": ticket,
                         "hits": hits,
+                        "matched_groups": compute_highlight_map(
+                            self.profile, ticket, actual.groups
+                        ),
                         "prize_name": prize_name,
                         "prize_amount": prize_amount,
                         "is_first": t_idx == 0,
