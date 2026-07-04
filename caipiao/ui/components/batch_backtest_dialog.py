@@ -28,6 +28,7 @@ from ...persistence.backtest_db import BacktestDatabase
 from ...core.profile import LotteryProfile
 from ...core.strategies.generic import needs_history
 from ..batch_backtest_thread import BatchBacktestThread
+from ..optimal_period_scan_thread import OptimalPeriodScanThread
 from .strategy_panel import StrategyPanel
 
 
@@ -99,6 +100,14 @@ class BatchBacktestDialog(QDialog):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._stop_batch_backtest)
         control_layout.addWidget(self.stop_btn)
+
+        self.optimal_btn = QPushButton("一键找最优期数")
+        self.optimal_btn.setToolTip(
+            "自动扫描当前策略的“统计期数”或“使用历史记录期数”，"
+            "找出固定奖金合计最高的参数值并应用"
+        )
+        self.optimal_btn.clicked.connect(self._run_optimal_period_scan)
+        control_layout.addWidget(self.optimal_btn)
 
         control_layout.addStretch()
         layout.addLayout(control_layout)
@@ -254,6 +263,86 @@ class BatchBacktestDialog(QDialog):
             self.status_text.append("用户请求停止批量回测，等待当前期处理完成...")
             self._thread.requestInterruption()
             self.stop_btn.setEnabled(False)
+        if getattr(self, "_scan_thread", None) and self._scan_thread.isRunning():
+            self.status_text.append("用户请求停止参数扫描...")
+            self._scan_thread.requestInterruption()
+            self.stop_btn.setEnabled(False)
+
+    def _run_optimal_period_scan(self) -> None:
+        """启动一键找最优期数扫描."""
+        start_qdate = self.start_date_edit.date()
+        end_qdate = self.end_date_edit.date()
+        if start_qdate > end_qdate:
+            QMessageBox.warning(self, "日期错误", "起始日期不能晚于结束日期")
+            return
+
+        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
+        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
+
+        strategy_id = self.strategy_panel.current_strategy_id()
+        if not strategy_id:
+            QMessageBox.warning(self, "提示", "请选择一个生成策略")
+            return
+
+        from ...ui.optimal_period_config import resolve_optimal_param
+
+        resolved = resolve_optimal_param(strategy_id)
+        if resolved is None:
+            QMessageBox.information(
+                self,
+                "不支持",
+                "当前策略没有可一键优化的“使用期数”参数。",
+            )
+            return
+
+        try:
+            base_options = self.strategy_panel.current_options()
+        except ValueError as exc:
+            QMessageBox.warning(self, "参数错误", str(exc))
+            return
+
+        self.run_btn.setEnabled(False)
+        self.run_btn.setText("扫描中...")
+        self.stop_btn.setEnabled(True)
+        self.optimal_btn.setEnabled(False)
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.setVisible(True)
+        self.detail_text.clear()
+        self.status_text.clear()
+        self.summary_label.setText("正在扫描最优参数，请稍候...")
+
+        self._scan_thread = OptimalPeriodScanThread(
+            engine=self.context.engine,
+            strategy_id=strategy_id,
+            profile=self.profile,
+            data_repository=self.data_repository,
+            start_date=start_date,
+            end_date=end_date,
+            tickets_per_round=self.count_spin.value(),
+            base_options=base_options,
+            plugin_dir=self.plugin_dir,
+            parent=self,
+        )
+        self._scan_thread.progress.connect(self._on_progress)
+        self._scan_thread.status_message.connect(self._on_status_message)
+        self._scan_thread.result_ready.connect(
+            self._on_optimal_finished, Qt.ConnectionType.QueuedConnection
+        )
+        self._scan_thread.finished.connect(self._cleanup_finished_scan_thread)
+        self._scan_thread.start()
+
+    def _cleanup_finished_scan_thread(self) -> None:
+        """扫描线程 finished 信号的统一清理：清空引用并安全 deleteLater."""
+        thread = self.sender()
+        if thread is None:
+            return
+        if getattr(self, "_scan_thread", None) is thread:
+            self._scan_thread = None
+        try:
+            thread.deleteLater()
+        except RuntimeError:
+            pass
 
     def _cleanup_finished_thread(self) -> None:
         """线程 finished 信号的统一清理：清空引用并安全 deleteLater."""
@@ -391,6 +480,59 @@ class BatchBacktestDialog(QDialog):
         if not self._detail_lines:
             self.detail_text.setText("没有中奖记录。")
 
+    def _on_optimal_finished(self, result, error) -> None:
+        """处理一键找最优期数扫描结果."""
+        self.run_btn.setEnabled(True)
+        self.run_btn.setText("开始批量回测")
+        self.stop_btn.setEnabled(False)
+        self.optimal_btn.setEnabled(True)
+        self.progress.setVisible(False)
+
+        if error:
+            QMessageBox.critical(self, "扫描失败", str(error))
+            self.summary_label.setText("一键找最优期数失败。")
+            return
+
+        if result is None:
+            self.summary_label.setText(
+                self.summary_label.text() + "\n（已停止）"
+            )
+            return
+
+        # 自动将最优参数写回策略面板
+        self.strategy_panel.set_options({result.param_name: result.optimal_value})
+
+        summary_lines = [
+            f"最优参数：{result.param_name} = {result.optimal_value}",
+            f"回测期数：{result.optimal_result.total_rounds} 期",
+            f"总花费：{result.optimal_result.total_cost} 元",
+            f"固定奖金合计：{result.optimal_result.total_fixed_prize} 元",
+            f"中奖次数：{result.optimal_result.hit_count} 次",
+            f"首注中奖次数：{result.optimal_result.first_ticket_hit_count} 次",
+        ]
+        self.summary_label.setText("\n".join(summary_lines))
+
+        # 在日志区打印所有结果排名
+        ranked = sorted(
+            result.all_results,
+            key=lambda item: (
+                item[1].total_fixed_prize,
+                item[1].hit_count,
+                -item[0],
+            ),
+            reverse=True,
+        )
+        self.status_text.append("=" * 40)
+        self.status_text.append("一键找最优期数扫描结果：")
+        for rank, (value, res) in enumerate(ranked, start=1):
+            self.status_text.append(
+                f"{rank}. {result.param_name}={value}: "
+                f"固定奖金 {res.total_fixed_prize} 元, "
+                f"中奖 {res.hit_count} 次, "
+                f"首注 {res.first_ticket_hit_count} 次"
+            )
+        self.status_text.append("=" * 40)
+
     def _save_batch_backtest(self, result) -> None:
         """保存批量回测汇总结果到数据库."""
         try:
@@ -421,4 +563,9 @@ class BatchBacktestDialog(QDialog):
             if not self._thread.wait(5000):
                 self._thread.terminate()
                 self._thread.wait(1000)
+        if getattr(self, "_scan_thread", None) and self._scan_thread.isRunning():
+            self._scan_thread.requestInterruption()
+            if not self._scan_thread.wait(5000):
+                self._scan_thread.terminate()
+                self._scan_thread.wait(1000)
         super().closeEvent(event)
