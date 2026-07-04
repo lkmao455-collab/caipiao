@@ -221,6 +221,7 @@ class BatchBacktestDialog(QDialog):
         self.run_btn.setEnabled(False)
         self.run_btn.setText("批量回测中...")
         self.stop_btn.setEnabled(True)
+        self.optimal_btn.setEnabled(False)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setVisible(True)
@@ -435,6 +436,7 @@ class BatchBacktestDialog(QDialog):
         self.run_btn.setEnabled(True)
         self.run_btn.setText("开始批量回测")
         self.stop_btn.setEnabled(False)
+        self.optimal_btn.setEnabled(True)
         self.progress.setVisible(False)
 
         # 线程清理由 finished 信号统一处理，这里不操作线程对象
