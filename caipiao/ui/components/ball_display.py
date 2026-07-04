@@ -8,6 +8,29 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLay
 
 from ...core.ball import Ball, BallColor
 from ...core.prize import fc3d_bet_type
+from ...core.profile import LotteryProfile
+from ...core.ticket import Ticket
+
+
+def compute_highlight_map(
+    profile: LotteryProfile, ticket: Ticket, actual_groups: dict[str, list[int]]
+) -> dict[str, set[int]]:
+    """计算投注单与开奖号码的命中高亮映射.
+
+    对于非按位号码组，返回预测号码与实际开奖号码的交集；
+    对于按位号码组（如福彩3D），返回命中位置的索引集合。
+    """
+    highlight: dict[str, set[int]] = {}
+    for g in profile.groups:
+        actual = actual_groups.get(g.key, [])
+        predicted = ticket.groups.get(g.key, [])
+        if g.positional:
+            highlight[g.key] = {
+                i for i, (a, p) in enumerate(zip(actual, predicted)) if a == p
+            }
+        else:
+            highlight[g.key] = set(actual) & set(predicted)
+    return highlight
 
 
 class BallWidget(QFrame):
