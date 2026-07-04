@@ -139,3 +139,190 @@ def test_scan_thread_unsupported_strategy():
 
     assert result is None
     assert isinstance(error, ValueError)
+
+
+# --------------------------------------------------------------------------- #
+# Helpers for synchronous, in-process scan tests
+# --------------------------------------------------------------------------- #
+class _MockFuture:
+    def __init__(self):
+        self._result = None
+        self._exception = None
+
+    def result(self):
+        if self._exception is not None:
+            raise self._exception
+        return self._result
+
+    def cancel(self):
+        pass
+
+
+class _MockProcessPoolExecutor:
+    """在单进程内立即执行提交的函数，便于测试失败隔离与中断逻辑."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def submit(self, fn, *args, **kwargs):
+        future = _MockFuture()
+        try:
+            future._result = fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            future._exception = exc
+        return future
+
+    def shutdown(self, wait=True, cancel_futures=False):
+        pass
+
+
+def _run_thread(thread: OptimalPeriodScanThread):
+    """同步运行线程并返回 (result, error)."""
+    result = None
+    error = None
+
+    def on_finished(r, exc):
+        nonlocal result, error
+        result = r
+        error = exc
+
+    thread.result_ready.connect(on_finished)
+    thread.run()
+    return result, error
+
+
+def test_scan_thread_skips_failed_values(monkeypatch):
+    """单个参数值失败时不应导致整体扫描失败."""
+    records = _make_records(120)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor",
+        _MockProcessPoolExecutor,
+    )
+
+    original = OptimalPeriodScanThread._run_one_value
+
+    def _patched_run_one_value(context, tasks, total_rounds):
+        if context.options.get("lookback") == 50:
+            raise RuntimeError("simulated failure for lookback=50")
+        return original(context, tasks, total_rounds)
+
+    monkeypatch.setattr(
+        OptimalPeriodScanThread,
+        "_run_one_value",
+        staticmethod(_patched_run_one_value),
+    )
+
+    thread = OptimalPeriodScanThread(
+        engine=engine,
+        strategy_id="smart_hot_cold",
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2023, 4, 1),
+        end_date=datetime(2023, 4, 10),
+        tickets_per_round=1,
+        base_options={"hot_weight": 60, "cold_weight": 40},
+        plugin_dir=None,
+    )
+
+    result, error = _run_thread(thread)
+
+    assert error is None, error
+    assert isinstance(result, ScanResult)
+    assert result.optimal_value != 50
+    failed = [value for value, res in result.all_results if res.errors]
+    assert 50 in failed
+
+
+def test_scan_thread_insufficient_history():
+    """需要历史数据的策略在记录不足 100 期时应返回数据不足错误."""
+    records = _make_records(50)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    thread = OptimalPeriodScanThread(
+        engine=engine,
+        strategy_id="smart_hot_cold",
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 1, 10),
+        tickets_per_round=1,
+        base_options={"hot_weight": 60, "cold_weight": 40},
+        plugin_dir=None,
+    )
+
+    result, error = _run_thread(thread)
+
+    assert result is None
+    assert isinstance(error, ValueError)
+    assert "历史数据不足" in str(error)
+    assert "100" in str(error)
+
+
+def test_scan_thread_empty_date_range():
+    """日期范围内没有记录时应返回明确错误."""
+    records = _make_records(120)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    thread = OptimalPeriodScanThread(
+        engine=engine,
+        strategy_id="smart_hot_cold",
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2025, 1, 1),
+        end_date=datetime(2025, 1, 10),
+        tickets_per_round=1,
+        base_options={"hot_weight": 60, "cold_weight": 40},
+        plugin_dir=None,
+    )
+
+    result, error = _run_thread(thread)
+
+    assert result is None
+    assert isinstance(error, ValueError)
+    assert "没有开奖记录" in str(error)
+
+
+def test_scan_thread_interruption(monkeypatch):
+    """请求中断后，ScanResult 应标记为 interrupted."""
+    records = _make_records(120)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor",
+        _MockProcessPoolExecutor,
+    )
+
+    thread = OptimalPeriodScanThread(
+        engine=engine,
+        strategy_id="smart_hot_cold",
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2023, 4, 1),
+        end_date=datetime(2023, 4, 30),
+        tickets_per_round=1,
+        base_options={"hot_weight": 60, "cold_weight": 40},
+        plugin_dir=None,
+    )
+
+    class _InterruptAfter:
+        def __init__(self, n):
+            self._count = 0
+            self._n = n
+
+        def __call__(self):
+            self._count += 1
+            return self._count > self._n
+
+    monkeypatch.setattr(thread, "isInterruptionRequested", _InterruptAfter(2))
+
+    result, error = _run_thread(thread)
+
+    assert isinstance(result, ScanResult)
+    assert result.interrupted is True
+    assert len(result.all_results) < len(OPTIMAL_PERIOD_RANGES["lookback"])

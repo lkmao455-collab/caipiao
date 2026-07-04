@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,8 +19,8 @@ from .batch_backtest_worker import (
     worker_round_backtest,
 )
 from .optimal_period_config import resolve_optimal_param
-from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile
+from ..core.strategies.generic import needs_history
 from ..data.repository import DrawRepository
 
 
@@ -33,6 +32,7 @@ class ScanResult:
     optimal_value: int
     optimal_result: BatchBacktestResult
     all_results: List[Tuple[int, BatchBacktestResult]]
+    interrupted: bool = False
 
     @property
     def all_values(self) -> List[int]:
@@ -49,7 +49,7 @@ class OptimalPeriodScanThread(QThread):
 
     def __init__(
         self,
-        engine: GenerationEngine,
+        engine,
         strategy_id: str,
         profile: LotteryProfile,
         data_repository: DrawRepository,
@@ -98,6 +98,8 @@ class OptimalPeriodScanThread(QThread):
                 return
 
             min_required = min(v for v in param_values if v > 0)
+            if needs_history(self.strategy_id):
+                min_required = max(min_required, 100)
             if len(records) < min_required:
                 self.result_ready.emit(
                     None,
@@ -131,6 +133,7 @@ class OptimalPeriodScanThread(QThread):
 
             executor = None
             futures: List[Any] = []
+            interrupted = False
             try:
                 executor = ProcessPoolExecutor(
                     max_workers=max_workers,
@@ -151,8 +154,15 @@ class OptimalPeriodScanThread(QThread):
 
                 for value, future in futures:
                     if self.isInterruptionRequested():
+                        interrupted = True
                         break
-                    result = future.result()
+                    try:
+                        result = future.result()
+                    except Exception as exc:  # noqa: BLE001
+                        result = BatchBacktestResult(
+                            total_rounds=len(tasks),
+                            errors=[repr(exc)],
+                        )
                     all_results.append((value, result))
                     completed += 1
                     self.progress.emit(completed, total)
@@ -171,12 +181,27 @@ class OptimalPeriodScanThread(QThread):
                 )
                 return
 
+            # If every value failed, report the overall scan as failed.
+            if all(result.errors for _, result in all_results):
+                self.result_ready.emit(
+                    None,
+                    ValueError(
+                        f"所有 {len(param_values)} 个参数值扫描均失败: "
+                        + "; ".join(
+                            f"{value}: {result.errors[0]}"
+                            for value, result in all_results
+                        )
+                    ),
+                )
+                return
+
             best = self._pick_best(all_results)
             scan_result = ScanResult(
                 param_name=param_name,
                 optimal_value=best[0],
                 optimal_result=best[1],
                 all_results=all_results,
+                interrupted=interrupted,
             )
             self.result_ready.emit(scan_result, None)
         except Exception as exc:  # noqa: BLE001
@@ -206,21 +231,7 @@ class OptimalPeriodScanThread(QThread):
     def _run_one_value(
         context: RoundBacktestContext, tasks: List[RoundTask], total_rounds: int
     ) -> BatchBacktestResult:
-        futures = []
-        try:
-            with ProcessPoolExecutor(
-                max_workers=1,
-                initializer=init_worker_process,
-                initargs=(context.seed,),
-            ) as executor:
-                futures = [
-                    executor.submit(worker_round_backtest, context, task)
-                    for task in tasks
-                ]
-                round_results = [future.result() for future in futures]
-        finally:
-            for f in futures:
-                f.cancel()
+        round_results = [worker_round_backtest(context, task) for task in tasks]
         return merge_round_results(round_results, total_rounds=total_rounds)
 
     @staticmethod

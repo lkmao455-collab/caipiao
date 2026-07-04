@@ -510,6 +510,8 @@ class BatchBacktestDialog(QDialog):
             f"中奖次数：{result.optimal_result.hit_count} 次",
             f"首注中奖次数：{result.optimal_result.first_ticket_hit_count} 次",
         ]
+        if result.interrupted:
+            summary_lines.append("（已中断，结果为部分扫描）")
         self.summary_label.setText("\n".join(summary_lines))
 
         # 在日志区打印所有结果排名
