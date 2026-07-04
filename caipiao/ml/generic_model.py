@@ -9,10 +9,8 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import shutil
-import tempfile
+import pickle
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -84,96 +82,6 @@ BACKENDS = {
     "lightgbm": _create_lgbm_classifier,
     "catboost": _create_catboost_classifier,
 }
-
-# 原生保存/加载辅助函数 ---------------------------------------------------- #
-
-
-def _is_xgboost_model(model: Any) -> bool:
-    try:
-        import xgboost as xgb
-        return isinstance(model, xgb.XGBClassifier)
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _is_lightgbm_model(model: Any) -> bool:
-    try:
-        import lightgbm as lgb
-        return isinstance(model, lgb.LGBMClassifier)
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _is_catboost_model(model: Any) -> bool:
-    try:
-        from catboost import CatBoostClassifier
-        return isinstance(model, CatBoostClassifier)
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _save_native_model(model: Any, directory: Path) -> Dict[str, Any]:
-    """保存单个原生模型到目录，返回描述字典."""
-    directory.mkdir(parents=True, exist_ok=True)
-    if _is_xgboost_model(model):
-        model.save_model(str(directory / "model.json"))
-        return {"type": "xgboost"}
-    if _is_lightgbm_model(model):
-        model.booster_.save_model(str(directory / "model.txt"))
-        return {"type": "lightgbm"}
-    if _is_catboost_model(model):
-        model.save_model(str(directory / "model.cbm"))
-        return {"type": "catboost"}
-    raise TypeError(f"不支持的原生模型类型: {type(model)}")
-
-
-def _load_native_model(meta: Dict[str, Any], backend: str) -> Any:
-    """从描述字典加载单个原生模型."""
-    directory = Path(meta["path"])
-    model_type = meta.get("type", backend)
-    if model_type == "xgboost":
-        import xgboost as xgb
-        clf = xgb.XGBClassifier()
-        clf.load_model(str(directory / "model.json"))
-        return clf
-    if model_type == "lightgbm":
-        import lightgbm as lgb
-        clf = lgb.LGBMClassifier()
-        clf = lgb.Booster(model_file=str(directory / "model.txt"))
-        return clf
-    if model_type == "catboost":
-        from catboost import CatBoostClassifier
-        clf = CatBoostClassifier()
-        clf.load_model(str(directory / "model.cbm"))
-        return clf
-    raise TypeError(f"不支持的模型类型: {model_type}")
-
-
-def _save_model(model: Any, directory: Path, root: Path) -> Dict[str, Any]:
-    """保存单个模型（可能是常数退化模型或真实模型）."""
-    directory.mkdir(parents=True, exist_ok=True)
-    if isinstance(model, np.ndarray):
-        np.save(directory / "constant.npy", model)
-        return {"type": "constant_array", "path": str(directory.relative_to(root))}
-    if isinstance(model, (int, float)):
-        with (directory / "constant.json").open("w", encoding="utf-8") as f:
-            json.dump({"value": float(model)}, f)
-        return {"type": "constant_scalar", "path": str(directory.relative_to(root))}
-    meta = _save_native_model(model, directory)
-    meta["path"] = str(directory.relative_to(root))
-    return meta
-
-
-def _load_model(meta: Dict[str, Any], backend: str, root: Path) -> Any:
-    """加载单个模型."""
-    model_type = meta.get("type")
-    directory = root / meta["path"]
-    if model_type == "constant_array":
-        return np.load(directory / "constant.npy")
-    if model_type == "constant_scalar":
-        with (directory / "constant.json").open("r", encoding="utf-8") as f:
-            return json.load(f)["value"]
-    return _load_native_model(meta, backend)
 
 
 class LotteryGenericModel:
@@ -317,78 +225,27 @@ class LotteryGenericModel:
         return result
 
     def save(self, path: Path | str) -> None:
-        """保存模型到文件.
-
-        使用各后端原生 save_model 格式，避免 pickle 跨版本兼容性问题。
-        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_root = Path(tempfile.mkdtemp(prefix="lottery_generic_model_save_"))
-        try:
-            model_root = tmp_root / "model"
-            model_root.mkdir(parents=True, exist_ok=True)
-            group_meta: Dict[str, List[Dict[str, Any]]] = {}
-            for g_key, models in self.group_models.items():
-                group_dir = model_root / g_key
-                group_meta[g_key] = []
-                for idx, model in enumerate(models):
-                    d = group_dir / f"model_{idx:04d}"
-                    group_meta[g_key].append(_save_model(model, d, model_root))
-
-            manifest = {
-                "version": 2,
-                "profile_key": self.profile.key,
-                "lookback": self.lookback,
-                "backend": self.backend,
-                "is_trained": self.is_trained,
-                "groups": group_meta,
-            }
-            with (model_root / "manifest.json").open("w", encoding="utf-8") as f:
-                json.dump(manifest, f, ensure_ascii=False, indent=2)
-
-            archive = shutil.make_archive(
-                base_name=str(tmp_root / "archive"),
-                format="gztar",
-                root_dir=str(model_root),
+        with path.open("wb") as f:
+            pickle.dump(
+                {
+                    "profile_key": self.profile.key,
+                    "group_models": self.group_models,
+                    "lookback": self.lookback,
+                    "backend": self.backend,
+                    "is_trained": self.is_trained,
+                },
+                f,
             )
-            shutil.copyfile(archive, str(path))
-        finally:
-            shutil.rmtree(tmp_root, ignore_errors=True)
         logger.info("通用模型已保存到 %s", path)
 
     def load(self, path: Path | str) -> None:
-        """从文件加载模型.
-
-        优先加载原生 save_model 格式；遇到旧版 pickle 文件时删除并抛出异常，
-        让上层重新训练。
-        """
         path = Path(path)
-        tmp_root = Path(tempfile.mkdtemp(prefix="lottery_generic_model_load_"))
-        try:
-            try:
-                shutil.unpack_archive(str(path), extract_dir=str(tmp_root), format="gztar")
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("模型文件不是新版压缩格式，删除旧模型: %s", exc)
-                path.unlink(missing_ok=True)
-                raise RuntimeError("旧模型格式不兼容，将重新训练") from exc
-
-            manifest_path = tmp_root / "manifest.json"
-            if not manifest_path.exists():
-                raise RuntimeError("模型压缩包中缺少 manifest.json")
-            with manifest_path.open("r", encoding="utf-8") as f:
-                manifest = json.load(f)
-            if manifest.get("version") != 2:
-                raise RuntimeError(f"不支持的模型版本: {manifest.get('version')}")
-
-            self.profile_key = manifest["profile_key"]
-            self.lookback = manifest["lookback"]
-            self.backend = manifest["backend"]
-            self.is_trained = manifest["is_trained"]
-            self.group_models = {}
-            for g_key, meta_list in manifest["groups"].items():
-                self.group_models[g_key] = [
-                    _load_model(m, self.backend, tmp_root) for m in meta_list
-                ]
-        finally:
-            shutil.rmtree(tmp_root, ignore_errors=True)
+        with path.open("rb") as f:
+            data = pickle.load(f)
+        self.group_models = data["group_models"]
+        self.lookback = data["lookback"]
+        self.backend = data.get("backend", "xgboost")
+        self.is_trained = data["is_trained"]
         logger.info("通用模型已从 %s 加载", path)
