@@ -1797,7 +1797,11 @@ class MainWindow(QMainWindow):
                 self, "缺少数据", "请先更新本地开奖数据，再进行批量历史回测。"
             )
             return
-        dialog = BatchBacktestDialog(self.current, self)
+        dialog = BatchBacktestDialog(
+            self.current,
+            plugin_dir=str(self.plugin_managers[self.current_key].plugin_dir),
+            parent=self,
+        )
         dialog.exec()
 
     def _show_backtest_history_dialog(self) -> None:

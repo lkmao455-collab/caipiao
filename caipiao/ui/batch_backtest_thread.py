@@ -55,10 +55,13 @@ class BatchBacktestThread(QThread):
         end_date: datetime,
         tickets_per_round: int,
         options: Dict[str, Any],
+        plugin_dir: Optional[str] = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("BatchBacktestThread")
+        # ``engine`` 参数保留以兼容既有调用方，但 worker 会在子进程中重新构建
+        # 引擎并加载插件策略，因此此处保存的 ``self.engine`` 不再参与回测。
         self.engine = engine
         self.strategy_id = strategy_id
         self.profile = profile
@@ -67,6 +70,7 @@ class BatchBacktestThread(QThread):
         self.end_date = end_date
         self.tickets_per_round = tickets_per_round
         self.options = options
+        self.plugin_dir = plugin_dir
         self._needs_history = needs_history(strategy_id)
         self._is_ml = is_ml_strategy(strategy_id) or strategy_id in {
             "xgboost",
@@ -98,6 +102,7 @@ class BatchBacktestThread(QThread):
                 needs_history=self._needs_history,
                 records=records,
                 seed=42,
+                plugin_dir=self.plugin_dir,
             )
             tasks = [
                 RoundTask(index=i, actual=r) for i, r in enumerate(target_records)

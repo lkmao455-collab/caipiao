@@ -37,12 +37,14 @@ class BatchBacktestDialog(QDialog):
     def __init__(
         self,
         context,
+        plugin_dir: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.context = context
         self.profile: LotteryProfile = context.profile
         self.data_repository = context.data_repository
+        self.plugin_dir = plugin_dir
         self._db = BacktestDatabase()
         self._thread: Optional[BatchBacktestThread] = None
 
@@ -234,6 +236,7 @@ class BatchBacktestDialog(QDialog):
             end_date=end_date,
             tickets_per_round=self.count_spin.value(),
             options=options,
+            plugin_dir=self.plugin_dir,
             parent=self,
         )
         self._thread.progress.connect(self._on_progress)

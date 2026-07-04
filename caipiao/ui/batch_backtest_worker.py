@@ -53,6 +53,7 @@ class RoundBacktestContext:
     needs_history: bool
     records: list
     seed: int
+    plugin_dir: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,15 +108,21 @@ def _cleanup_worker_temp_dir():
 
 
 def _configure_worker_threads():
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
-    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-    os.environ.setdefault("MKL_NUM_THREADS", "1")
-    os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
-    os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+    # 强制单线程，避免子进程内 OpenMP/MKL 等线程池爆炸。
+    # 使用直接赋值而非 setdefault，确保父进程已设置的环境变量也被覆盖。
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 
-def _build_engine(profile_key: str) -> GenerationEngine:
-    """根据彩种构造并注册好全部策略的 GenerationEngine。"""
+def _build_engine(profile_key: str, plugin_dir: str | None = None) -> GenerationEngine:
+    """根据彩种构造并注册好全部策略的 GenerationEngine。
+
+    若提供了 ``plugin_dir``，worker 会重新加载该目录下的策略插件，
+    保证批量回测在子进程中也能使用用户自定义的插件策略。
+    """
     engine = GenerationEngine()
     if profile_key == "ssq":
         engine.register(RandomStrategy())
@@ -132,6 +139,13 @@ def _build_engine(profile_key: str) -> GenerationEngine:
         profile = get_profile(profile_key)
         for strategy in build_strategies(profile):
             engine.register(strategy)
+
+    if plugin_dir:
+        from caipiao.plugins import PluginManager
+
+        pm = PluginManager(engine, plugin_dir)
+        pm.load_all()
+
     return engine
 
 
@@ -236,7 +250,7 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
         np.random.seed(context.seed + task.index)
 
         profile = get_profile(context.profile_key)
-        engine = _build_engine(context.profile_key)
+        engine = _build_engine(context.profile_key, context.plugin_dir)
 
         history = [r for r in context.records if r.draw_date < task.actual.draw_date]
         if context.needs_history and len(history) < 100:
