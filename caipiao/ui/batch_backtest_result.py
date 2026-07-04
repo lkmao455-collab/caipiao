@@ -22,3 +22,4 @@ class BatchBacktestResult:
     first_ticket_hit_count: int = 0  # 第一注中奖次数
     ticket_index_hits: Dict[int, int] = field(default_factory=dict)  # 第 n 注中奖次数
     ticket_results: List[Dict[str, Any]] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)  # 各期错误信息

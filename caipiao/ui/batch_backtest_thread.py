@@ -5,40 +5,44 @@
 2. 生成指定数量的预测投注单。
 3. 与当期真实开奖对比，计算命中和奖金。
 4. 汇总总花费、总奖金、中奖次数。
+
+本模块现在使用多进程池并行执行每期回测，主线程仅负责任务派发、
+结果合并与进度上报。
 """
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QThread, Signal
 
 from .batch_backtest_result import BatchBacktestResult
-from .batch_backtest_worker import prepare_ml_options
+from .batch_backtest_worker import (
+    RoundBacktestContext,
+    RoundTask,
+    init_worker_process,
+    merge_round_results,
+    worker_round_backtest,
+)
 from ..core.engine import GenerationEngine
-from ..core.prize import calculate_prize
-from ..core.profile import LotteryProfile, SSQ
+from ..core.profile import LotteryProfile
 from ..core.strategies.generic import is_ml_strategy, needs_history
-from ..core.ticket import Ticket
-from ..ui.components.ball_display import compute_highlight_map
-from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
 
 
-def _is_winner(prize_amount) -> bool:
-    """奖金为 None（浮动奖）或 >0 均视为中奖."""
-    return prize_amount is None or prize_amount > 0
+_DEFAULT_MAX_WORKERS = max(1, min(os.cpu_count() // 2, 4))
 
 
 class BatchBacktestThread(QThread):
     """批量回测工作线程."""
 
     result_ready = Signal(object, object)
-    progress = Signal(int, int)  # 当前期数, 总期数
+    progress = Signal(int, int)  # 当前完成期数, 总期数
     status_message = Signal(str)  # 过程状态文本
-    round_ready = Signal(int, int, list)  # 当前期数, 总期数, 本期中奖记录
+    round_ready = Signal(int, int, list)  # 当前完成期数, 总期数, 本期中奖记录
 
     def __init__(
         self,
@@ -84,129 +88,80 @@ class BatchBacktestThread(QThread):
                 )
                 return
 
-            result = BatchBacktestResult(total_rounds=len(target_records))
-            stopped = False
-            for idx, actual in enumerate(target_records, start=1):
-                if self.isInterruptionRequested():
-                    stopped = True
-                    break
-
-                date_str = actual.draw_date.strftime("%Y-%m-%d")
-                issue_str = actual.issue or "未知期号"
-                self.status_message.emit(
-                    f"[{idx}/{len(target_records)}] 开始测试 {date_str} 第 {issue_str} 期"
-                )
-
-                history = [
-                    r for r in records if r.draw_date < actual.draw_date
-                ]
-                if self._needs_history and len(history) < 100:
-                    self.status_message.emit(
-                        f"  -> 历史数据不足（仅 {len(history)} 期），跳过本期"
-                    )
-                    self.progress.emit(idx, len(target_records))
-                    continue
-
-                options = dict(self.options)
-                if self._needs_history:
-                    options["history"] = history
-
-                if self._is_ml:
-                    self.status_message.emit("  -> 生成/训练模型中...")
-                    options = self._prepare_ml_options(history, options)
-
-                self.status_message.emit("  -> 生成预测号码中...")
-                tickets = self.engine.generate(
-                    self.strategy_id, count=self.tickets_per_round, options=options
-                )
-
-                round_winners: List[Dict[str, Any]] = []
-                for t_idx, ticket in enumerate(tickets):
-                    if self.isInterruptionRequested():
-                        stopped = True
-                        break
-                    hits: Dict[str, int] = {}
-                    for g in self.profile.groups:
-                        actual_nums = actual.groups.get(g.key, [])
-                        predicted_nums = ticket.groups.get(g.key, [])
-                        if g.positional:
-                            hits[g.key] = sum(
-                                1 for a, p in zip(actual_nums, predicted_nums) if a == p
-                            )
-                        elif g.draw_only:
-                            ticket_numbers: set[int] = set()
-                            for pg in self.profile.pick_groups:
-                                ticket_numbers.update(ticket.groups.get(pg.key, []))
-                            hits[g.key] = len(set(actual_nums) & ticket_numbers)
-                        else:
-                            hits[g.key] = len(set(actual_nums) & set(predicted_nums))
-                    prize_name, prize_amount = calculate_prize(
-                        self.profile.key, hits, ticket.groups, actual.groups
-                    )
-                    result.total_cost += 2
-                    is_winner = _is_winner(prize_amount)
-                    if prize_amount is not None:
-                        result.total_fixed_prize += prize_amount
-                        if is_winner:
-                            result.hit_count += 1
-                    else:
-                        result.float_prize_count += 1
-                        result.hit_count += 1
-
-                    # 第一注是否中奖
-                    if t_idx == 0 and is_winner:
-                        result.first_ticket_hit_count += 1
-
-                    item = {
-                        "date": date_str,
-                        "issue": issue_str,
-                        "ticket": ticket,
-                        "hits": hits,
-                        "matched_groups": compute_highlight_map(
-                            self.profile, ticket, actual.groups
-                        ),
-                        "prize_name": prize_name,
-                        "prize_amount": prize_amount,
-                        "is_first": t_idx == 0,
-                        "ticket_index": t_idx,
-                    }
-                    result.ticket_results.append(item)
-                    if is_winner:
-                        round_winners.append(item)
-                        result.ticket_index_hits[t_idx] = result.ticket_index_hits.get(t_idx, 0) + 1
-
-                if stopped:
-                    break
-
-                if round_winners:
-                    self.status_message.emit(
-                        f"  -> 本期中奖 {len(round_winners)} 注"
-                    )
-                else:
-                    self.status_message.emit("  -> 本期未中奖")
-
-                self.round_ready.emit(idx, len(target_records), round_winners)
-                self.progress.emit(idx, len(target_records))
-
-            self.status_message.emit(
-                "批量回测完成，正在汇总结果..." if not stopped else "批量回测已停止。"
+            context = RoundBacktestContext(
+                strategy_id=self.strategy_id,
+                profile_key=self.profile.key,
+                tickets_per_round=self.tickets_per_round,
+                options=dict(self.options),
+                is_ml=self._is_ml,
+                needs_history=self._needs_history,
+                records=records,
+                seed=42,
             )
-            self.result_ready.emit(result, None)
+            tasks = [
+                RoundTask(index=i, actual=r) for i, r in enumerate(target_records)
+            ]
+
+            max_workers = self.options.get(
+                "batch_backtest_workers", _DEFAULT_MAX_WORKERS
+            )
+            executor = None
+            futures = []
+            round_results = []
+            completed = 0
+            errors = []
+
+            try:
+                executor = ProcessPoolExecutor(
+                    max_workers=max_workers,
+                    initializer=init_worker_process,
+                    initargs=(context.seed,),
+                )
+                futures = [
+                    executor.submit(worker_round_backtest, context, task)
+                    for task in tasks
+                ]
+
+                for future in as_completed(futures):
+                    if self.isInterruptionRequested():
+                        break
+
+                    result = future.result()
+                    round_results.append(result)
+                    if result.error:
+                        errors.append(result.error)
+                    else:
+                        # round_ready 语义变为"又完成一期"
+                        self.round_ready.emit(result.index, len(tasks), result.winners)
+
+                    completed += 1
+                    self.progress.emit(completed, len(tasks))
+                    self.status_message.emit(f"已完成 {completed}/{len(tasks)} 期")
+
+                    if len(errors) > len(tasks) * 0.3:
+                        self.status_message.emit(
+                            f"错误期数超过 30%（{len(errors)}/{len(tasks)}），提前终止"
+                        )
+                        break
+
+            except Exception as exc:  # noqa: BLE001
+                self.result_ready.emit(None, exc)
+                return
+            finally:
+                if executor is not None:
+                    for f in futures:
+                        f.cancel()
+                    executor.shutdown(wait=False, cancel_futures=True)
+
+            if errors and completed == 0:
+                self.result_ready.emit(
+                    None, Exception(f"全部 {len(errors)} 期回测均失败：{errors[0]}")
+                )
+                return
+
+            merged = merge_round_results(round_results, total_rounds=len(tasks))
+            merged.errors = errors
+            self.status_message.emit("批量回测完成，正在汇总结果...")
+            self.result_ready.emit(merged, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
-
-    def _prepare_ml_options(
-        self, history: List[DrawRecord], options: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """对 ML 策略：用当前历史数据训练临时模型并返回概率选项."""
-        options = dict(options)
-        options["strategy_id"] = self.strategy_id
-        # draw_date 与 temp_dir 目前为 prepare_ml_options 的预留接口，
-        # 后续多进程 worker 会传入实际值。
-        return prepare_ml_options(
-            history,
-            options,
-            profile_key=self.profile.key,
-            draw_date=None,
-            temp_dir="",
-        )
