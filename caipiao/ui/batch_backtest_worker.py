@@ -76,6 +76,11 @@ class RoundResult:
     winners: list[int] = field(default_factory=list)
     ticket_results: list[dict] = field(default_factory=list)
     ticket_index_hits: dict[int, int] = field(default_factory=dict)
+    # 以下字段用于在主线程还原旧版 round_ready 信号所需的详情字典
+    date_str: str = ""
+    issue_str: str = ""
+    actual_groups: dict = field(default_factory=dict)
+    tickets: list = field(default_factory=list)
     error: str | None = None
 
 
@@ -253,6 +258,9 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
             options=options,
         )
 
+        date_str = task.actual.draw_date.strftime("%Y-%m-%d")
+        issue_str = task.actual.issue or "未知期号"
+
         total_cost = 0
         hit_count = 0
         total_fixed_prize = 0
@@ -317,6 +325,10 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
             winners=winners,
             ticket_results=ticket_results,
             ticket_index_hits=ticket_index_hits,
+            date_str=date_str,
+            issue_str=issue_str,
+            actual_groups=dict(task.actual.groups),
+            tickets=list(tickets),
         )
     except Exception as e:
         return RoundResult(index=task.index, error=repr(e))

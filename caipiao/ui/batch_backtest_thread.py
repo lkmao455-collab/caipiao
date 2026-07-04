@@ -27,6 +27,7 @@ from .batch_backtest_worker import (
     merge_round_results,
     worker_round_backtest,
 )
+from .components.ball_display import compute_highlight_map
 from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile
 from ..core.strategies.generic import is_ml_strategy, needs_history
@@ -131,8 +132,27 @@ class BatchBacktestThread(QThread):
                     if result.error:
                         errors.append(result.error)
                     else:
-                        # round_ready 语义变为"又完成一期"
-                        self.round_ready.emit(result.index, len(tasks), result.winners)
+                        # 还原旧版 round_ready 信号契约：第三个参数为中奖详情字典列表
+                        round_winners: List[Dict[str, Any]] = []
+                        for t_idx in result.winners:
+                            ticket = result.tickets[t_idx]
+                            tr = result.ticket_results[t_idx]
+                            round_winners.append(
+                                {
+                                    "date": result.date_str,
+                                    "issue": result.issue_str,
+                                    "ticket": ticket,
+                                    "hits": tr["hits"],
+                                    "matched_groups": compute_highlight_map(
+                                        self.profile, ticket, result.actual_groups
+                                    ),
+                                    "prize_name": tr["prize_name"],
+                                    "prize_amount": tr["prize_amount"],
+                                    "is_first": t_idx == 0,
+                                    "ticket_index": t_idx,
+                                }
+                            )
+                        self.round_ready.emit(result.index, len(tasks), round_winners)
 
                     completed += 1
                     self.progress.emit(completed, len(tasks))
