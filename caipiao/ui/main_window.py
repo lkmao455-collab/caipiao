@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTabWidget,
     QTextEdit,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -133,6 +134,7 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_menu()
+        self._setup_toolbar()
         self._apply_theme()
         self._register_boss_key()
 
@@ -317,37 +319,6 @@ class MainWindow(QMainWindow):
         self.strategy_panel = StrategyPanel(self.current.engine)
         self._restore_last_strategy()
         left_layout.addWidget(self.strategy_panel)
-
-        # 生成按钮
-        self.generate_btn = QPushButton("立即生成")
-        self.generate_btn.setObjectName("generate_btn")
-        self.generate_btn.setToolTip("根据当前策略生成号码。ML 策略首次会训练模型，请稍候。")
-        self.generate_btn.clicked.connect(self._generate)
-        left_layout.addWidget(self.generate_btn)
-
-        # 复制按钮
-        self.copy_btn = QPushButton("复制全部号码")
-        self.copy_btn.setToolTip("将生成的号码复制到剪贴板。")
-        self.copy_btn.clicked.connect(self._copy_all)
-        left_layout.addWidget(self.copy_btn)
-
-        # 打印按钮
-        self.print_btn = QPushButton("打印结果")
-        self.print_btn.setToolTip("将生成的号码打印或导出为 PDF。")
-        self.print_btn.clicked.connect(self._print_results)
-        left_layout.addWidget(self.print_btn)
-
-        # 导出 PDF 按钮
-        self.export_pdf_btn = QPushButton("导出 PDF")
-        self.export_pdf_btn.setToolTip("将生成的号码导出为 PDF 文件，不依赖打印机驱动。")
-        self.export_pdf_btn.clicked.connect(self._export_pdf_results)
-        left_layout.addWidget(self.export_pdf_btn)
-
-        # 保存按钮
-        self.save_btn = QPushButton("保存到历史")
-        self.save_btn.setToolTip("将本次生成的号码保存到本地历史记录。")
-        self.save_btn.clicked.connect(self._save_to_history)
-        left_layout.addWidget(self.save_btn)
 
         left_layout.addStretch()
         layout.addWidget(left_panel, 1)
@@ -1220,6 +1191,36 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
+    def _setup_toolbar(self) -> None:
+        """创建顶部工具栏，集中放置常用生成操作."""
+        self.toolbar = QToolBar("主工具栏", self)
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setMovable(False)
+        self.addToolBar(self.toolbar)
+
+        resources_dir = Path(__file__).resolve().parent / "resources" / "toolbar"
+
+        def _load_icon(name: str) -> QIcon:
+            path = resources_dir / f"{name}.png"
+            if path.exists():
+                return QIcon(str(path))
+            return QIcon()
+
+        actions = [
+            ("generate", "立即生成", "根据当前策略生成号码。ML 策略首次会训练模型，请稍候。", self._generate),
+            ("copy", "复制全部号码", "将生成的号码复制到剪贴板。", self._copy_all),
+            ("print", "打印结果", "将生成的号码打印或导出为 PDF。", self._print_results),
+            ("pdf", "导出 PDF", "将生成的号码导出为 PDF 文件，不依赖打印机驱动。", self._export_pdf_results),
+            ("save", "保存到历史", "将本次生成的号码保存到本地历史记录。", self._save_to_history),
+        ]
+
+        for name, text, tooltip, slot in actions:
+            action = QAction(_load_icon(name), text, self)
+            action.setToolTip(tooltip)
+            action.triggered.connect(slot)
+            self.toolbar.addAction(action)
+            setattr(self, f"{name}_action", action)
+
     # ------------------------------------------------------------------ #
     # 号码生成
     # ------------------------------------------------------------------ #
@@ -1266,8 +1267,8 @@ class MainWindow(QMainWindow):
             records = self.current.data_repository.get_all()
             lookback = compute_lookback(len(records))
             if not is_model_current(records, lookback, prefix=prefix):
-                self.generate_btn.setEnabled(False)
-                self.generate_btn.setText("准备模型...")
+                self.generate_action.setEnabled(False)
+                self.generate_action.setText("准备模型...")
                 self._start_training(
                     model_class,
                     prefix,
@@ -1292,8 +1293,8 @@ class MainWindow(QMainWindow):
             records = self.current.data_repository.get_all()
             lookback = compute_lookback(len(records))
             if not is_model_current(records, lookback, prefix=prefix):
-                self.generate_btn.setEnabled(False)
-                self.generate_btn.setText("准备模型...")
+                self.generate_action.setEnabled(False)
+                self.generate_action.setText("准备模型...")
                 self._start_training(
                     None,
                     prefix,
@@ -1306,8 +1307,8 @@ class MainWindow(QMainWindow):
 
     def _launch_generation(self, strategy_id, count, options) -> None:
         """在后台线程启动号码生成."""
-        self.generate_btn.setEnabled(False)
-        self.generate_btn.setText("生成中...")
+        self.generate_action.setEnabled(False)
+        self.generate_action.setText("生成中...")
 
         self._generate_thread = GenerateTicketsThread(
             self.current.engine, strategy_id, count, options, self
@@ -1322,20 +1323,20 @@ class MainWindow(QMainWindow):
 
     def _after_generate_train(self, error, strategy_id, count, options) -> None:
         if error:
-            self.generate_btn.setEnabled(True)
-            self.generate_btn.setText("立即生成")
+            self.generate_action.setEnabled(True)
+            self.generate_action.setText("立即生成")
             QMessageBox.critical(self, "训练失败", f"模型训练失败:\n{error}")
             return
         records = self.current.data_repository.get_all()
         is_ml = is_ml_strategy(strategy_id) or strategy_id in ML_MODEL_STRATEGIES
         if is_ml and len(records) < 100:
-            self.generate_btn.setEnabled(True)
-            self.generate_btn.setText("立即生成")
+            self.generate_action.setEnabled(True)
+            self.generate_action.setText("立即生成")
             QMessageBox.warning(self, "数据不足", "训练后历史数据不足 100 期，无法使用 ML 策略")
             return
         if needs_history(strategy_id) and len(records) < 20:
-            self.generate_btn.setEnabled(True)
-            self.generate_btn.setText("立即生成")
+            self.generate_action.setEnabled(True)
+            self.generate_action.setText("立即生成")
             QMessageBox.warning(self, "数据不足", "训练后历史数据不足 20 期，无法使用该策略")
             return
         options["history"] = records
@@ -1343,8 +1344,8 @@ class MainWindow(QMainWindow):
 
     def _on_generation_finished(self, tickets, error) -> None:
         """号码生成完成回调."""
-        self.generate_btn.setEnabled(True)
-        self.generate_btn.setText("立即生成")
+        self.generate_action.setEnabled(True)
+        self.generate_action.setText("立即生成")
 
         # 线程清理由 finished 信号统一处理，这里不操作线程对象
 
@@ -1862,19 +1863,6 @@ class MainWindow(QMainWindow):
         QPushButton:pressed {
             background: #005F73;
         }
-        QPushButton#generate_btn {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #D90429, stop:1 #8D0801);
-            color: #FFFFFF;
-            border: 1px solid #EF233C;
-            font-size: 12pt;
-            padding: 10px 18px;
-        }
-        QPushButton#generate_btn:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #EF233C, stop:1 #D90429);
-            border: 1px solid #FF5C7F;
-        }
         QLineEdit, QSpinBox, QComboBox, QTextEdit {
             background-color: rgba(255, 255, 255, 0.85);
             border: 1px solid rgba(0, 119, 182, 0.45);
@@ -1943,6 +1931,34 @@ class MainWindow(QMainWindow):
             padding: 6px;
             color: #0A2540;
         }
+        QToolBar {
+            background-color: rgba(255, 255, 255, 0.45);
+            border: 1px solid rgba(0, 119, 182, 0.25);
+            border-radius: 10px;
+            padding: 4px;
+            spacing: 6px;
+        }
+        QToolButton {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FFFFFF, stop:1 #E1EEF7);
+            color: #0A2540;
+            border: 1px solid rgba(0, 119, 182, 0.35);
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+        QToolButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #E1EEF7, stop:1 #CCE3F2);
+            border: 1px solid #48CAE4;
+        }
+        QToolButton:pressed {
+            background: #B8D9ED;
+        }
+        QToolButton::icon {
+            padding-bottom: 2px;
+        }
         """
 
     @staticmethod
@@ -1974,19 +1990,6 @@ class MainWindow(QMainWindow):
         }
         QPushButton:pressed {
             background: #005F73;
-        }
-        QPushButton#generate_btn {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #FF4D6D, stop:1 #D90429);
-            color: #FFFFFF;
-            border: 1px solid #FF758F;
-            font-size: 12pt;
-            padding: 10px 18px;
-        }
-        QPushButton#generate_btn:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #FF758F, stop:1 #FF4D6D);
-            border: 1px solid #FFB3C1;
         }
         QLineEdit, QSpinBox, QComboBox, QTextEdit {
             background-color: rgba(10, 14, 23, 0.85);
@@ -2055,5 +2058,33 @@ class MainWindow(QMainWindow):
             border-radius: 10px;
             padding: 6px;
             color: #E0F7FF;
+        }
+        QToolBar {
+            background-color: rgba(16, 24, 39, 0.55);
+            border: 1px solid rgba(0, 210, 255, 0.25);
+            border-radius: 10px;
+            padding: 4px;
+            spacing: 6px;
+        }
+        QToolButton {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #0F172A, stop:1 #1E293B);
+            color: #E0F7FF;
+            border: 1px solid rgba(0, 210, 255, 0.35);
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+        QToolButton:hover {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #1E293B, stop:1 #334155);
+            border: 1px solid #48CAE4;
+        }
+        QToolButton:pressed {
+            background: #0B1220;
+        }
+        QToolButton::icon {
+            padding-bottom: 2px;
         }
         """
