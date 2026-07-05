@@ -48,6 +48,7 @@ from ..ml.lgbm_model import LotteryLightGBMModel
 from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
+from ..persistence.parameter_group_store import ParameterGroupStore
 from ..persistence.settings import AppSettings
 from ..plugins.plugin_manager import PluginManager
 from ..utils import app_data_dir
@@ -62,6 +63,7 @@ from .components.batch_backtest_dialog import BatchBacktestDialog
 from .components.draw_analysis_dialog import DrawAnalysisDialog
 from .components.history_panel import HistoryPanel
 from .components.hotkey_edit import HotkeyEdit, validate_hotkey_dialog
+from .components.parameter_group_panel import ParameterGroupPanel
 from .components.strategy_panel import StrategyPanel
 from .components.training_progress_dialog import TrainingProgressDialog
 from .lottery_context import ContextManager, LotteryContext
@@ -113,6 +115,9 @@ class MainWindow(QMainWindow):
 
         # 历史（所有彩种共用一份历史记录文件）
         self.history_manager = HistoryManager(self.data_dir / "history.json")
+
+        # 参数组持久化
+        self._param_group_store = ParameterGroupStore(self.data_dir)
 
         # 彩种上下文管理器
         self.context_manager = ContextManager(self.data_dir, self.history_manager)
@@ -269,6 +274,10 @@ class MainWindow(QMainWindow):
         # 设置页
         self.settings_tab = self._build_settings_tab()
         self.tabs.addTab(self.settings_tab, "设置")
+
+        # 参数组页
+        self.parameter_group_tab = self._build_parameter_group_tab()
+        self.tabs.addTab(self.parameter_group_tab, "参数组")
 
         self._refresh_for_current_context()
 
@@ -463,6 +472,21 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         return tab
 
+    def _build_parameter_group_tab(self) -> QWidget:
+        """构建参数组标签页."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        self.parameter_group_panel = ParameterGroupPanel(
+            self._param_group_store,
+            self.current.profile.key,
+            parent=tab,
+        )
+        self.parameter_group_panel.request_generate.connect(
+            self._generate_from_parameter_group
+        )
+        layout.addWidget(self.parameter_group_panel)
+        return tab
+
     def _build_data_tab(self) -> QWidget:
         """构建开奖数据标签页."""
         tab = QWidget()
@@ -607,6 +631,9 @@ class MainWindow(QMainWindow):
         self.model_section_label.setText(self._model_section_title())
         self.xgboost_status_label.setText(self._model_status_text())
         self._refresh_data_stats()
+
+        # 参数组页刷新
+        self.parameter_group_panel.set_profile_key(self.current.profile.key)
 
         # 插件页刷新
         pm = self.plugin_managers.get(self.current_key)
@@ -1261,6 +1288,12 @@ class MainWindow(QMainWindow):
         # 保存实际用于训练的历史期数，供模型文件名使用
         options["_training_record_count"] = len(options.get("history", records))
 
+        self._generate_single_strategy(strategy_id, count, options)
+
+    def _generate_single_strategy(
+        self, strategy_id: str, count: int, options: dict, *, on_finished=None
+    ) -> None:
+        """为单个策略准备模型并启动生成（支持自定义完成回调）."""
         # ML 模型策略：若当前数据对应的模型已过期，先自动重新训练
         if self.current.profile.key == "ssq" and strategy_id in ML_MODEL_STRATEGIES:
             model_class, prefix = ML_MODEL_STRATEGIES[strategy_id]
@@ -1272,7 +1305,9 @@ class MainWindow(QMainWindow):
                 self._start_training(
                     model_class,
                     prefix,
-                    after=lambda err: self._after_generate_train(err, strategy_id, count, options),
+                    after=lambda err: self._after_generate_train(
+                        err, strategy_id, count, options, on_finished=on_finished
+                    ),
                 )
                 return
         elif self.current.profile.key != "ssq" and is_ml_strategy(strategy_id):
@@ -1298,30 +1333,42 @@ class MainWindow(QMainWindow):
                 self._start_training(
                     None,
                     prefix,
-                    after=lambda err: self._after_generate_train(err, strategy_id, count, options),
+                    after=lambda err: self._after_generate_train(
+                        err, strategy_id, count, options, on_finished=on_finished
+                    ),
                     backend=backend,
                 )
                 return
 
-        self._launch_generation(strategy_id, count, options)
+        self._launch_generation(
+            strategy_id, count, options, on_finished=on_finished
+        )
 
-    def _launch_generation(self, strategy_id, count, options) -> None:
+    def _launch_generation(self, strategy_id, count, options, *, on_finished=None) -> None:
         """在后台线程启动号码生成."""
         self.generate_action.setEnabled(False)
         self.generate_action.setText("生成中...")
+        self._generate_finished_callback = on_finished or self._on_generation_finished
 
         self._generate_thread = GenerateTicketsThread(
             self.current.engine, strategy_id, count, options, self
         )
         self._generate_thread.result_ready.connect(
-            self._on_generation_finished, Qt.ConnectionType.QueuedConnection
+            self._on_generation_finished_wrapper, Qt.ConnectionType.QueuedConnection
         )
         self._generate_thread.finished.connect(
             partial(self._cleanup_finished_thread, "_generate_thread")
         )
         self._generate_thread.start()
 
-    def _after_generate_train(self, error, strategy_id, count, options) -> None:
+    def _on_generation_finished_wrapper(self, tickets, error) -> None:
+        """统一分发生成完成回调."""
+        callback = getattr(self, "_generate_finished_callback", self._on_generation_finished)
+        callback(tickets, error)
+
+    def _after_generate_train(
+        self, error, strategy_id, count, options, *, on_finished=None
+    ) -> None:
         if error:
             self.generate_action.setEnabled(True)
             self.generate_action.setText("立即生成")
@@ -1340,7 +1387,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "数据不足", "训练后历史数据不足 20 期，无法使用该策略")
             return
         options["history"] = records
-        self._launch_generation(strategy_id, count, options)
+        self._generate_single_strategy(
+            strategy_id, count, options, on_finished=on_finished
+        )
 
     def _on_generation_finished(self, tickets, error) -> None:
         """号码生成完成回调."""
@@ -1361,6 +1410,117 @@ class MainWindow(QMainWindow):
             self.history_panel.refresh()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "保存历史失败", f"保存到历史记录失败:\n{exc}")
+
+    def _generate_from_parameter_group(self, items: list) -> None:
+        """根据参数组中启用的策略顺序生成号码."""
+        if not items:
+            QMessageBox.warning(self, "提示", "请至少启用一个策略")
+            return
+
+        self._parameter_group_items = list(items)
+        self._parameter_group_tickets: list = []
+        self._parameter_group_errors: list[str] = []
+        self._parameter_group_count = self.parameter_group_panel.count_spin.value()
+
+        self.generate_action.setEnabled(False)
+        self.generate_action.setText("参数组生成中...")
+        self._run_next_parameter_group_item()
+
+    def _run_next_parameter_group_item(self) -> None:
+        """处理参数组中的下一个启用策略."""
+        if not self._parameter_group_items:
+            self._finish_parameter_group_generation()
+            return
+
+        item = self._parameter_group_items.pop(0)
+        strategy_id = item.strategy_id
+
+        strategy = self.current.engine.get(strategy_id)
+        if strategy is None:
+            self._parameter_group_errors.append(
+                f"策略 {item.strategy_name} 已不可用，已跳过"
+            )
+            self._run_next_parameter_group_item()
+            return
+
+        options: dict = {}
+        if item.param_name is not None and item.param_value is not None:
+            options[item.param_name] = item.param_value
+
+        count = self._parameter_group_count
+
+        # 复用历史数据注入逻辑
+        records: list[Any] = []
+        if needs_history(strategy_id):
+            records = self.current.data_repository.get_all()
+            if not records:
+                self._parameter_group_errors.append(
+                    f"{item.strategy_name}: 缺少历史数据"
+                )
+                self._run_next_parameter_group_item()
+                return
+            options["history"] = records
+
+        options["_training_record_count"] = len(options.get("history", records))
+
+        # 使用新的生成接口，指定回调以继续队列
+        self._generate_single_strategy(
+            strategy_id,
+            count,
+            options,
+            on_finished=lambda tickets, error: self._on_parameter_group_item_finished(
+                item, tickets, error
+            ),
+        )
+
+    def _on_parameter_group_item_finished(
+        self, item, tickets, error
+    ) -> None:
+        """单个策略生成完成，追加结果并继续下一个."""
+        if error:
+            self._parameter_group_errors.append(f"{item.strategy_name}: {error}")
+        elif tickets:
+            for ticket in tickets:
+                ticket.strategy_name = item.strategy_name
+                if ticket.basis:
+                    ticket.basis = f"{item.strategy_name} | {ticket.basis}"
+                else:
+                    ticket.basis = item.strategy_name
+            self._parameter_group_tickets.extend(tickets)
+
+        self._run_next_parameter_group_item()
+
+    def _finish_parameter_group_generation(self) -> None:
+        """参数组所有策略生成完成，汇总展示结果."""
+        self.generate_action.setEnabled(True)
+        self.generate_action.setText("立即生成")
+
+        tickets = self._parameter_group_tickets
+        if not tickets:
+            QMessageBox.warning(
+                self,
+                "生成失败",
+                "参数组中所有策略均未能生成号码。\n"
+                + "\n".join(self._parameter_group_errors[:5]),
+            )
+            return
+
+        self._last_generated = tickets
+        self._annotate_target_period(tickets)
+        self._display_results(tickets)
+        try:
+            self.history_manager.add_many(tickets)
+            self.history_panel.refresh()
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "保存历史失败", f"保存到历史记录失败:\n{exc}")
+
+        if self._parameter_group_errors:
+            QMessageBox.information(
+                self,
+                "部分策略未生成",
+                "以下策略生成时出现问题：\n"
+                + "\n".join(self._parameter_group_errors[:10]),
+            )
 
     def _annotate_target_period(self, tickets: list) -> None:
         if not tickets:
