@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -14,6 +15,11 @@ from .ui.main_window import MainWindow
 
 def run() -> int:
     """启动应用程序."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
     # QtWebEngine（帮助文档渲染）要求在创建 QApplication 前开启 OpenGL 上下文共享。
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 

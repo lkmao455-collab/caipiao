@@ -271,6 +271,30 @@ def test_generic_predictor_recommend_3d():
     assert all(0 <= n <= 9 for n in rec["pos"])
 
 
+def test_generic_model_positional_missing_classes():
+    """按位组训练数据未覆盖全部类别时，不应发出类别数警告，且概率维度保持完整."""
+    profile = get_profile("3d")
+    # 仅使用 0-8，缺失 9
+    records = [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [(i + j) % 9 for j in range(3)]},
+        )
+        for i in range(120)
+    ]
+    X, y_dict = build_features(records, profile, lookback=50)
+    for backend in ("lightgbm", "catboost"):
+        model = LotteryGenericModel(profile, lookback=50, backend=backend)
+        model.fit(X, y_dict)
+        proba = model.predict_proba(X[-1].reshape(1, -1))
+        assert proba["pos"].shape == (3, 10)
+        # 缺失的类别应保留一个较小的基线概率，而不是 0
+        assert np.all(proba["pos"][:, 9] > 0)
+        np.testing.assert_array_almost_equal(proba["pos"].sum(axis=1), 1.0, decimal=5)
+
+
 # --------------------------------------------------------------------------- #
 # Generic Strategies
 # --------------------------------------------------------------------------- #
@@ -315,14 +339,28 @@ def test_analyze_adjacent_ssq():
         DrawRecord("2024001", datetime(2024, 1, 1), [1, 2, 3, 4, 5, 6], 7),
         DrawRecord("2024002", datetime(2024, 1, 3), [1, 2, 3, 10, 11, 12], 8),
         DrawRecord("2024003", datetime(2024, 1, 5), [13, 14, 15, 16, 17, 18], 9),
+        DrawRecord("2024004", datetime(2024, 1, 7), [1, 2, 4, 5, 6, 7], 7),
     ]
     from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
 
     stats, details = _analyze_adjacent(records, get_profile("ssq"))
-    assert stats.total_pairs == 2
+    assert stats.total_pairs == 3
     assert stats.group_stats["red"].same_counts[3] == 1
-    assert stats.group_stats["red"].same_counts[0] == 1
-    assert stats.group_stats["blue"].same_counts[0] == 2
+    assert stats.group_stats["red"].same_counts[0] == 2
+    assert stats.group_stats["blue"].same_counts[0] == 3
+
+    # 间隔 1 期：第 1 期 [1-6] vs 第 3 期 [13-18] = 0 相同
+    # 第 2 期 [1,2,3,10,11,12] vs 第 4 期 [1,2,4,5,6,7] = 2 相同
+    assert stats.gap_stats["red"][1].total_pairs == 2
+    assert stats.gap_stats["red"][1].same_counts[0] == 1
+    assert stats.gap_stats["red"][1].same_counts[2] == 1
+    assert stats.gap_stats["blue"][1].same_counts[0] == 2
+
+    # 间隔 2 期：第 1 期 vs 第 4 期 [1-6] vs [1,2,4,5,6,7] = 5 相同；蓝球 7 == 7
+    assert stats.gap_stats["red"][2].total_pairs == 1
+    assert stats.gap_stats["red"][2].same_counts[5] == 1
+    assert stats.gap_stats["blue"][2].same_counts[1] == 1
+
     assert details[1]["red"] == 3
     assert details[1]["blue"] is False
 
@@ -332,14 +370,23 @@ def test_analyze_adjacent_3d():
         DrawRecord("2024001", datetime(2024, 1, 1), profile="3d", groups={"pos": [1, 2, 3]}),
         DrawRecord("2024002", datetime(2024, 1, 2), profile="3d", groups={"pos": [1, 2, 4]}),
         DrawRecord("2024003", datetime(2024, 1, 3), profile="3d", groups={"pos": [5, 6, 7]}),
+        DrawRecord("2024004", datetime(2024, 1, 4), profile="3d", groups={"pos": [1, 8, 3]}),
     ]
     from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
 
     stats, details = _analyze_adjacent(records, get_profile("3d"))
-    assert stats.total_pairs == 2
+    assert stats.total_pairs == 3
     assert stats.group_stats["pos"].same_counts[2] == 1
-    assert stats.group_stats["pos"].same_counts[0] == 1
+    assert stats.group_stats["pos"].same_counts[0] == 2
     assert details[1]["pos"] == 2
+
+    # 间隔 1 期：第 1 期 [1,2,3] vs 第 3 期 [5,6,7] = 0 相同
+    # 第 2 期 [1,2,4] vs 第 4 期 [1,8,3] = 1 相同
+    assert stats.gap_stats["pos"][1].same_counts[0] == 1
+    assert stats.gap_stats["pos"][1].same_counts[1] == 1
+
+    # 间隔 2 期：第 1 期 vs 第 4 期 [1,2,3] vs [1,8,3] = 2 相同
+    assert stats.gap_stats["pos"][2].same_counts[2] == 1
 
 
 def test_analyze_adjacent_qlc():
@@ -350,15 +397,28 @@ def test_analyze_adjacent_qlc():
                    groups={"basic": list(range(1, 7)) + [31], "special": [30]}),
         DrawRecord("2024003", datetime(2024, 1, 5), profile="qlc",
                    groups={"basic": list(range(10, 17)), "special": [1]}),
+        DrawRecord("2024004", datetime(2024, 1, 7), profile="qlc",
+                   groups={"basic": list(range(1, 8)), "special": [30]}),
     ]
     from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
 
     stats, details = _analyze_adjacent(records, get_profile("qlc"))
-    assert stats.total_pairs == 2
+    assert stats.total_pairs == 3
+    # 相邻：第1 vs 第2 = 6 个基本号相同；第2 vs 第3 = 0 个；第3 vs 第4 = 0 个
     assert stats.group_stats["basic"].same_counts[6] == 1
+    assert stats.group_stats["basic"].same_counts[0] == 2
+    # 特别号：第1 vs 第2 相同(30)，第2 vs 第3 不同，第3 vs 第4 不同
     assert stats.group_stats["special"].same_counts[1] == 1
+    assert stats.group_stats["special"].same_counts[0] == 2
     assert details[1]["basic"] == 6
     assert details[1]["special"] is True
+
+    # 间隔 1 期
+    assert stats.gap_stats["basic"][1].total_pairs == 2
+    assert stats.gap_stats["special"][1].total_pairs == 2
+    # 间隔 2 期：第 1 期 vs 第 4 期完全相同
+    assert stats.gap_stats["basic"][2].same_counts[7] == 1
+    assert stats.gap_stats["special"][2].same_counts[1] == 1
 
 
 def test_analyze_adjacent_kl8():
@@ -369,17 +429,22 @@ def test_analyze_adjacent_kl8():
                    groups={"main": list(range(1, 11)) + list(range(21, 31))}),
         DrawRecord("2024003", datetime(2024, 1, 3), profile="kl8",
                    groups={"main": list(range(41, 61))}),
+        DrawRecord("2024004", datetime(2024, 1, 4), profile="kl8",
+                   groups={"main": list(range(11, 31))}),
     ]
     from caipiao.ui.components.draw_analysis_dialog import _analyze_adjacent
 
     stats, details = _analyze_adjacent(records, get_profile("kl8"))
-    assert stats.total_pairs == 2
+    assert stats.total_pairs == 3
     assert stats.group_stats["main"].same_counts[10] == 1
-    assert stats.group_stats["main"].same_counts[0] == 1
+    assert stats.group_stats["main"].same_counts[0] == 2
     assert details[1]["main"] == 10
 
-
-def test_needs_history_helper():
+    # 间隔 1 期：第 1 期 vs 第 3 期 0 相同；第 2 期 vs 第 4 期 10 相同
+    assert stats.gap_stats["main"][1].same_counts[0] == 1
+    assert stats.gap_stats["main"][1].same_counts[10] == 1
+    # 间隔 2 期：第 1 期 vs 第 4 期 10 相同
+    assert stats.gap_stats["main"][2].same_counts[10] == 1
     assert needs_history("hot_cold_3d")
     assert needs_history("xgboost_kl8")
     assert not needs_history("random_3d")

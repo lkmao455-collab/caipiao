@@ -116,6 +116,18 @@ class AppSettings:
         self.set("last_history_count", value)
 
     @property
+    def draw_analysis_max_gap(self) -> int:
+        return int(self.get("draw_analysis_max_gap", 7))
+
+    @draw_analysis_max_gap.setter
+    def draw_analysis_max_gap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 7
+        self.set("draw_analysis_max_gap", max(0, min(50, value)))
+
+    @property
     def last_backtest_options(self) -> dict:
         """历史回测对话框上次使用的参数."""
         raw = self.get("last_backtest_options", "")

@@ -863,35 +863,8 @@ class _GenericMLStrategy(_GenericBase):
         if count <= 0:
             return tickets
 
-        # 七乐彩与快乐8 取消“第一组使用预测概率最高号码”规则，全部使用加权采样
-        if self.profile.key in ("qlc", "kl8"):
-            start_idx = 0
-        else:
-            # 第一组：每个组取概率最高的前 pick 个（按位取每位概率最高）
-            first_groups: Dict[str, List[int]] = {}
-            for g in self.profile.pick_groups:
-                if g.key not in proba:
-                    raise ValueError(f"模型未返回号码组 {g.name} 的概率")
-                p = proba[g.key]
-                if g.positional:
-                    first_groups[g.key] = [int(np.argmax(p[pos])) + g.lo for pos in range(g.count)]
-                else:
-                    pick = min(group_picks[g.key], len(p))
-                    top_indices = np.argsort(p)[-pick:]
-                    first_groups[g.key] = sorted(int(idx) + g.lo for idx in top_indices)
-
-            tickets.append(
-                _make_ticket(
-                    self.profile,
-                    first_groups,
-                    strategy_name=self.metadata.name,
-                    basis=basis + " 第一组为模型预测概率最高的号码。",
-                    details=details,
-                )
-            )
-            start_idx = 1
-
-        for i in range(start_idx, count):
+        # 所有策略均取消“第一组使用预测概率最高号码”规则，全部使用加权采样
+        for i in range(count):
             np_rng = np.random.RandomState(seed + i)
             rec_groups = predictor.recommend(group_picks=group_picks, diversity_boost=diversity, rng=np_rng)
             tickets.append(

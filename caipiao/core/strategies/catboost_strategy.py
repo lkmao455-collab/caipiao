@@ -216,20 +216,7 @@ class CatBoostStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         tickets: List[Ticket] = []
 
-        top_red_indices = np.argsort(red_proba)[-6:]
-        top_reds = sorted((int(idx) + 1) for idx in top_red_indices)
-        top_blue = int(np.argmax(blue_proba)) + 1
-        tickets.append(
-            Ticket(
-                red_balls=top_reds,
-                blue_ball=top_blue,
-                strategy_name=self.metadata.name,
-                basis=basis + " 按预测概率最高的前 6 个红球和 1 个蓝球生成。",
-                details=details,
-            )
-        )
-
-        for i in range(1, batch_size):
+        for i in range(batch_size):
             np_rng = np.random.RandomState(fixed_seed + seed_offset + i)
             reds, blues = predictor.recommend(
                 red_count=6, blue_count=1, diversity_boost=diversity, rng=np_rng

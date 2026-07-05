@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.multioutput import MultiOutputClassifier
+from sklearn.preprocessing import LabelEncoder
 
 from ..core.profile import LotteryProfile, NumberGroup
 
@@ -158,9 +159,16 @@ class LotteryGenericModel:
                         const[val - g.lo] = 1.0
                         models.append(const)
                     else:
-                        model = self._create_classifier(positional=True, num_class=g.size)
-                        model.fit(X, y_pos)
-                        models.append(model)
+                        # 训练数据中可能未出现全部类别，使用 LabelEncoder 将实际类别
+                        # 映射为连续索引，避免 LightGBM/CatBoost 报
+                        # "Found only N unique classes in the data, but have defined M classes" 警告，
+                        # 同时防止 LightGBM 丢弃未出现类别导致概率维度错误。
+                        encoder = LabelEncoder()
+                        y_enc = encoder.fit_transform(y_pos)
+                        num_class = len(encoder.classes_)
+                        model = self._create_classifier(positional=True, num_class=num_class)
+                        model.fit(X, y_enc)
+                        models.append((model, encoder))
                     current += 1
                     if progress_callback:
                         progress_callback(current, total_steps)
@@ -210,7 +218,14 @@ class LotteryGenericModel:
                         if isinstance(model, np.ndarray):
                             proba = model
                         else:
-                            proba = model.predict_proba(X)[0]
+                            clf, encoder = model
+                            pred = clf.predict_proba(X)[0]  # shape (num_class,)
+                            # 映射回完整号码空间，缺失类别给一个很小的基线概率
+                            full = np.full(g.size, 0.05 / g.size, dtype=np.float32)
+                            for idx, cls in enumerate(encoder.classes_):
+                                full[int(cls) - g.lo] = max(pred[idx], 0.0)
+                            full = full / full.sum()
+                            proba = full
                         probs.append(proba)
                     result[g.key] = np.array(probs)  # shape (count, size)
                 else:
