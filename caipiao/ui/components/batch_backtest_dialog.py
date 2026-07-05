@@ -25,11 +25,14 @@ from PySide6.QtWidgets import (
 )
 
 from ...persistence.backtest_db import BacktestDatabase
+from ...persistence.parameter_group_store import ParameterGroupStore
 from ...core.profile import LotteryProfile
 from ...core.strategies.generic import needs_history
+from ...utils import app_data_dir
 from ..batch_backtest_thread import BatchBacktestThread
 from ..optimal_period_scan_thread import OptimalPeriodScanThread
 from ..optimal_strategy_scan_thread import OptimalStrategyScanThread
+from .parameter_group_save_dialog import ParameterGroupSaveDialog
 from .strategy_panel import StrategyPanel
 
 
@@ -48,6 +51,10 @@ class BatchBacktestDialog(QDialog):
         self.data_repository = context.data_repository
         self.plugin_dir = plugin_dir
         self._db = BacktestDatabase()
+        self._param_group_store = ParameterGroupStore(app_data_dir())
+        self._last_strategy_scan_result: Optional[StrategyScanResult] = None
+        self._start_date_for_scan: str = ""
+        self._end_date_for_scan: str = ""
         self._thread: Optional[BatchBacktestThread] = None
 
         self.setWindowTitle(f"{self.profile.name}批量历史回测")
@@ -143,15 +150,24 @@ class BatchBacktestDialog(QDialog):
         result_group = QGroupBox("回测汇总")
         result_layout = QVBoxLayout(result_group)
 
-        self.summary_label = QLabel("尚未开始批量回测。")
+        summary_header = QWidget()
+        summary_header_layout = QHBoxLayout(summary_header)
+        summary_header_layout.setContentsMargins(0, 0, 0, 0)
+        self.summary_label = QLabel('尚未开始批量历史回测。')
         self.summary_label.setWordWrap(True)
         self.summary_label.setStyleSheet(
             "QLabel { color: #0A2540; background-color: #E3F2FD; "
             "border-radius: 4px; padding: 6px; font-size: 11pt; font-weight: bold; }"
         )
-        result_layout.addWidget(self.summary_label)
+        summary_header_layout.addWidget(self.summary_label, 1)
+        self.save_group_btn = QPushButton('保存为参数组')
+        self.save_group_btn.setToolTip('将本次扫描排名的前 N 个策略保存为参数组')
+        self.save_group_btn.clicked.connect(self._on_save_parameter_group)
+        self.save_group_btn.setVisible(False)
+        summary_header_layout.addWidget(self.save_group_btn)
+        result_layout.addWidget(summary_header)
 
-        result_layout.addWidget(QLabel("详细结果（中奖记录，按日期追加）:"))
+        result_layout.addWidget(QLabel('详细结果（中奖记录，按日期追加）:'))
         self.detail_text = QTextEdit()
         self.detail_text.setReadOnly(True)
         result_layout.addWidget(self.detail_text, 1)
@@ -232,6 +248,7 @@ class BatchBacktestDialog(QDialog):
         self.stop_btn.setEnabled(True)
         self.optimal_btn.setEnabled(False)
         self.strategy_scan_btn.setEnabled(False)
+        self.save_group_btn.setVisible(False)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setVisible(True)
@@ -321,6 +338,7 @@ class BatchBacktestDialog(QDialog):
         self.stop_btn.setEnabled(True)
         self.optimal_btn.setEnabled(False)
         self.strategy_scan_btn.setEnabled(False)
+        self.save_group_btn.setVisible(False)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setVisible(True)
@@ -370,6 +388,9 @@ class BatchBacktestDialog(QDialog):
         start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
         end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
 
+        self._start_date_for_scan = self.start_date_edit.date().toString("yyyy-MM-dd")
+        self._end_date_for_scan = self.end_date_edit.date().toString("yyyy-MM-dd")
+
         records = self.data_repository.get_all()
         if len(records) < 100:
             QMessageBox.warning(self, "数据不足", "候选策略需要至少 100 期历史数据")
@@ -386,6 +407,7 @@ class BatchBacktestDialog(QDialog):
         self.stop_btn.setEnabled(True)
         self.optimal_btn.setEnabled(False)
         self.strategy_scan_btn.setEnabled(False)
+        self.save_group_btn.setVisible(False)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setVisible(True)
@@ -463,6 +485,9 @@ class BatchBacktestDialog(QDialog):
             summary_lines.append("（已中断，结果为部分扫描）")
         self.summary_label.setText("\n".join(summary_lines))
 
+        self._last_strategy_scan_result = result
+        self.save_group_btn.setVisible(True)
+
         # 排名规则与 OptimalStrategyScanThread._pick_best_strategy 保持一致：
         # 固定奖金降序 -> 中奖次数降序 -> 策略 id 升序
         ranked = sorted(
@@ -488,6 +513,31 @@ class BatchBacktestDialog(QDialog):
                 f"{failed_mark}"
             )
         self.status_text.append("=" * 40)
+
+    def _on_save_parameter_group(self) -> None:
+        """将最近一次扫描结果保存为参数组."""
+        result = getattr(self, "_last_strategy_scan_result", None)
+        if result is None:
+            return
+
+        name_map = {}
+        for strategy_id, _value, _res in result.all_results:
+            strategy = self.context.engine.get(strategy_id)
+            name_map[strategy_id] = (
+                strategy.metadata.name if strategy is not None else strategy_id
+            )
+
+        dialog = ParameterGroupSaveDialog(
+            scan_result=result,
+            profile_key=self.profile.key,
+            store=self._param_group_store,
+            strategy_name_map=name_map,
+            start_date=self._start_date_for_scan,
+            end_date=self._end_date_for_scan,
+            tickets_per_round=self.count_spin.value(),
+            parent=self,
+        )
+        dialog.exec()
 
     def _cleanup_finished_thread(self) -> None:
         """线程 finished 信号的统一清理：清空引用并安全 deleteLater."""
