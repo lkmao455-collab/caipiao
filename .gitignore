@@ -26,6 +26,17 @@ env/
 # App data
 .history.json
 *.log
+.caipiao/
+scripts/.caipiao/
+
+# ML training artifacts
+catboost_info/
+
+# Generated resources
+caipiao/ui/resources/toolbar/
+
+# Installer / large binaries
+python-3.12.11-amd64.exe
 
 # Generated result exports
 caipiao_result*.pdf
