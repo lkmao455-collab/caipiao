@@ -80,6 +80,9 @@ ML_MODEL_STRATEGIES = {
     "xgboost": (LotteryXGBoostModel, "xgboost"),
     "lightgbm": (LotteryLightGBMModel, "lightgbm"),
     "catboost": (LotteryCatBoostModel, "catboost"),
+    "ml_xgboost": (LotteryXGBoostModel, "xgboost"),
+    "ml_lightgbm": (LotteryLightGBMModel, "lightgbm"),
+    "ml_catboost": (LotteryCatBoostModel, "catboost"),
 }
 
 logger = logging.getLogger(__name__)
@@ -1288,6 +1291,22 @@ class MainWindow(QMainWindow):
         # 保存实际用于训练的历史期数，供模型文件名使用
         options["_training_record_count"] = len(options.get("history", records))
 
+        # 注入 draw records 和过滤参数供最后一层过滤使用
+        profile_key = self.current.profile.key
+        if profile_key in ("3d", "ssq"):
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                if profile_key == "3d":
+                    options["_3d_compare_periods"] = self.settings.fc3d_filter_compare_periods
+                    options["_3d_max_matches"] = self.settings.fc3d_filter_max_matches
+                elif profile_key == "ssq":
+                    options["_ssq_compare_periods"] = self.settings.ssq_filter_compare_periods
+                    options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
+                    options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
+                    options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
+
         self._generate_single_strategy(strategy_id, count, options)
 
     def _generate_single_strategy(
@@ -1350,16 +1369,38 @@ class MainWindow(QMainWindow):
         self.generate_action.setText("生成中...")
         self._generate_finished_callback = on_finished or self._on_generation_finished
 
+        # LSTM/混合策略的 loss 窗口暂不显示（matplotlib 在 Windows 上导致堆损坏）
+        self._loss_window = None
+
         self._generate_thread = GenerateTicketsThread(
             self.current.engine, strategy_id, count, options, self
         )
         self._generate_thread.result_ready.connect(
             self._on_generation_finished_wrapper, Qt.ConnectionType.QueuedConnection
         )
+        self._generate_thread.progress.connect(self._on_generation_progress)
         self._generate_thread.finished.connect(
             partial(self._cleanup_finished_thread, "_generate_thread")
         )
         self._generate_thread.start()
+
+    def _on_generation_progress(self, message: str) -> None:
+        """更新生成进度信息."""
+        self.generate_action.setText(message[:30])
+        # 解析 loss 信息并更新曲线
+        if self._loss_window and "loss=" in message:
+            parts = message.split(":")
+            if len(parts) >= 2:
+                model_name = parts[0].strip()
+                detail = parts[1].strip()
+                if "epoch" in detail and "loss=" in detail:
+                    try:
+                        epoch_part = detail.split(",")[0].replace("epoch", "").strip()
+                        epoch = int(epoch_part.split("/")[0])
+                        loss_val = float(detail.split("loss=")[1])
+                        self._loss_window.add_loss(model_name, epoch, loss_val)
+                    except (ValueError, IndexError):
+                        pass
 
     def _on_generation_finished_wrapper(self, tickets, error) -> None:
         """统一分发生成完成回调."""
@@ -1396,7 +1437,10 @@ class MainWindow(QMainWindow):
         self.generate_action.setEnabled(True)
         self.generate_action.setText("立即生成")
 
-        # 线程清理由 finished 信号统一处理，这里不操作线程对象
+        # 关闭 loss 曲线窗口
+        if hasattr(self, "_loss_window") and self._loss_window:
+            self._loss_window.close()
+            self._loss_window = None
 
         if error:
             QMessageBox.critical(self, "生成失败", str(error))
@@ -1462,6 +1506,22 @@ class MainWindow(QMainWindow):
             options["history"] = records
 
         options["_training_record_count"] = len(options.get("history", records))
+
+        # 注入 draw records 和过滤参数供最后一层过滤使用
+        profile_key = self.current.profile.key
+        if profile_key in ("3d", "ssq"):
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                if profile_key == "3d":
+                    options["_3d_compare_periods"] = self.settings.fc3d_filter_compare_periods
+                    options["_3d_max_matches"] = self.settings.fc3d_filter_max_matches
+                elif profile_key == "ssq":
+                    options["_ssq_compare_periods"] = self.settings.ssq_filter_compare_periods
+                    options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
+                    options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
+                    options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
 
         # 使用新的生成接口，指定回调以继续队列
         self._generate_single_strategy(

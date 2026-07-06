@@ -47,7 +47,7 @@ def run() -> int:
         app.setWindowIcon(QIcon(str(icon_path)))
 
     window = MainWindow()
-    window.show()
+    window.showMaximized()
 
     return app.exec()
 

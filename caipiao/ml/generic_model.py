@@ -217,13 +217,22 @@ class LotteryGenericModel:
                     for model in models:
                         if isinstance(model, np.ndarray):
                             proba = model
-                        else:
+                        elif isinstance(model, tuple) and len(model) == 2:
                             clf, encoder = model
                             pred = clf.predict_proba(X)[0]  # shape (num_class,)
                             # 映射回完整号码空间，缺失类别给一个很小的基线概率
                             full = np.full(g.size, 0.05 / g.size, dtype=np.float32)
                             for idx, cls in enumerate(encoder.classes_):
                                 full[int(cls) - g.lo] = max(pred[idx], 0.0)
+                            full = full / full.sum()
+                            proba = full
+                        else:
+                            # 旧格式缓存：裸分类器，无 encoder；直接用 predict_proba
+                            pred = model.predict_proba(X)[0]
+                            full = np.full(g.size, 0.05 / g.size, dtype=np.float32)
+                            for idx in range(len(pred)):
+                                if idx < g.size:
+                                    full[idx] = max(pred[idx], 0.0)
                             full = full / full.sum()
                             proba = full
                         probs.append(proba)

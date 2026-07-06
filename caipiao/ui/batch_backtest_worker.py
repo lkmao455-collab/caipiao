@@ -21,15 +21,13 @@ from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
 from caipiao.core.strategies import (
     BalancedStrategy,
-    CatBoostStrategy,
     ExcludeIncludeStrategy,
-    HotColdStrategy,
-    LightGBMStrategy,
-    MissingNumberStrategy,
+    HybridStrategy,
+    LSTMStrategy,
+    MLStrategy,
     OddEvenStrategy,
     RandomStrategy,
-    SmartHotColdStrategy,
-    XGBoostStrategy,
+    StatsStrategy,
 )
 from caipiao.core.strategies.generic import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
@@ -127,14 +125,14 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
     if profile_key == "ssq":
         engine.register(RandomStrategy())
         engine.register(OddEvenStrategy())
-        engine.register(HotColdStrategy())
+        engine.register(StatsStrategy())
         engine.register(ExcludeIncludeStrategy())
-        engine.register(SmartHotColdStrategy())
-        engine.register(MissingNumberStrategy())
         engine.register(BalancedStrategy())
-        engine.register(XGBoostStrategy())
-        engine.register(LightGBMStrategy())
-        engine.register(CatBoostStrategy())
+        engine.register(MLStrategy("xgboost"))
+        engine.register(MLStrategy("lightgbm"))
+        engine.register(MLStrategy("catboost"))
+        engine.register(LSTMStrategy())
+        engine.register(HybridStrategy())
     else:
         profile = get_profile(profile_key)
         for strategy in build_strategies(profile):

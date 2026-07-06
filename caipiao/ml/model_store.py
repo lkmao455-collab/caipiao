@@ -98,19 +98,14 @@ def _format_prediction_date(records: List[DrawRecord]) -> str:
 def _format_params(options: Optional[Dict[str, Any]]) -> str:
     """把关键参数编码为文件名片段.
 
-    只选取影响模型训练或预测分布的参数，避免文件名过长。
+    只选取影响模型训练的参数（如 history_count），不影响训练的生成参数
+    （如 diversity_boost、max_red_overlap）不纳入文件名，确保缓存能被正确命中。
     """
     options = options or {}
     parts = []
     history_count = options.get("history_count", -1)
     if isinstance(history_count, int) and history_count > 0:
         parts.append(f"hist{history_count}")
-    diversity = options.get("diversity_boost")
-    if isinstance(diversity, (int, float)):
-        parts.append(f"div{int(diversity)}")
-    overlap = options.get("max_red_overlap")
-    if isinstance(overlap, (int, float)):
-        parts.append(f"ovl{int(overlap)}")
     if not parts:
         return "default"
     return "_".join(parts)

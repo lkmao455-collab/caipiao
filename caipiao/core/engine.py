@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from .strategy import GenerationStrategy
 from .ticket import Ticket
+
+logger = logging.getLogger(__name__)
 
 
 class GenerationEngine:
@@ -46,3 +50,172 @@ class GenerationEngine:
         options = options or {}
         strategy.validate_options(options)
         return strategy.generate(count=count, options=options)
+
+
+# --------------------------------------------------------------------------- #
+# 福彩3D 最后一层过滤：与历史开奖记录逐位比对
+# --------------------------------------------------------------------------- #
+
+def filter_3d_by_history(
+    tickets: List[Ticket],
+    draw_records: List[Any],
+    compare_periods: int = 7,
+    max_allowed_matches: int = 1,
+) -> List[Ticket]:
+    """对福彩3D号码做最后一层过滤：与最近 N 期开奖记录做数字频率比对。
+
+    规则：将生成号码的3个数字与任一历史开奖号码做多重集交集，
+    相同数字总个数（含重复）> max_allowed_matches 则舍弃。
+
+    例：717 vs 677 → 7出现2次交集 → 2个相同 → 超过阈值1则淘汰。
+
+    Args:
+        tickets: 策略生成的候选号码列表。
+        draw_records: DrawRecord 列表（按时间升序）。
+        compare_periods: 向前比较的期数，默认 7。
+        max_allowed_matches: 允许的最大相同数字个数（含重复），默认 1。
+
+    Returns:
+        过滤后的号码列表。
+    """
+    if not tickets or not draw_records or compare_periods <= 0:
+        return tickets
+
+    recent = draw_records[-compare_periods:] if len(draw_records) >= compare_periods else draw_records
+    recent_counters: list[Counter] = []
+    for r in recent:
+        pos = r.groups.get("pos", [])
+        if len(pos) == 3:
+            recent_counters.append(Counter(pos))
+
+    if not recent_counters:
+        return tickets
+
+    filtered: List[Ticket] = []
+    discarded = 0
+
+    for ticket in tickets:
+        pos = ticket.groups.get("pos", [])
+        if len(pos) != 3:
+            filtered.append(ticket)
+            continue
+
+        gen_counter = Counter(pos)
+        too_many = False
+        for hist_counter in recent_counters:
+            # 多重集交集：取每个数字的最小出现次数之和
+            common = sum((gen_counter & hist_counter).values())
+            if common > max_allowed_matches:
+                too_many = True
+                break
+
+        if not too_many:
+            filtered.append(ticket)
+        else:
+            discarded += 1
+
+    if discarded > 0:
+        logger.info(
+            "3D过滤：共 %d 个候选，淘汰 %d 个（允许 %d 个相同数字，比较 %d 期），"
+            "剩余 %d 个",
+            len(tickets), discarded, max_allowed_matches, compare_periods, len(filtered),
+        )
+
+    return filtered
+
+
+# --------------------------------------------------------------------------- #
+# 双色球最后一层过滤：与历史开奖记录比对红球重合数和蓝球
+# --------------------------------------------------------------------------- #
+
+def filter_ssq_by_history(
+    tickets: List[Ticket],
+    draw_records: List[Any],
+    compare_periods: int = 7,
+    max_red_overlap: int = 3,
+    block_blue_match: bool = False,
+    blue_compare_periods: int = 0,
+) -> List[Ticket]:
+    """对双色球号码做最后一层过滤：与最近 N 期开奖记录比对。
+
+    规则：
+    - 红球：计算生成号码与历史开奖号码的交集个数，超过 max_red_overlap 则淘汰。
+    - 蓝球：若 block_blue_match 为 True，蓝球在 blue_compare_periods 期内与历史相同则淘汰。
+
+    Args:
+        tickets: 策略生成的候选号码列表。
+        draw_records: DrawRecord 列表（按时间升序）。
+        compare_periods: 向前比较的期数，默认 7。
+        max_red_overlap: 允许的红球最大重合数，默认 3。
+        block_blue_match: 是否禁止蓝球与历史相同，默认 False。
+        blue_compare_periods: 蓝球禁止重复的对比期数，0 表示使用 compare_periods。
+
+    Returns:
+        过滤后的号码列表。
+    """
+    if not tickets or not draw_records:
+        return tickets
+
+    # 红球比较期数
+    if compare_periods <= 0:
+        return tickets
+
+    recent = draw_records[-compare_periods:] if len(draw_records) >= compare_periods else draw_records
+    recent_data: list[tuple[set[int], int]] = []
+    for r in recent:
+        reds = set(r.groups.get("red", []))
+        blues = r.groups.get("blue", [])
+        blue = blues[0] if blues else None
+        if reds and blue is not None:
+            recent_data.append((reds, blue))
+
+    # 蓝球比较期数
+    blue_recent: list[int] = []
+    if block_blue_match:
+        if blue_compare_periods > 0:
+            blue_data = draw_records[-blue_compare_periods:] if len(draw_records) >= blue_compare_periods else draw_records
+        else:
+            blue_data = []  # blue_compare_periods=0 表示不过滤蓝球
+        for r in blue_data:
+            blues = r.groups.get("blue", [])
+            if blues:
+                blue_recent.append(blues[0])
+
+    if not recent_data and not blue_recent:
+        return tickets
+
+    filtered: List[Ticket] = []
+    discarded = 0
+
+    for ticket in tickets:
+        ticket_reds = set(ticket.groups.get("red", []))
+        ticket_blues = ticket.groups.get("blue", [])
+        ticket_blue = ticket_blues[0] if ticket_blues else None
+
+        too_many = False
+        # 红球检查
+        for hist_reds, hist_blue in recent_data:
+            red_overlap = len(ticket_reds & hist_reds)
+            if red_overlap > max_red_overlap:
+                too_many = True
+                break
+        # 蓝球检查
+        if not too_many and block_blue_match and ticket_blue is not None:
+            if ticket_blue in blue_recent:
+                too_many = True
+
+        if not too_many:
+            filtered.append(ticket)
+        else:
+            discarded += 1
+
+    if discarded > 0:
+        logger.info(
+            "SSQ过滤：共 %d 个候选，淘汰 %d 个（红球重合上限 %d，蓝球%s，比较 %d 期），"
+            "剩余 %d 个",
+            len(tickets), discarded, max_red_overlap,
+            "禁止相同" if block_blue_match else "不限",
+            compare_periods, len(filtered),
+        )
+
+    return filtered

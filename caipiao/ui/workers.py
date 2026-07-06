@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QThread, Signal
 
-from ..core.engine import GenerationEngine
+from ..core.engine import GenerationEngine, filter_3d_by_history, filter_ssq_by_history
 from ..core.profile import LotteryProfile, SSQ
 from ..data.fetcher import LotteryDataFetcher
 from ..utils import app_data_dir
@@ -90,6 +90,7 @@ class GenerateTicketsThread(QThread):
     """生成号码的后台线程（避免 XGBoost 训练冻结 UI）."""
 
     result_ready = Signal(object, object)
+    progress = Signal(str)
 
     def __init__(
         self,
@@ -108,9 +109,38 @@ class GenerateTicketsThread(QThread):
 
     def run(self) -> None:
         try:
+            profile_key = self.options.get("_profile_key")
+            has_records = bool(self.options.get("_draw_records"))
+            need_filter = has_records and profile_key in ("3d", "ssq")
+            gen_count = self.count * 3 if need_filter else self.count
+
+            # 传递进度回调给策略
+            self.options["_progress_callback"] = lambda msg: self.progress.emit(msg)
+
             tickets = self.engine.generate(
-                self.strategy_id, count=self.count, options=self.options
+                self.strategy_id, count=gen_count, options=self.options
             )
+
+            # 最后一层过滤
+            if need_filter and tickets:
+                if profile_key == "3d":
+                    tickets = filter_3d_by_history(
+                        tickets,
+                        self.options["_draw_records"],
+                        compare_periods=self.options.get("_3d_compare_periods", 7),
+                        max_allowed_matches=self.options.get("_3d_max_matches", 1),
+                    )
+                elif profile_key == "ssq":
+                    tickets = filter_ssq_by_history(
+                        tickets,
+                        self.options["_draw_records"],
+                        compare_periods=self.options.get("_ssq_compare_periods", 7),
+                        max_red_overlap=self.options.get("_ssq_max_red_overlap", 3),
+                        block_blue_match=self.options.get("_ssq_block_blue", False),
+                        blue_compare_periods=self.options.get("_ssq_blue_periods", 0),
+                    )
+                tickets = tickets[:self.count]
+
             if self.isInterruptionRequested():
                 return
             self.result_ready.emit(tickets, None)

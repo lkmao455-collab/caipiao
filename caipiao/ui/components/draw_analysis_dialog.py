@@ -675,6 +675,11 @@ class DrawAnalysisDialog(QDialog):
         self.compute_button.clicked.connect(self._on_compute_clicked)
         control_layout.addWidget(self.compute_button)
 
+        self.export_btn = QPushButton("导出Excel")
+        self.export_btn.setToolTip("将开奖记录和统计结果导出到 Excel 文件")
+        self.export_btn.clicked.connect(self._export_excel)
+        control_layout.addWidget(self.export_btn)
+
         control_layout.addStretch()
         layout.addLayout(control_layout)
 
@@ -704,6 +709,24 @@ class DrawAnalysisDialog(QDialog):
         self.record_table = QTableWidget()
         self._build_table_columns()
         table_layout.addWidget(self.record_table)
+
+        # 分页控件
+        page_layout = QHBoxLayout()
+        page_layout.addStretch()
+        self.page_prev_btn = QPushButton("上一页")
+        self.page_prev_btn.setFixedWidth(80)
+        self.page_prev_btn.clicked.connect(self._on_page_prev)
+        page_layout.addWidget(self.page_prev_btn)
+        self.page_label = QLabel("第 1 / 1 页")
+        self.page_label.setStyleSheet("font-weight: bold; margin: 0 12px;")
+        page_layout.addWidget(self.page_label)
+        self.page_next_btn = QPushButton("下一页")
+        self.page_next_btn.setFixedWidth(80)
+        self.page_next_btn.clicked.connect(self._on_page_next)
+        page_layout.addWidget(self.page_next_btn)
+        page_layout.addStretch()
+        table_layout.addLayout(page_layout)
+
         right_layout.addWidget(table_box, 2)
 
         stats_box = QGroupBox("相邻期统计")
@@ -727,6 +750,12 @@ class DrawAnalysisDialog(QDialog):
         self._pending_worker_records: Optional[List[DrawRecord]] = None
         self._pending_worker_group_key: Optional[str] = None
         self._pending_worker_max_gap: int = 0
+
+        # 分页状态
+        self._page_size: int = 100
+        self._current_page: int = 0
+        self._paged_records: List[DrawRecord] = []
+        self._paged_details: List[Dict[str, Any]] = []
 
     # ----------------------------------------------------------------------- #
     # 按彩种定制的列配置
@@ -782,7 +811,7 @@ class DrawAnalysisDialog(QDialog):
             QMessageBox.information(self, "缺少数据", "当前没有开奖记录可供分析。")
             return
 
-        self._records.sort(key=lambda r: r.draw_date)
+        self._records.sort(key=lambda r: r.draw_date, reverse=True)
         self._invalidate_cache()
         self._rebuild_group_list()
 
@@ -814,6 +843,8 @@ class DrawAnalysisDialog(QDialog):
             self.group_list.itemSelectionChanged.disconnect(self._on_group_selected)
             self.group_list.selectRow(0)
             self.group_list.itemSelectionChanged.connect(self._on_group_selected)
+            # 手动触发一次初始显示，因为 selectRow 时信号已断开
+            self._on_group_selected_with_progress(force_compute=False)
 
     def _on_group_changed(self) -> None:
         self._invalidate_cache()
@@ -848,7 +879,6 @@ class DrawAnalysisDialog(QDialog):
         max_gap = self.max_gap_spin.value()
         cache = self._cached_stats.get(group_key)
 
-        # 判断是否需要重算
         need_compute = (
             force_compute
             or cache is None
@@ -860,20 +890,17 @@ class DrawAnalysisDialog(QDialog):
         logger.info("[UI] group_key=%s, records=%d, max_gap=%d, need_compute=%s, force=%s",
                      group_key, len(records), max_gap, need_compute, force_compute)
 
-        # 如果只是裁剪展示范围（max_gap 减小），直接同步刷新
-        if not need_compute:
-            self._show_records(records, group_key)
-            return
+        # 第一步：立即显示表格数据（分页，最多100行，瞬间完成）
+        self._show_table_only(records, group_key)
 
-        # 数据量小也直接同步完成，避免弹窗闪烁
-        if len(records) < 200:
-            logger.info("[UI] 记录数 < 200, 同步计算")
-            self._show_records(records, group_key)
-            return
-
-        # 数据量较大且需要重算：显示进度条并在后台线程执行计算
-        logger.info("[UI] 启动后台 worker, records=%d", len(records))
-        self._start_analysis_worker(records, group_key, max_gap)
+        # 第二步：后台执行统计计算
+        if need_compute:
+            self._start_analysis_worker(records, group_key, max_gap)
+        elif cache is not None:
+            # 有缓存，直接显示统计
+            self._show_stats(cache)
+        else:
+            self.stats_text.setText("")
 
     def _start_analysis_worker(
         self,
@@ -886,6 +913,7 @@ class DrawAnalysisDialog(QDialog):
         if self._worker is not None and self._worker.isRunning():
             self._worker.requestInterruption()
             self._worker.wait(1000)
+            self._worker.deleteLater()
             self._worker = None
 
         # 根据数据量估算总耗时（粗略：每 1000 条约 1~3 秒，随 max_gap 增加）
@@ -964,13 +992,14 @@ class DrawAnalysisDialog(QDialog):
         max_gap = self._pending_worker_max_gap
 
         def _apply() -> None:
+            # 先清理 worker 线程，再更新 UI，避免线程对象与大量控件创建竞态
+            self._cleanup_worker()
             self._cached_stats[group_key] = stats
             self._cached_details[group_key] = details
             self._cached_max_gap = max_gap
             self._cached_group_key = group_key
             self._cached_records_len = len(records)
             self._show_records(records, group_key)
-            self._cleanup_worker()
 
         if self._elapsed is None:
             _apply()
@@ -999,6 +1028,9 @@ class DrawAnalysisDialog(QDialog):
             if self._worker.isRunning():
                 self._worker.requestInterruption()
                 self._worker.wait(1000)
+            # 用 deleteLater 让 Qt 在下一个事件循环安全回收，避免 Python GC
+            # 立即析构 C++ 对象导致 Qt 内部引用悬空引发堆损坏
+            self._worker.deleteLater()
             self._worker = None
         if self._progress is not None:
             self._progress.close()
@@ -1008,7 +1040,25 @@ class DrawAnalysisDialog(QDialog):
         self._pending_worker_group_key = None
         self._pending_worker_max_gap = 0
 
+    def _show_table_only(self, records: List[DrawRecord], group_key: Optional[str] = None) -> None:
+        """仅显示表格数据（分页），不计算统计。打开窗口时立即调用。"""
+        if group_key is None:
+            group_key = self._cached_group_key or ""
+
+        logger.info("[UI] _show_table_only 开始, records=%d", len(records))
+
+        # 保存数据供分页浏览
+        self._paged_records = records
+        self._paged_details = []
+        self._paged_stats = AdjacentStats()
+        self._current_page = 0
+
+        self._fill_current_page()
+        self._update_page_controls()
+        self.stats_text.setText("正在计算统计...")
+
     def _show_records(self, records: List[DrawRecord], group_key: Optional[str] = None) -> None:
+        """计算统计并更新显示（worker 完成后调用）."""
         if group_key is None:
             group_key = self._cached_group_key or ""
         max_gap = self.max_gap_spin.value()
@@ -1019,33 +1069,72 @@ class DrawAnalysisDialog(QDialog):
         stats, details = self._compute_stats(records, group_key, max_gap)
 
         logger.info("[UI] _compute_stats 完成, 耗时 %.2fs", time.monotonic() - t0)
-        t1 = time.monotonic()
 
-        # 批量填充前关闭重绘，大幅减少 thousands 行时的卡顿
+        # 保存全量数据
+        self._paged_records = records
+        self._paged_details = details
+        self._paged_stats = stats
+
+        self._fill_current_page()
+        self._update_page_controls()
+        self._show_stats(stats)
+
+    def _fill_current_page(self) -> None:
+        """填充当前页的记录到表格（最多 100 行，瞬间完成）."""
+        start = self._current_page * self._page_size
+        end = min(start + self._page_size, len(self._paged_records))
+        page_records = self._paged_records[start:end]
+        page_details = self._paged_details[start:end] if self._paged_details else []
+
         self.record_table.setUpdatesEnabled(False)
-        self.record_table.setRowCount(len(records))
-        for idx, record in enumerate(records):
-            self.record_table.setItem(idx, 0, QTableWidgetItem(record.issue))
+        self.record_table.setRowCount(0)
+        self.record_table.setRowCount(len(page_records))
+
+        for local_idx, record in enumerate(page_records):
+            idx = start + local_idx
+            self.record_table.setItem(local_idx, 0, QTableWidgetItem(record.issue))
             date_item = QTableWidgetItem(record.draw_date.strftime("%Y-%m-%d"))
             date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.record_table.setItem(idx, 1, date_item)
+            self.record_table.setItem(local_idx, 1, date_item)
 
-            detail = details[idx] if idx < len(details) else {}
+            detail = page_details[local_idx] if local_idx < len(page_details) else {}
 
             if self.profile.key == "ssq":
-                self._fill_ssq_row(idx, record, detail)
+                self._fill_ssq_row(local_idx, record, detail)
             elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
-                self._fill_positional_row(idx, record, detail)
+                self._fill_positional_row(local_idx, record, detail)
             elif self.profile.key in ("qlc", "gd36x7"):
-                self._fill_basic_special_row(idx, record, detail)
+                self._fill_basic_special_row(local_idx, record, detail)
             elif self.profile.key == "kl8":
-                self._fill_kl8_row(idx, record, detail)
+                self._fill_kl8_row(local_idx, record, detail)
             else:
-                self._fill_generic_row(idx, record, detail)
+                self._fill_generic_row(local_idx, record, detail)
 
         self.record_table.setUpdatesEnabled(True)
-        logger.info("[UI] 表格填充完成 (%d 行), 耗时 %.2fs", len(records), time.monotonic() - t1)
-        self._show_stats(stats)
+
+    def _total_pages(self) -> int:
+        total = len(self._paged_records)
+        return max(1, (total + self._page_size - 1) // self._page_size)
+
+    def _update_page_controls(self) -> None:
+        """更新分页按钮状态和页码标签."""
+        page = self._current_page + 1
+        total = self._total_pages()
+        self.page_label.setText(f"第 {page} / {total} 页（共 {len(self._paged_records)} 条）")
+        self.page_prev_btn.setEnabled(self._current_page > 0)
+        self.page_next_btn.setEnabled(self._current_page < total - 1)
+
+    def _on_page_prev(self) -> None:
+        if self._current_page > 0:
+            self._current_page -= 1
+            self._fill_current_page()
+            self._update_page_controls()
+
+    def _on_page_next(self) -> None:
+        if self._current_page < self._total_pages() - 1:
+            self._current_page += 1
+            self._fill_current_page()
+            self._update_page_controls()
 
     def _compute_stats(
         self,
@@ -1420,3 +1509,193 @@ class DrawAnalysisDialog(QDialog):
                             lines.append(f"  {n} 个相同：{count} 次（{ratio:.2f}%）")
 
         self.stats_text.setText("\n".join(lines))
+
+    def _export_excel(self) -> None:
+        """导出开奖记录和统计结果到 Excel."""
+        from datetime import datetime
+        from pathlib import Path
+
+        from PySide6.QtWidgets import QFileDialog
+
+        from ...core.prize import fc3d_bet_type
+
+        if not self._paged_records:
+            QMessageBox.information(self, "提示", "暂无数据可导出")
+            return
+
+        default_name = f"{self.profile.name}_分析_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出 Excel", default_name, "Excel 文件 (*.xlsx)"
+        )
+        if not path:
+            return
+
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, PatternFill
+
+            wb = Workbook()
+
+            # ---- Sheet 1: 开奖记录 ----
+            ws1 = wb.active
+            ws1.title = "开奖记录"
+
+            # 构建表头
+            headers = ["期号", "开奖日期"]
+            if self.profile.key == "ssq":
+                headers.extend(["红球", "蓝球", "与上期红球重复", "与上期蓝球相同"])
+            elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
+                group = self.profile.primary_group
+                headers.extend([group.name, f"与上期{group.name}同位相同"])
+            elif self.profile.key in ("qlc", "gd36x7"):
+                headers.extend(["基本号", "特别号", "与上期基本号重复", "与上期特别号相同"])
+            elif self.profile.key == "kl8":
+                group = self.profile.primary_group
+                headers.extend([group.name, f"与上期{group.name}重复"])
+            else:
+                for g in self.profile.pick_groups:
+                    headers.extend([g.name, f"与上期{g.name}重复"])
+
+            header_fill = PatternFill(start_color="0077B6", end_color="0077B6", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            for col, h in enumerate(headers, 1):
+                cell = ws1.cell(row=1, column=col, value=h)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center")
+
+            records = self._paged_records
+            details = self._paged_details
+            for row_idx, record in enumerate(records, 2):
+                ws1.cell(row=row_idx, column=1, value=record.issue)
+                ws1.cell(row=row_idx, column=2, value=record.draw_date.strftime("%Y-%m-%d"))
+                detail = details[row_idx - 2] if row_idx - 2 < len(details) else {}
+
+                if self.profile.key == "ssq":
+                    reds = record.groups.get("red", [])
+                    blue = next(iter(record.groups.get("blue", [])), None)
+                    ws1.cell(row=row_idx, column=3, value=" ".join(f"{r:02d}" for r in sorted(reds)))
+                    ws1.cell(row=row_idx, column=4, value=f"{blue:02d}" if blue is not None else "-")
+                    red_overlap = detail.get("red")
+                    ws1.cell(row=row_idx, column=5, value=str(red_overlap) if red_overlap is not None else "-")
+                    blue_same = detail.get("blue")
+                    ws1.cell(row=row_idx, column=6, value="是" if blue_same else ("否" if blue_same is False else "-"))
+                elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
+                    group = self.profile.primary_group
+                    nums = record.groups.get(group.key, [])
+                    ws1.cell(row=row_idx, column=3, value=" ".join(f"{n:0{group.pad}d}" for n in nums))
+                    same = detail.get(group.key)
+                    ws1.cell(row=row_idx, column=4, value=str(same) if same is not None else "-")
+                elif self.profile.key in ("qlc", "gd36x7"):
+                    basic = self.profile.group("basic")
+                    special = self.profile.group("special")
+                    basic_nums = record.groups.get(basic.key, [])
+                    ws1.cell(row=row_idx, column=3, value=" ".join(f"{n:0{basic.pad}d}" for n in sorted(basic_nums)))
+                    special_num = next(iter(record.groups.get(special.key, [])), None)
+                    ws1.cell(row=row_idx, column=4, value=f"{special_num:02d}" if special_num is not None else "-")
+                    basic_overlap = detail.get("basic")
+                    ws1.cell(row=row_idx, column=5, value=str(basic_overlap) if basic_overlap is not None else "-")
+                    special_same = detail.get("special")
+                    ws1.cell(row=row_idx, column=6, value="是" if special_same else ("否" if special_same is False else "-"))
+                elif self.profile.key == "kl8":
+                    group = self.profile.primary_group
+                    nums = record.groups.get(group.key, [])
+                    ws1.cell(row=row_idx, column=3, value=" ".join(f"{n:0{group.pad}d}" for n in sorted(nums)))
+                    overlap = detail.get(group.key)
+                    ws1.cell(row=row_idx, column=4, value=str(overlap) if overlap is not None else "-")
+                else:
+                    col = 3
+                    for g in self.profile.pick_groups:
+                        nums = record.groups.get(g.key, [])
+                        ws1.cell(row=row_idx, column=col, value=" ".join(f"{n:0{g.pad}d}" for n in sorted(nums)))
+                        overlap = detail.get(g.key)
+                        ws1.cell(row=row_idx, column=col + 1, value=str(overlap) if overlap is not None else "-")
+                        col += 2
+
+            # 自动列宽
+            for col in range(1, len(headers) + 1):
+                max_len = max(len(str(ws1.cell(row=r, column=col).value or "")) for r in range(1, min(100, ws1.max_row + 1)))
+                ws1.column_dimensions[ws1.cell(row=1, column=col).column_letter].width = min(max_len + 4, 40)
+
+            # ---- Sheet 2: 统计分析 ----
+            ws2 = wb.create_sheet("统计分析")
+            stats = self._paged_stats
+            row = 1
+            ws2.cell(row=row, column=1, value=f"相邻期对数：{stats.total_pairs}").font = Font(bold=True)
+            row += 1
+
+            for key in stats.group_stats:
+                gstat = stats.group_stats[key]
+                row += 1
+                ws2.cell(row=row, column=1, value=f"【{gstat.group_name}相同统计】").font = Font(bold=True, color="0077B6")
+                row += 1
+
+                # 相邻期统计
+                ws2.cell(row=row, column=1, value="间隔")
+                ws2.cell(row=row, column=2, value="相同个数")
+                ws2.cell(row=row, column=3, value="次数")
+                ws2.cell(row=row, column=4, value="占比")
+                for c in range(1, 5):
+                    ws2.cell(row=row, column=c).fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+                    ws2.cell(row=row, column=c).font = Font(bold=True)
+                row += 1
+
+                if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+                    for val, label in [(1, "相同"), (0, "不同")]:
+                        ws2.cell(row=row, column=1, value="相邻")
+                        ws2.cell(row=row, column=2, value=label)
+                        ws2.cell(row=row, column=3, value=gstat.same_counts.get(val, 0))
+                        ws2.cell(row=row, column=4, value=f"{gstat.same_ratio(val):.2f}%")
+                        row += 1
+                else:
+                    max_n = max(gstat.same_counts.keys()) if gstat.same_counts else 0
+                    for n in range(0, max_n + 1):
+                        ws2.cell(row=row, column=1, value="相邻")
+                        ws2.cell(row=row, column=2, value=f"{n} 个相同")
+                        ws2.cell(row=row, column=3, value=gstat.same_counts.get(n, 0))
+                        ws2.cell(row=row, column=4, value=f"{gstat.same_ratio(n):.2f}%")
+                        row += 1
+
+                # 间隔统计
+                if key in stats.gap_stats:
+                    for gap in sorted(stats.gap_stats[key], reverse=True):
+                        if gap > self.max_gap_spin.value():
+                            continue
+                        gap_stat = stats.gap_stats[key][gap]
+                        row += 1
+                        ws2.cell(row=row, column=1, value=f"【间隔 {gap} 期 {gap_stat.group_name}相同统计】").font = Font(bold=True, color="0077B6")
+                        row += 1
+                        ws2.cell(row=row, column=1, value="间隔")
+                        ws2.cell(row=row, column=2, value="相同个数")
+                        ws2.cell(row=row, column=3, value="次数")
+                        ws2.cell(row=row, column=4, value="占比")
+                        for c in range(1, 5):
+                            ws2.cell(row=row, column=c).fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+                            ws2.cell(row=row, column=c).font = Font(bold=True)
+                        row += 1
+
+                        if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+                            for val, label in [(1, "相同"), (0, "不同")]:
+                                ws2.cell(row=row, column=1, value=f"间隔{gap}期")
+                                ws2.cell(row=row, column=2, value=label)
+                                ws2.cell(row=row, column=3, value=gap_stat.same_counts.get(val, 0))
+                                ws2.cell(row=row, column=4, value=f"{gap_stat.same_ratio(val):.2f}%")
+                                row += 1
+                        else:
+                            max_n = max(gap_stat.same_counts.keys()) if gap_stat.same_counts else 0
+                            for n in range(0, max_n + 1):
+                                ws2.cell(row=row, column=1, value=f"间隔{gap}期")
+                                ws2.cell(row=row, column=2, value=f"{n} 个相同")
+                                ws2.cell(row=row, column=3, value=gap_stat.same_counts.get(n, 0))
+                                ws2.cell(row=row, column=4, value=f"{gap_stat.same_ratio(n):.2f}%")
+                                row += 1
+
+            ws2.column_dimensions["A"].width = 16
+            ws2.column_dimensions["B"].width = 16
+            ws2.column_dimensions["C"].width = 10
+            ws2.column_dimensions["D"].width = 10
+
+            wb.save(path)
+            QMessageBox.information(self, "导出成功", f"已导出到：{path}")
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "导出失败", f"导出 Excel 失败：{exc}")

@@ -127,6 +127,90 @@ class AppSettings:
             value = 7
         self.set("draw_analysis_max_gap", max(0, min(50, value)))
 
+    # ------------------------------------------------------------------ #
+    # 福彩3D 过滤参数
+    # ------------------------------------------------------------------ #
+
+    @property
+    def fc3d_filter_compare_periods(self) -> int:
+        """3D过滤：对比的历史期数，默认 7。"""
+        try:
+            return int(self.get("fc3d_filter_compare_periods", 7))
+        except (ValueError, TypeError):
+            return 7
+
+    @fc3d_filter_compare_periods.setter
+    def fc3d_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 7
+        self.set("fc3d_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def fc3d_filter_max_matches(self) -> int:
+        """3D过滤：允许的最大相同位数，默认 1（即只允许1位相同）。"""
+        try:
+            return int(self.get("fc3d_filter_max_matches", 1))
+        except (ValueError, TypeError):
+            return 1
+
+    @fc3d_filter_max_matches.setter
+    def fc3d_filter_max_matches(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 1
+        self.set("fc3d_filter_max_matches", max(0, min(3, value)))
+
+    # ------------------------------------------------------------------ #
+    # 双色球过滤参数
+    # ------------------------------------------------------------------ #
+
+    @property
+    def ssq_filter_compare_periods(self) -> int:
+        """SSQ过滤：对比的历史期数，默认 7。"""
+        try:
+            return int(self.get("ssq_filter_compare_periods", 7))
+        except (ValueError, TypeError):
+            return 7
+
+    @ssq_filter_compare_periods.setter
+    def ssq_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 7
+        self.set("ssq_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def ssq_filter_max_red_overlap(self) -> int:
+        """SSQ过滤：允许的红球最大重合数，默认 3。"""
+        try:
+            return int(self.get("ssq_filter_max_red_overlap", 3))
+        except (ValueError, TypeError):
+            return 3
+
+    @ssq_filter_max_red_overlap.setter
+    def ssq_filter_max_red_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 3
+        self.set("ssq_filter_max_red_overlap", max(0, min(6, value)))
+
+    @property
+    def ssq_filter_block_blue(self) -> bool:
+        """SSQ过滤：是否禁止蓝球与历史相同，默认 False。"""
+        raw = self.get("ssq_filter_block_blue", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
+
+    @ssq_filter_block_blue.setter
+    def ssq_filter_block_blue(self, value: bool) -> None:
+        self.set("ssq_filter_block_blue", bool(value))
+
     @property
     def last_backtest_options(self) -> dict:
         """历史回测对话框上次使用的参数."""

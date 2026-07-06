@@ -91,9 +91,8 @@ class BatchBacktestThread(QThread):
         self.plugin_dir = plugin_dir
         self._needs_history = needs_history(strategy_id)
         self._is_ml = is_ml_strategy(strategy_id) or strategy_id in {
-            "xgboost",
-            "lightgbm",
-            "catboost",
+            "xgboost", "lightgbm", "catboost",
+            "ml_xgboost", "ml_lightgbm", "ml_catboost",
         }
 
     def run(self) -> None:

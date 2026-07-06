@@ -18,15 +18,13 @@ from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
 from ..core.strategies import (
     BalancedStrategy,
-    CatBoostStrategy,
     ExcludeIncludeStrategy,
-    HotColdStrategy,
-    LightGBMStrategy,
-    MissingNumberStrategy,
+    HybridStrategy,
+    LSTMStrategy,
+    MLStrategy,
     OddEvenStrategy,
     RandomStrategy,
-    SmartHotColdStrategy,
-    XGBoostStrategy,
+    StatsStrategy,
 )
 from ..core.strategies.generic import build_strategies as build_generic_strategies
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
@@ -76,14 +74,14 @@ class LotteryContext(QObject):
         if self.profile.key == "ssq":
             self.engine.register(RandomStrategy())
             self.engine.register(OddEvenStrategy())
-            self.engine.register(HotColdStrategy())
+            self.engine.register(StatsStrategy())
             self.engine.register(ExcludeIncludeStrategy())
-            self.engine.register(SmartHotColdStrategy())
-            self.engine.register(MissingNumberStrategy())
             self.engine.register(BalancedStrategy())
-            self.engine.register(XGBoostStrategy())
-            self.engine.register(LightGBMStrategy())
-            self.engine.register(CatBoostStrategy())
+            self.engine.register(MLStrategy("xgboost"))
+            self.engine.register(MLStrategy("lightgbm"))
+            self.engine.register(MLStrategy("catboost"))
+            self.engine.register(LSTMStrategy())
+            self.engine.register(HybridStrategy())
         else:
             for strategy in build_generic_strategies(self.profile):
                 self.engine.register(strategy)
