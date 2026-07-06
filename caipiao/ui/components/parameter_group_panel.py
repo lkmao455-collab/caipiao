@@ -115,11 +115,22 @@ class ParameterGroupPanel(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
-        """刷新参数组列表."""
+        """刷新参数组列表，按总中奖金额降序排列."""
         self.group_list.clear()
         self._groups = self._store.load_all(self._profile_key)
-        for g in self._groups:
-            item = QListWidgetItem(g.name)
+
+        # 按总中奖金额降序排列
+        def _group_total_prize(g):
+            return sum(item.metrics.get("total_fixed_prize", 0) for item in g.items)
+        self._groups.sort(key=_group_total_prize, reverse=True)
+
+        for idx, g in enumerate(self._groups):
+            total_prize = _group_total_prize(g)
+            total_cost = sum(item.metrics.get("total_cost", 0) for item in g.items)
+            profit = total_prize - total_cost
+            profit_str = f"+{profit}" if profit >= 0 else str(profit)
+            item_text = f"{idx + 1}. {g.name}  奖金{total_prize}元 盈亏{profit_str}"
+            item = QListWidgetItem(item_text)
             item.setData(1, g.id)  # role 1 存储 group id
             self.group_list.addItem(item)
         self._clear_detail()
@@ -145,19 +156,34 @@ class ParameterGroupPanel(QWidget):
 
         self.detail_layout.addWidget(QLabel(f"名称: {group.name}"))
         self.detail_layout.addWidget(QLabel(f"创建时间: {group.created_at}"))
-        self.detail_layout.addWidget(QLabel("策略列表（勾选以启用）："))
+        self.detail_layout.addWidget(QLabel("策略列表（按盈亏排序，勾选以启用）："))
 
-        for item in group.items:
+        # 按盈亏降序排列
+        sorted_items = sorted(
+            group.items,
+            key=lambda it: it.metrics.get("total_fixed_prize", 0) - it.metrics.get("total_cost", 0),
+            reverse=True,
+        )
+
+        for idx, item in enumerate(sorted_items, start=1):
             param_text = ""
             if item.param_name is not None and item.param_value is not None:
                 param_text = f"  [{item.param_name}={item.param_value}]"
             metrics = item.metrics
+            prize = metrics.get("total_fixed_prize", 0)
+            cost = metrics.get("total_cost", 0)
+            hits = metrics.get("hit_count", 0)
+            profit = prize - cost
+            profit_str = f"+{profit}" if profit >= 0 else str(profit)
+            hit_dist = metrics.get("hit_distribution", "")
+            dist_text = f"\n    中奖分布: {hit_dist}" if hit_dist else ""
             metric_text = (
-                f"固定奖金 {metrics.get('total_fixed_prize', 0)} 元, "
-                f"中奖 {metrics.get('hit_count', 0)} 次"
+                f"奖金 {prize} 元, 中奖 {hits} 次, "
+                f"盈亏 {profit_str}"
+                f"{dist_text}"
             )
             checkbox = QCheckBox(
-                f"{item.strategy_name}{param_text} — {metric_text}"
+                f"{idx}. {item.strategy_name}{param_text} — {metric_text}"
             )
             checkbox.setChecked(item.enabled)
             self.detail_layout.addWidget(checkbox)

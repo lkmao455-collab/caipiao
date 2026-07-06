@@ -18,13 +18,10 @@ from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
 from ..core.strategies import (
     BalancedStrategy,
-    ExcludeIncludeStrategy,
-    HybridStrategy,
-    LSTMStrategy,
+    BayesianStrategy,
+    MarkovChainStrategy,
     MLStrategy,
     OddEvenStrategy,
-    RandomStrategy,
-    StatsStrategy,
 )
 from ..core.strategies.generic import build_strategies as build_generic_strategies
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
@@ -72,18 +69,48 @@ class LotteryContext(QObject):
 
     def register_builtin_strategies(self) -> None:
         if self.profile.key == "ssq":
-            self.engine.register(RandomStrategy())
-            self.engine.register(OddEvenStrategy())
-            self.engine.register(StatsStrategy())
-            self.engine.register(ExcludeIncludeStrategy())
             self.engine.register(BalancedStrategy())
+            self.engine.register(OddEvenStrategy())
             self.engine.register(MLStrategy("xgboost"))
-            self.engine.register(MLStrategy("lightgbm"))
-            self.engine.register(MLStrategy("catboost"))
-            self.engine.register(LSTMStrategy())
-            self.engine.register(HybridStrategy())
+            self.engine.register(BayesianStrategy())
+            self.engine.register(MarkovChainStrategy())
+        elif self.profile.key == "3d":
+            # 福彩3D：仅保留核心策略
+            from ..core.strategies.generic import (
+                GenericSmartHotColdStrategy,
+                GenericMissingNumberStrategy,
+                GenericXGBoostStrategy,
+                GenericBalancedStrategy,
+            )
+            self.engine.register(GenericSmartHotColdStrategy(self.profile))
+            self.engine.register(GenericMissingNumberStrategy(self.profile))
+            self.engine.register(GenericXGBoostStrategy(self.profile))
+            self.engine.register(GenericBalancedStrategy(self.profile))
+        elif self.profile.key == "dlt":
+            # 大乐透：仅保留XGBoost
+            from ..core.strategies.generic import GenericXGBoostStrategy
+            self.engine.register(GenericXGBoostStrategy(self.profile))
+        elif self.profile.key == "pl3":
+            # 排列3：智能冷热号、遗漏号追踪、历史均衡、XGBoost
+            from ..core.strategies.generic import (
+                GenericSmartHotColdStrategy,
+                GenericMissingNumberStrategy,
+                GenericBalancedStrategy,
+                GenericXGBoostStrategy,
+            )
+            self.engine.register(GenericSmartHotColdStrategy(self.profile))
+            self.engine.register(GenericMissingNumberStrategy(self.profile))
+            self.engine.register(GenericBalancedStrategy(self.profile))
+            self.engine.register(GenericXGBoostStrategy(self.profile))
         else:
+            from ..core.strategies.generic import (
+                GenericRandomStrategy, GenericExcludeIncludeStrategy,
+                GenericLightGBMStrategy, GenericCatBoostStrategy,
+            )
             for strategy in build_generic_strategies(self.profile):
+                if isinstance(strategy, (GenericRandomStrategy, GenericExcludeIncludeStrategy,
+                                         GenericLightGBMStrategy, GenericCatBoostStrategy)):
+                    continue
                 self.engine.register(strategy)
 
     def _register_strategies(self) -> None:

@@ -919,14 +919,40 @@ _GENERIC_STRATEGY_CLASSES: List[Type[_GenericBase]] = [
 
 def build_strategies(profile: LotteryProfile) -> List[GenerationStrategy]:
     """为指定彩种生成全部通用策略实例。"""
-    return [cls(profile) for cls in _GENERIC_STRATEGY_CLASSES]
+    from .advanced.random_forest_strategy import RandomForestStrategy
+    from .advanced.bayesian_strategy import BayesianStrategy
+    from .advanced.markov_strategy import MarkovChainStrategy
+    from .advanced.trend_strategy import TrendAnalysisStrategy
+    from .advanced.periodic_strategy import PeriodicAnalysisStrategy
+    from .advanced.ensemble_strategy import EnsembleVotingStrategy
+    from .advanced.correlation_strategy import CorrelationMiningStrategy
+    from .advanced.transformer_strategy import TransformerStrategy
+
+    base = [cls(profile) for cls in _GENERIC_STRATEGY_CLASSES]
+
+    # 高级策略（双色球专用，因为它们内部实现了 SSQ 特定逻辑）
+    advanced = []
+    if profile.key == "ssq":
+        advanced = [
+            RandomForestStrategy(),
+            BayesianStrategy(),
+            MarkovChainStrategy(),
+            TrendAnalysisStrategy(),
+            PeriodicAnalysisStrategy(),
+            EnsembleVotingStrategy(),
+            CorrelationMiningStrategy(),
+            TransformerStrategy(),
+        ]
+
+    return base + advanced
 
 
 def needs_history(strategy_id: str) -> bool:
     """判断策略是否需要历史开奖数据。"""
     for key in ("hot_cold", "smart_hot_cold", "missing_number", "balanced",
                 "xgboost", "lightgbm", "catboost", "stats", "ml_",
-                "lstm", "hybrid"):
+                "lstm", "hybrid", "random_forest", "bayesian", "markov",
+                "trend", "periodic", "ensemble", "correlation", "transformer"):
         if strategy_id.startswith(key):
             return True
     return False
@@ -934,4 +960,5 @@ def needs_history(strategy_id: str) -> bool:
 
 def is_ml_strategy(strategy_id: str) -> bool:
     return (strategy_id.startswith("xgboost_") or strategy_id.startswith("lightgbm_")
-            or strategy_id.startswith("catboost_") or strategy_id.startswith("ml_"))
+            or strategy_id.startswith("catboost_") or strategy_id.startswith("ml_")
+            or strategy_id.startswith("random_forest") or strategy_id.startswith("ensemble"))

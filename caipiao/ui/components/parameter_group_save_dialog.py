@@ -23,9 +23,31 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from collections import Counter
 from ...core.parameter_group import ParameterGroup, StrategyParameterItem
 from ...persistence.parameter_group_store import ParameterGroupStore
 from ..optimal_strategy_scan_thread import StrategyScanResult
+
+
+def _aggregate_hit_distribution(res, profile_key: str) -> str:
+    """从 BatchBacktestResult 中汇总中奖号码分布."""
+    hit_counter: Counter = Counter()
+    for tr in res.ticket_results:
+        hits = tr.get("hits", {})
+        if profile_key == "ssq":
+            key = f"红{hits.get('red', 0)}蓝{hits.get('blue', 0)}"
+        elif profile_key == "3d":
+            key = f"中{hits.get('pos', 0)}位"
+        else:
+            parts = [f"{k}{v}" for k, v in sorted(hits.items())]
+            key = " ".join(parts) if parts else "无"
+        hit_counter[key] += 1
+
+    if not hit_counter:
+        return ""
+    # 按出现次数降序排列，取前5
+    top = hit_counter.most_common(5)
+    return ", ".join(f"{k}:{v}次" for k, v in top)
 
 
 class ParameterGroupSaveDialog(QDialog):
@@ -99,7 +121,10 @@ class ParameterGroupSaveDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def _eligible_results(self):
-        return [r for r in self._scan_result.all_results if not r[2].errors]
+        """返回有效结果，按盈亏（收益）降序排列."""
+        results = [r for r in self._scan_result.all_results if not r[2].errors]
+        results.sort(key=lambda r: r[2].total_fixed_prize - r[2].total_cost, reverse=True)
+        return results
 
     def _auto_name(self) -> str:
         count = len(self._eligible_results())
@@ -112,10 +137,16 @@ class ParameterGroupSaveDialog(QDialog):
         for rank, (strategy_id, value, res) in enumerate(results, start=1):
             name = self._strategy_name_map.get(strategy_id, strategy_id)
             param_text = f" 参数={value}" if value is not None else ""
+            profit = res.total_fixed_prize - res.total_cost
+            profit_str = f"+{profit}" if profit >= 0 else str(profit)
+            dist = _aggregate_hit_distribution(res, self._profile_key)
+            dist_text = f"\n    中奖分布: {dist}" if dist else ""
             lines.append(
-                f"{rank}. {name} ({strategy_id}){param_text}: "
-                f"固定奖金 {res.total_fixed_prize} 元, "
-                f"中奖 {res.hit_count} 次"
+                f"第{rank}名 {name} ({strategy_id}){param_text}: "
+                f"奖金 {res.total_fixed_prize} 元, "
+                f"中奖 {res.hit_count} 次, "
+                f"盈亏 {profit_str}"
+                f"{dist_text}"
             )
         self.preview_text.setText("\n".join(lines))
 
@@ -133,6 +164,7 @@ class ParameterGroupSaveDialog(QDialog):
 
         items = []
         for strategy_id, value, res in results:
+            hit_dist = _aggregate_hit_distribution(res, self._profile_key)
             items.append(
                 StrategyParameterItem(
                     strategy_id=strategy_id,
@@ -150,6 +182,7 @@ class ParameterGroupSaveDialog(QDialog):
                         "total_rounds": res.total_rounds,
                         "first_ticket_hit_count": res.first_ticket_hit_count,
                         "total_cost": res.total_cost,
+                        "hit_distribution": hit_dist,
                     },
                 )
             )

@@ -21,13 +21,10 @@ from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
 from caipiao.core.strategies import (
     BalancedStrategy,
-    ExcludeIncludeStrategy,
-    HybridStrategy,
-    LSTMStrategy,
+    BayesianStrategy,
+    MarkovChainStrategy,
     MLStrategy,
     OddEvenStrategy,
-    RandomStrategy,
-    StatsStrategy,
 )
 from caipiao.core.strategies.generic import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
@@ -123,19 +120,52 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
     """
     engine = GenerationEngine()
     if profile_key == "ssq":
-        engine.register(RandomStrategy())
-        engine.register(OddEvenStrategy())
-        engine.register(StatsStrategy())
-        engine.register(ExcludeIncludeStrategy())
         engine.register(BalancedStrategy())
+        engine.register(OddEvenStrategy())
         engine.register(MLStrategy("xgboost"))
-        engine.register(MLStrategy("lightgbm"))
-        engine.register(MLStrategy("catboost"))
-        engine.register(LSTMStrategy())
-        engine.register(HybridStrategy())
+        engine.register(BayesianStrategy())
+        engine.register(MarkovChainStrategy())
+    elif profile_key == "3d":
+        # 福彩3D：仅保留核心策略
+        from caipiao.core.strategies.generic import (
+            GenericSmartHotColdStrategy,
+            GenericMissingNumberStrategy,
+            GenericXGBoostStrategy,
+            GenericBalancedStrategy,
+        )
+        profile = get_profile(profile_key)
+        engine.register(GenericSmartHotColdStrategy(profile))
+        engine.register(GenericMissingNumberStrategy(profile))
+        engine.register(GenericXGBoostStrategy(profile))
+        engine.register(GenericBalancedStrategy(profile))
+    elif profile_key == "dlt":
+        # 大乐透：仅保留XGBoost
+        from caipiao.core.strategies.generic import GenericXGBoostStrategy
+        profile = get_profile(profile_key)
+        engine.register(GenericXGBoostStrategy(profile))
+    elif profile_key == "pl3":
+        # 排列3：智能冷热号、遗漏号追踪、历史均衡、XGBoost
+        from caipiao.core.strategies.generic import (
+            GenericSmartHotColdStrategy,
+            GenericMissingNumberStrategy,
+            GenericBalancedStrategy,
+            GenericXGBoostStrategy,
+        )
+        profile = get_profile(profile_key)
+        engine.register(GenericSmartHotColdStrategy(profile))
+        engine.register(GenericMissingNumberStrategy(profile))
+        engine.register(GenericBalancedStrategy(profile))
+        engine.register(GenericXGBoostStrategy(profile))
     else:
+        from caipiao.core.strategies.generic import (
+            GenericRandomStrategy, GenericExcludeIncludeStrategy,
+            GenericLightGBMStrategy, GenericCatBoostStrategy,
+        )
         profile = get_profile(profile_key)
         for strategy in build_strategies(profile):
+            if isinstance(strategy, (GenericRandomStrategy, GenericExcludeIncludeStrategy,
+                                     GenericLightGBMStrategy, GenericCatBoostStrategy)):
+                continue
             engine.register(strategy)
 
     if plugin_dir:

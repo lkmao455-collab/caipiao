@@ -1330,34 +1330,36 @@ class MainWindow(QMainWindow):
                 )
                 return
         elif self.current.profile.key != "ssq" and is_ml_strategy(strategy_id):
-            if strategy_id.startswith("xgboost_"):
-                backend = "xgboost"
-            elif strategy_id.startswith("lightgbm_"):
-                backend = "lightgbm"
-            elif strategy_id.startswith("catboost_"):
-                backend = "catboost"
-            else:
-                raise ValueError(f"未知机器学习策略: {strategy_id}")
-            if backend == "xgboost":
-                prefix = self.current.profile.xgboost_prefix()
-            elif backend == "lightgbm":
-                prefix = self.current.profile.lightgbm_prefix()
-            else:
-                prefix = self.current.profile.catboost_prefix()
-            records = self.current.data_repository.get_all()
-            lookback = compute_lookback(len(records))
-            if not is_model_current(records, lookback, prefix=prefix):
-                self.generate_action.setEnabled(False)
-                self.generate_action.setText("准备模型...")
-                self._start_training(
-                    None,
-                    prefix,
-                    after=lambda err: self._after_generate_train(
-                        err, strategy_id, count, options, on_finished=on_finished
-                    ),
-                    backend=backend,
-                )
-                return
+            # 仅对 xgboost/lightgbm/catboost 做模型缓存检查
+            # random_forest/ensemble 等策略在生成时即时训练，无需缓存
+            _cached_backends = ("xgboost_", "lightgbm_", "catboost_")
+            if any(strategy_id.startswith(b) for b in _cached_backends):
+                if strategy_id.startswith("xgboost_"):
+                    backend = "xgboost"
+                elif strategy_id.startswith("lightgbm_"):
+                    backend = "lightgbm"
+                else:
+                    backend = "catboost"
+                if backend == "xgboost":
+                    prefix = self.current.profile.xgboost_prefix()
+                elif backend == "lightgbm":
+                    prefix = self.current.profile.lightgbm_prefix()
+                else:
+                    prefix = self.current.profile.catboost_prefix()
+                records = self.current.data_repository.get_all()
+                lookback = compute_lookback(len(records))
+                if not is_model_current(records, lookback, prefix=prefix):
+                    self.generate_action.setEnabled(False)
+                    self.generate_action.setText("准备模型...")
+                    self._start_training(
+                        None,
+                        prefix,
+                        after=lambda err: self._after_generate_train(
+                            err, strategy_id, count, options, on_finished=on_finished
+                        ),
+                        backend=backend,
+                    )
+                    return
 
         self._launch_generation(
             strategy_id, count, options, on_finished=on_finished

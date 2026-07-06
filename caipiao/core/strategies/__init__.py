@@ -9,6 +9,16 @@ from .odd_even_strategy import OddEvenStrategy
 from .random_strategy import RandomStrategy
 from .stats_strategy import StatsStrategy
 
+# 高级预测策略
+from .advanced.random_forest_strategy import RandomForestStrategy
+from .advanced.bayesian_strategy import BayesianStrategy
+from .advanced.markov_strategy import MarkovChainStrategy
+from .advanced.trend_strategy import TrendAnalysisStrategy
+from .advanced.periodic_strategy import PeriodicAnalysisStrategy
+from .advanced.ensemble_strategy import EnsembleVotingStrategy
+from .advanced.correlation_strategy import CorrelationMiningStrategy
+from .advanced.transformer_strategy import TransformerStrategy
+
 __all__ = [
     "RandomStrategy",
     "OddEvenStrategy",
@@ -18,4 +28,12 @@ __all__ = [
     "MLStrategy",
     "LSTMStrategy",
     "HybridStrategy",
+    "RandomForestStrategy",
+    "BayesianStrategy",
+    "MarkovChainStrategy",
+    "TrendAnalysisStrategy",
+    "PeriodicAnalysisStrategy",
+    "EnsembleVotingStrategy",
+    "CorrelationMiningStrategy",
+    "TransformerStrategy",
 ]
