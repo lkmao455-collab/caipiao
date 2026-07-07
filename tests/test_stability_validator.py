@@ -97,7 +97,7 @@ def test_cross_validate_params_honors_interruption_callback(monkeypatch):
     results = cross_validate_params(
         context, tasks, combos, n_folds=1, interruption_callback=interrupt
     )
-    assert len(results) < len(combos)
+    assert len(results) == 3
 
 
 def test_cross_validate_params_uses_multiple_folds_for_subset(monkeypatch):

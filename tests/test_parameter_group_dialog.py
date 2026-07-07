@@ -11,13 +11,6 @@ from caipiao.ui.components.parameter_group_save_dialog import (
 )
 
 
-def _yes_button(*_args, **_kwargs):
-    return QMessageBox.StandardButton.Yes
-
-
-def _no_button(*_args, **_kwargs):
-    return QMessageBox.StandardButton.No
-
 def test_auto_name_contains_date_and_count(qtbot):
     store = MagicMock()
     scan_result = MagicMock()

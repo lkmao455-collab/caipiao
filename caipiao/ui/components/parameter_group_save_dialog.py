@@ -124,9 +124,17 @@ class ParameterGroupSaveDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def _eligible_results(self):
-        """返回有效结果，按盈亏（收益）降序排列."""
+        """返回有效结果，按扫描选择逻辑排序：稳定性 -> 收益 -> 中奖次数 -> 策略 id."""
         results = [r for r in self._scan_result.all_results if not r[2].errors]
-        results.sort(key=lambda r: r[2].total_fixed_prize - r[2].total_cost, reverse=True)
+        cv = self._scan_result.cv_results
+        results.sort(
+            key=lambda r: (
+                -cv.get(r[0], {}).get("stability_score", 0.0),
+                -(r[2].total_fixed_prize - r[2].total_cost),
+                -r[2].hit_count,
+                r[0],
+            )
+        )
         return results
 
     def _auto_name(self) -> str:
