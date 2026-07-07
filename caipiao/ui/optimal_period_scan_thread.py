@@ -203,6 +203,19 @@ class OptimalPeriodScanThread(QThread):
                 )
                 return
 
+            earliest_target_date = target_records[0].draw_date
+            history_before_target = [
+                r for r in records if r.draw_date < earliest_target_date
+            ]
+            if len(history_before_target) < min_required:
+                self.result_ready.emit(
+                    None,
+                    ValueError(
+                        f"历史数据不足，目标日期前至少需要 {min_required} 期才能扫描 {param_name}"
+                    ),
+                )
+                return
+
             base_context = RoundBacktestContext(
                 strategy_id=self.strategy_id,
                 profile_key=self.profile.key,

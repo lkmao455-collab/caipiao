@@ -25,10 +25,12 @@ from caipiao.core.profile import LotteryProfile, get_profile
 from caipiao.core.strategies import (
     BalancedStrategy,
     BayesianStrategy,
+    HotColdStrategy,
     MarkovChainStrategy,
     MLStrategy,
     OddEvenStrategy,
     RandomStrategy,
+    SmartHotColdStrategy,
 )
 from caipiao.core.strategies.generic import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
@@ -82,6 +84,8 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
         engine.register(RandomStrategy())
         engine.register(BalancedStrategy())
         engine.register(OddEvenStrategy())
+        engine.register(HotColdStrategy())
+        engine.register(SmartHotColdStrategy())
         engine.register(MLStrategy("xgboost"))
         engine.register(BayesianStrategy())
         engine.register(MarkovChainStrategy())
