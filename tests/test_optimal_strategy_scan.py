@@ -3,9 +3,14 @@ from datetime import datetime, timedelta
 
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.profile import SSQ
+from caipiao.core.profile import FC3D
 from caipiao.core.strategies import HotColdStrategy, RandomStrategy, SmartHotColdStrategy
+from caipiao.core.strategies.fc3d import FC3DSmartHotColdStrategy
 from caipiao.data.models import DrawRecord
+from caipiao.persistence.optimal_param_store import OptimalParamStore
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
+from caipiao.ui.batch_backtest_worker import RoundResult
+from caipiao.core.strategies.stability_validator import CrossValidationResult
 from caipiao.ui.optimal_period_config import (
     build_param_combinations,
     resolve_optimal_param_grid,
@@ -43,6 +48,18 @@ def _make_records(n=120):
             )
         )
     return records
+
+
+def _make_3d_records(n=120):
+    return [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [(i + j) % 10 for j in range(3)]},
+        )
+        for i in range(n)
+    ]
 
 
 def _run_thread(thread):
@@ -256,3 +273,87 @@ def test_build_param_combinations_with_locked():
     assert len(combos) == 2
     assert all(c["lookback"] == 50 for c in combos)
     assert {c["hot_weight"] for c in combos} == {30, 70}
+
+
+def test_pick_best_strategy_prefers_stability_score():
+    """_pick_best_strategy 在收益相近时应优先稳定性分数."""
+    results = [
+        ("low_stability", None, BatchBacktestResult(total_fixed_prize=200, hit_count=2)),
+        ("high_stability", None, BatchBacktestResult(total_fixed_prize=200, hit_count=2)),
+    ]
+    cv_summary = {
+        "low_stability": {"stability_score": 0.2},
+        "high_stability": {"stability_score": 0.8},
+    }
+    best = OptimalStrategyScanThread._pick_best_strategy(results, cv_summary)
+    assert best is not None
+    assert best[0] == "high_stability"
+
+
+def test_scan_respects_locked_params(monkeypatch, tmp_path):
+    """扫描应使用注入的 OptimalParamStore 并尊重锁定参数."""
+    store = OptimalParamStore(data_dir=tmp_path)
+    store.lock("3d", "smart_hot_cold_3d", "lookback", 50)
+
+    records = _make_3d_records(120)
+    engine = GenerationEngine()
+    engine.register(FC3DSmartHotColdStrategy())
+
+    captured = {}
+
+    def fake_cross_validate(base_context, tasks, combos, **kwargs):
+        captured["combos"] = combos
+        return [
+            CrossValidationResult(
+                params=combos[0] if combos else {},
+                stability_score=0.9,
+                mean_fixed_prize=100,
+                std_fixed_prize=10,
+            )
+        ]
+
+    def fake_worker(context, task):
+        return RoundResult(index=task.index)
+
+    def fake_merge(results, total_rounds):
+        return BatchBacktestResult(
+            total_rounds=total_rounds,
+            total_cost=2 * total_rounds,
+            hit_count=total_rounds,
+            total_fixed_prize=100 * total_rounds,
+        )
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.cross_validate_params",
+        fake_cross_validate,
+    )
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.worker_round_backtest",
+        fake_worker,
+    )
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.merge_round_results",
+        fake_merge,
+    )
+
+    thread = OptimalStrategyScanThread(
+        engine=engine,
+        profile=FC3D,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2024, 4, 1),
+        end_date=datetime(2024, 4, 10),
+        tickets_per_round=1,
+        base_options={},
+        param_store=store,
+        plugin_dir=None,
+    )
+
+    result, error = _run_thread(thread)
+
+    assert error is None, error
+    assert isinstance(result, StrategyScanResult)
+    assert result.optimal_strategy_id == "smart_hot_cold_3d"
+    assert result.locked_params.get("smart_hot_cold_3d", {}).get("lookback") == 50
+    assert result.cv_results.get("smart_hot_cold_3d", {}).get("stability_score") == 0.9
+    assert "combos" in captured
+    assert all(c["lookback"] == 50 for c in captured["combos"])

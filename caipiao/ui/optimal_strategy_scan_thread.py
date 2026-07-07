@@ -2,20 +2,30 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QThread, Signal
 
 from .batch_backtest_result import BatchBacktestResult
-from .batch_backtest_worker import RoundBacktestContext, RoundTask
-from .optimal_period_config import resolve_optimal_param
+from .batch_backtest_worker import (
+    RoundBacktestContext,
+    RoundTask,
+    merge_round_results,
+    worker_round_backtest,
+)
+from .optimal_period_config import (
+    build_param_combinations,
+    resolve_optimal_param,
+    resolve_optimal_param_grid,
+)
 from .optimal_period_scan_thread import scan_param_values
 from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile
 from ..core.strategies.generic import needs_history
 from ..data.repository import DrawRepository
+from ..persistence.optimal_param_store import OptimalParamStore
 
 
 @dataclass
@@ -28,6 +38,8 @@ class StrategyScanResult:
     optimal_value: Optional[int]
     optimal_result: BatchBacktestResult
     all_results: List[Tuple[str, Optional[int], BatchBacktestResult]]
+    cv_results: Dict[str, Any] = field(default_factory=dict)
+    locked_params: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     interrupted: bool = False
 
 
@@ -48,6 +60,7 @@ class OptimalStrategyScanThread(QThread):
         tickets_per_round: int,
         base_options: Dict[str, Any],
         plugin_dir: Optional[str] = None,
+        param_store: Optional[OptimalParamStore] = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -60,8 +73,15 @@ class OptimalStrategyScanThread(QThread):
         self.tickets_per_round = tickets_per_round
         self.base_options = base_options
         self.plugin_dir = plugin_dir
+        self.param_store = param_store
 
     def run(self) -> None:
+        # 局部导入避免与 stability_validator 的循环导入（stability_validator 也依赖 ui 模块）
+        from ..core.strategies.stability_validator import (
+            cross_validate_params,
+            pick_best_param_cv,
+        )
+
         try:
             records = self.data_repository.get_all()
             target_records = [
@@ -96,7 +116,11 @@ class OptimalStrategyScanThread(QThread):
                 RoundTask(index=i, actual=r) for i, r in enumerate(target_records)
             ]
 
+            store = self.param_store or OptimalParamStore()
             all_results: List[Tuple[str, Optional[int], BatchBacktestResult]] = []
+            param_names: Dict[str, Optional[str]] = {}
+            cv_summary: Dict[str, Dict[str, Any]] = {}
+            locked_params: Dict[str, Dict[str, Any]] = {}
             completed = 0
             total = len(candidates)
             interrupted = False
@@ -107,7 +131,9 @@ class OptimalStrategyScanThread(QThread):
                     break
 
                 strategy_id = strategy.metadata.id
-                resolved = resolve_optimal_param(strategy_id)
+                locked = store.get_locked(self.profile.key, strategy_id)
+                locked_params[strategy_id] = dict(locked)
+                grid = resolve_optimal_param_grid(strategy_id)
 
                 base_context = RoundBacktestContext(
                     strategy_id=strategy_id,
@@ -121,8 +147,8 @@ class OptimalStrategyScanThread(QThread):
                     plugin_dir=self.plugin_dir,
                 )
 
-                if resolved is None:
-                    # 无独立期数参数的策略，使用默认参数跑一次
+                if not grid:
+                    # 无网格配置的策略，回退到单一回测
                     results = scan_param_values(
                         base_context,
                         tasks,
@@ -134,22 +160,49 @@ class OptimalStrategyScanThread(QThread):
                     )
                     value, result = results[0]
                     all_results.append((strategy_id, None, result))
+                    param_names[strategy_id] = None
                 else:
-                    param_name, param_values = resolved
-                    value_results = scan_param_values(
+                    combos = build_param_combinations(grid, locked)
+                    # 对非 ML 策略做 CV；ML 策略数据量大，先 n_folds=1
+                    n_folds = 1 if base_context.is_ml else 3
+                    cv_results = cross_validate_params(
                         base_context,
                         tasks,
-                        param_name,
-                        param_values,
+                        combos,
+                        n_folds=n_folds,
                         progress_callback=None,
                         status_callback=lambda msg: self.status_message.emit(msg),
-                        interruption_callback=self.isInterruptionRequested,
                     )
-                    best = self._pick_best_param(value_results)
+                    best = pick_best_param_cv(cv_results)
                     if best is not None:
-                        all_results.append((strategy_id, best[0], best[1]))
+                        best_params, best_cv = best
+                        # 用最佳参数在整个区间跑一次，得到与旧版兼容的 BatchBacktestResult
+                        full_context = RoundBacktestContext(
+                            **{
+                                **base_context.__dict__,
+                                "options": {**base_context.options, **best_params},
+                            }
+                        )
+                        round_results = [
+                            worker_round_backtest(full_context, task) for task in tasks
+                        ]
+                        full_result = merge_round_results(
+                            round_results, len(tasks)
+                        )
+                        # 取一个代表值用于旧版 param_name/optimal_value（取第一个非锁定参数）
+                        free_keys = [k for k in grid.keys() if k not in locked]
+                        param_name = free_keys[0] if free_keys else None
+                        param_value = best_params.get(param_name) if param_name else None
+                        all_results.append((strategy_id, param_value, full_result))
+                        param_names[strategy_id] = param_name
+                        cv_summary[strategy_id] = {
+                            "best_params": best_params,
+                            "stability_score": best_cv.stability_score,
+                            "mean_fixed_prize": best_cv.mean_fixed_prize,
+                            "std_fixed_prize": best_cv.std_fixed_prize,
+                        }
                     else:
-                        # 该策略所有参数均失败，记录一个失败结果
+                        # 该策略所有参数组合均失败，记录一个失败结果
                         all_results.append(
                             (
                                 strategy_id,
@@ -160,6 +213,7 @@ class OptimalStrategyScanThread(QThread):
                                 ),
                             )
                         )
+                        param_names[strategy_id] = None
 
                 completed += 1
                 self.progress.emit(completed, total)
@@ -186,7 +240,7 @@ class OptimalStrategyScanThread(QThread):
                 )
                 return
 
-            best = self._pick_best_strategy(all_results)
+            best = self._pick_best_strategy(all_results, cv_summary)
             if best is None:
                 self.result_ready.emit(
                     None, ValueError("所有策略组合均失败")
@@ -198,8 +252,9 @@ class OptimalStrategyScanThread(QThread):
             strategy_name = (
                 strategy.metadata.name if strategy is not None else strategy_id
             )
-            param_name = None
-            if value is not None:
+            param_name = param_names.get(strategy_id)
+            if param_name is None and value is not None:
+                # 向后兼容：非网格策略通过旧接口解析参数名
                 resolved = resolve_optimal_param(strategy_id)
                 param_name = resolved[0] if resolved else None
 
@@ -210,6 +265,8 @@ class OptimalStrategyScanThread(QThread):
                 optimal_value=value,
                 optimal_result=result,
                 all_results=all_results,
+                cv_results=cv_summary,
+                locked_params=locked_params,
                 interrupted=interrupted,
             )
             self.result_ready.emit(scan_result, None)
@@ -235,13 +292,16 @@ class OptimalStrategyScanThread(QThread):
     @staticmethod
     def _pick_best_strategy(
         results: List[Tuple[str, Optional[int], BatchBacktestResult]],
+        cv_summary: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Optional[Tuple[str, Optional[int], BatchBacktestResult]]:
         eligible = [item for item in results if not item[2].errors]
         if not eligible:
             return None
+        summary = cv_summary or {}
         return sorted(
             eligible,
             key=lambda item: (
+                -summary.get(item[0], {}).get("stability_score", 0.0),
                 -item[2].total_fixed_prize,
                 -item[2].hit_count,
                 item[0],
