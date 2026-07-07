@@ -7,6 +7,8 @@ import random
 from collections import Counter
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from ..profile import get_profile
 from ..strategy import GenerationStrategy, StrategyMetadata
 from ..ticket import Ticket
@@ -24,6 +26,8 @@ from .fc3d_utils import (
     sum_statistics,
     sum_tail_statistics,
 )
+from ...ml.generic_predictor import GenericMLPredictor
+from ...ml.model_store import compute_lookback, find_current_model, new_model_path
 
 
 FC3D_PROFILE = get_profile("3d")
@@ -620,18 +624,9 @@ class FC3DBalancedStrategy(GenerationStrategy):
         return tickets
 
 
-import numpy as np
-
-from ...ml.generic_predictor import GenericMLPredictor
-from ...ml.model_store import compute_lookback, find_current_model, new_model_path
-
-
 class _FC3DMLStrategy(GenerationStrategy):
     _backend: str = "xgboost"
-
-    @property
-    def is_ml(self) -> bool:
-        return True
+    is_ml: bool = True
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -720,7 +715,7 @@ class _FC3DMLStrategy(GenerationStrategy):
                     groups=rec_groups,
                     strategy_name=self.metadata.name,
                     basis=basis,
-                    details=details,
+                    details=details.copy(),
                 )
             )
         return tickets
@@ -766,6 +761,8 @@ class FC3DCatBoostStrategy(_FC3DMLStrategy):
 
 
 def build_fc3d_strategies(profile) -> List[GenerationStrategy]:
+    # Kept the profile argument to match the generic factory signature used in Task 6.
+    assert profile.key == "3d", "fc3d strategies only support the 3D profile"
     return [
         FC3DRandomStrategy(),
         FC3DOddEvenStrategy(),
