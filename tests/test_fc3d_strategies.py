@@ -255,3 +255,32 @@ def test_needs_history_and_is_ml_3d_unchanged():
     assert is_ml_strategy("lightgbm_3d")
     assert is_ml_strategy("catboost_3d")
     assert not needs_history("random_3d")
+
+
+def test_all_3d_strategies_respect_count():
+    profile = get_profile("3d")
+    from caipiao.core.strategies.generic import build_strategies
+
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    history = make_history(120)
+    for sid, strategy in strategies.items():
+        options = {}
+        if needs_history(sid):
+            options["history"] = history
+        tickets = strategy.generate(count=5, options=options)
+        assert len(tickets) == 5, sid
+        for t in tickets:
+            assert len(t.groups["pos"]) == 3, sid
+            assert all(0 <= n <= 9 for n in t.groups["pos"]), sid
+
+
+def test_balanced_3d_no_history_raises():
+    strategy = FC3DBalancedStrategy()
+    with pytest.raises(ValueError):
+        strategy.generate(count=1, options={"history": []})
+
+
+def test_ml_3d_insufficient_history_raises():
+    strategy = FC3DXGBoostStrategy()
+    with pytest.raises(ValueError):
+        strategy.generate(count=1, options={"history": make_history(50)})

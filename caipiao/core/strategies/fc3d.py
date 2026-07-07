@@ -83,6 +83,7 @@ class FC3DRandomStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         basis = "完全随机策略：百、十、个位分别独立随机生成0-9数字。"
         seed = options.get("seed")
@@ -146,6 +147,7 @@ class FC3DOddEvenStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         positional = options.get("positional", [])
         odd_count = int(options.get("odd_count", 1))
@@ -228,6 +230,7 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         include_pos = options.get("include_pos", [[], [], []])
         exclude_pos = options.get("exclude_pos", [[], [], []])
@@ -303,6 +306,7 @@ class FC3DHotColdStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         mode = options.get("mode", "mixed")
         records = _records_from_options(options)
@@ -367,6 +371,7 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         records = _records_from_options(options)
         hot_weight = int(options.get("hot_weight", 60))
@@ -453,6 +458,7 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         records = _records_from_options(options)
         lookback = int(options.get("lookback", 50))
@@ -522,6 +528,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         rng = _make_rng(options)
         records = _records_from_options(options)
         lookback = int(options.get("lookback", 100))
@@ -658,6 +665,7 @@ class _FC3DMLStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         records = _records_from_options(options)
         diversity = int(options.get("diversity_boost", 3)) / 10.0
 
