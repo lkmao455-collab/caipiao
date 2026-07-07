@@ -7,6 +7,9 @@ from caipiao.core.strategies.fc3d import (
     FC3DRandomStrategy,
     FC3DOddEvenStrategy,
     FC3DExcludeIncludeStrategy,
+    FC3DHotColdStrategy,
+    FC3DSmartHotColdStrategy,
+    FC3DMissingNumberStrategy,
 )
 from caipiao.data.models import DrawRecord
 
@@ -88,3 +91,39 @@ def test_exclude_include_3d_empty_pool_raises():
     }
     with pytest.raises(ValueError, match=r"第2位排除后没有可用号码"):
         strategy.validate_options(options)
+
+
+# 追加到 tests/test_fc3d_strategies.py
+from caipiao.data.analyzer import DrawAnalyzer
+
+
+def test_hot_cold_3d_generates_valid():
+    strategy = FC3DHotColdStrategy()
+    history = make_history(50)
+    tickets = strategy.generate(count=3, options={"mode": "hot", "history": history})
+    assert len(tickets) == 3
+    for t in tickets:
+        assert len(t.groups["pos"]) == 3
+
+
+def test_smart_hot_cold_3d_uses_history():
+    strategy = FC3DSmartHotColdStrategy()
+    history = make_history(50)
+    tickets = strategy.generate(count=3, options={"history": history, "lookback": 30})
+    assert len(tickets) == 3
+
+
+def test_missing_number_3d_generates_valid():
+    strategy = FC3DMissingNumberStrategy()
+    history = make_history(50)
+    tickets = strategy.generate(count=3, options={"history": history, "lookback": 30})
+    assert len(tickets) == 3
+
+
+def test_hot_cold_3d_seed_reproducible():
+    strategy = FC3DHotColdStrategy()
+    history = make_history(50)
+    opts = {"mode": "hot", "history": history, "seed": 42}
+    t1 = strategy.generate(count=1, options=opts)[0].groups["pos"]
+    t2 = strategy.generate(count=1, options=opts)[0].groups["pos"]
+    assert t1 == t2

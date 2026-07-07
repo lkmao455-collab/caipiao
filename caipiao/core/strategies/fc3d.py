@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import random
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from ..profile import get_profile
 from ..strategy import GenerationStrategy, StrategyMetadata
 from ..ticket import Ticket
+from ...data.analyzer import DrawAnalyzer
 from ...data.models import DrawRecord
+from .fc3d_utils import positional_frequency, positional_weights
 
 
 FC3D_PROFILE = get_profile("3d")
@@ -234,10 +237,225 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
                 exclude = set(exclude_pos[idx])
                 if include:
                     chosen = rng.choice(list(include))
-                else:
-                    pool = [n for n in range(10) if n not in exclude]
-                    chosen = rng.choice(pool)
                 result.append(chosen)
+            tickets.append(
+                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
+            )
+        return tickets
+
+
+class FC3DHotColdStrategy(GenerationStrategy):
+    """3D冷热号分析：基于按位历史频率。"""
+
+    is_history_needed = True
+
+    @property
+    def metadata(self) -> StrategyMetadata:
+        return StrategyMetadata(
+            id="hot_cold_3d",
+            name="冷热号分析",
+            description="基于历史记录统计每位数字出现频率，优先选择热号或冷号。",
+            configurable=True,
+        )
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {
+            "mode": {
+                "type": "choice",
+                "label": "模式",
+                "choices": ["hot", "cold", "mixed"],
+                "default": "mixed",
+            },
+            "history": {"type": "history", "label": "历史记录", "default": []},
+            "seed": {
+                "type": "int",
+                "label": "随机种子（可选）",
+                "default": None,
+                "min": 0,
+                "max": 999999999,
+            },
+        }
+
+    def validate_options(self, options: Dict[str, Any]) -> None:
+        if not options.get("history"):
+            raise ValueError("冷热号分析策略需要历史开奖数据")
+
+    def generate(
+        self, count: int = 1, options: Optional[Dict[str, Any]] = None
+    ) -> List[Ticket]:
+        options = options or {}
+        rng = _make_rng(options)
+        mode = options.get("mode", "mixed")
+        records = _records_from_options(options)
+
+        freq = positional_frequency(records)
+        tickets: List[Ticket] = []
+        basis = f"冷热号分析策略：{mode} 模式，基于按位历史频率抽取号码。"
+        seed = options.get("seed")
+        if seed is not None:
+            basis += f" 随机种子：{seed}。"
+
+        for _ in range(count):
+            result = []
+            for pos in range(3):
+                pos_freq = freq.get(pos, {})
+                ranked = sorted(range(10), key=lambda d: pos_freq.get(d, 0), reverse=True)
+                if mode == "hot":
+                    pool = ranked[:5]
+                elif mode == "cold":
+                    pool = ranked[-5:]
+                else:
+                    pool = ranked[:2] + ranked[-2:]
+                result.append(rng.choice(pool))
+            tickets.append(
+                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
+            )
+        return tickets
+
+
+class FC3DSmartHotColdStrategy(GenerationStrategy):
+    """3D智能冷热号：综合按位频率与遗漏值。"""
+
+    @property
+    def metadata(self) -> StrategyMetadata:
+        return StrategyMetadata(
+            id="smart_hot_cold_3d",
+            name="智能冷热号",
+            description="结合历史数据中的按位热号频率与冷号遗漏值加权生成。",
+            configurable=True,
+        )
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {
+            "history": {"type": "history", "label": "历史记录", "default": []},
+            "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
+            "cold_weight": {"type": "int", "label": "冷号权重", "default": 40, "min": 0, "max": 100},
+            "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
+            "seed": {
+                "type": "int",
+                "label": "随机种子（可选）",
+                "default": None,
+                "min": 0,
+                "max": 999999999,
+            },
+        }
+
+    def validate_options(self, options: Dict[str, Any]) -> None:
+        if len(options.get("history", [])) < 20:
+            raise ValueError("智能冷热号策略需要至少 20 期历史数据")
+
+    def generate(
+        self, count: int = 1, options: Optional[Dict[str, Any]] = None
+    ) -> List[Ticket]:
+        options = options or {}
+        rng = _make_rng(options)
+        records = _records_from_options(options)
+        hot_weight = int(options.get("hot_weight", 60))
+        cold_weight = int(options.get("cold_weight", 40))
+        lookback = int(options.get("lookback", 100))
+
+        analyzer = DrawAnalyzer(records, FC3D_PROFILE)
+        freq = analyzer.frequency("pos")
+        max_freq = max(freq.values()) if freq else 1
+        missing = dict(analyzer.missing("pos", lookback))
+        max_missing = max(missing.values()) if missing else 1
+
+        basis = (
+            f"智能冷热号策略：综合最近 {lookback} 期按位热号频率（权重 {hot_weight}）"
+            f"与冷号遗漏值（权重 {cold_weight}）加权评分后抽取号码。"
+        )
+        seed = options.get("seed")
+        if seed is not None:
+            basis += f" 随机种子：{seed}。"
+
+        tickets: List[Ticket] = []
+        for _ in range(count):
+            result = []
+            for pos in range(3):
+                pos_records = [r.groups["pos"][pos] for r in records[-lookback:] if len(r.groups.get("pos", [])) > pos]
+                pos_freq = Counter(pos_records)
+                pos_missing = {}
+                for idx, n in enumerate(reversed(pos_records)):
+                    if n not in pos_missing:
+                        pos_missing[n] = idx
+                for d in range(10):
+                    pos_missing.setdefault(d, len(pos_records))
+
+                scores = []
+                for d in range(10):
+                    hot_score = hot_weight * (pos_freq.get(d, 0) / max_freq)
+                    cold_score = cold_weight * (pos_missing[d] / max_missing)
+                    scores.append(max(0.1, hot_score + cold_score))
+                result.append(rng.choices(range(10), weights=scores, k=1)[0])
+            tickets.append(
+                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
+            )
+        return tickets
+
+
+class FC3DMissingNumberStrategy(GenerationStrategy):
+    """3D遗漏号追踪：按位优先选择高遗漏号码。"""
+
+    @property
+    def metadata(self) -> StrategyMetadata:
+        return StrategyMetadata(
+            id="missing_number_3d",
+            name="遗漏号追踪",
+            description="选择近期按位遗漏值较高的号码，适合追冷号。",
+            configurable=True,
+        )
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {
+            "history": {"type": "history", "label": "历史记录", "default": []},
+            "lookback": {"type": "int", "label": "统计期数", "default": 50, "min": 10, "max": 10000},
+            "pool_size": {
+                "type": "int",
+                "label": "候选池大小",
+                "default": 5,
+                "min": 1,
+                "max": 10,
+            },
+            "seed": {
+                "type": "int",
+                "label": "随机种子（可选）",
+                "default": None,
+                "min": 0,
+                "max": 999999999,
+            },
+        }
+
+    def validate_options(self, options: Dict[str, Any]) -> None:
+        if len(options.get("history", [])) < 20:
+            raise ValueError("遗漏号追踪策略需要至少 20 期历史数据")
+
+    def generate(
+        self, count: int = 1, options: Optional[Dict[str, Any]] = None
+    ) -> List[Ticket]:
+        options = options or {}
+        rng = _make_rng(options)
+        records = _records_from_options(options)
+        lookback = int(options.get("lookback", 50))
+        pool_size = int(options.get("pool_size", 5))
+
+        analyzer = DrawAnalyzer(records, FC3D_PROFILE)
+
+        basis = f"遗漏号追踪策略：基于最近 {lookback} 期，按位从高遗漏值候选池抽取号码。"
+        seed = options.get("seed")
+        if seed is not None:
+            basis += f" 随机种子：{seed}。"
+
+        tickets: List[Ticket] = []
+        for _ in range(count):
+            result = []
+            for pos in range(3):
+                pos_records = [r.groups["pos"][pos] for r in records[-lookback:] if len(r.groups.get("pos", [])) > pos]
+                missing: Dict[int, int] = {d: lookback for d in range(10)}
+                for idx, n in enumerate(reversed(pos_records)):
+                    if missing[n] == lookback:
+                        missing[n] = idx
+                pool = [d for d, _ in sorted(missing.items(), key=lambda x: x[1], reverse=True)[:pool_size]]
+                result.append(rng.choice(pool))
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
