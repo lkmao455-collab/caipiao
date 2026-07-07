@@ -172,6 +172,7 @@ class FC3DOddEvenStrategy(GenerationStrategy):
                 ]
             else:
                 result = rng.sample(odd_pool, odd_count) + rng.sample(even_pool, 3 - odd_count)
+                rng.shuffle(result)
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
@@ -539,7 +540,6 @@ class FC3DBalancedStrategy(GenerationStrategy):
         high_ratio, _ = overall_high_low_ratio(records, lookback)
         sum_stats = sum_statistics(records, lookback)
         avg_sum = sum_stats["avg"]
-        std_sum = (sum_stats["max"] - sum_stats["min"]) / 6.0 or 1.0
         tail_avg = sum_tail_statistics(records, lookback)["avg"]
         span_avg = span_statistics(records, lookback)["avg"]
         shape = shape_ratio(records, lookback)
@@ -700,10 +700,27 @@ class _FC3DMLStrategy(GenerationStrategy):
             else:
                 proba_lists[k] = [[round(float(x), 4) for x in row] for row in v]
 
+        pos_group = FC3D_PROFILE.group("pos")
+        group_probabilities = []
+        if "pos" in proba_lists:
+            pos_proba = proba_lists["pos"]
+            if pos_proba and isinstance(pos_proba[0], list):
+                for pos in range(len(pos_proba)):
+                    group_probabilities.append(
+                        (
+                            f"号码第{pos + 1}位概率",
+                            pos_proba[pos],
+                            pos_group.color,
+                            1,
+                            "数字 (0-9)",
+                        )
+                    )
+
         details = {
             "lookback": lookback,
             "diversity_boost": int(diversity * 10),
             "probabilities": proba_lists,
+            "group_probabilities": group_probabilities,
             "model_name": self._backend.upper(),
         }
         basis = (

@@ -47,12 +47,25 @@ def test_random_3d_seed_reproducible():
     assert t1 == t2
 
 
+def test_random_3d_preserves_order():
+    strategy = FC3DRandomStrategy()
+    tickets = strategy.generate(count=50)
+    assert any(t.groups["pos"] != sorted(t.groups["pos"]) for t in tickets)
+
+
 def test_odd_even_3d_respects_overall_count():
     strategy = FC3DOddEvenStrategy()
     tickets = strategy.generate(count=5, options={"odd_count": 2})
     for t in tickets:
         odd = sum(1 for n in t.groups["pos"] if n % 2 == 1)
         assert odd == 2  # 仅校验奇数个数，不校验位置顺序
+
+
+def test_odd_even_3d_overall_preserves_random_order():
+    strategy = FC3DOddEvenStrategy()
+    tickets1 = strategy.generate(count=20, options={"odd_count": 2})
+    tickets2 = strategy.generate(count=20, options={"odd_count": 2})
+    assert any(t1.groups["pos"] != t2.groups["pos"] for t1, t2 in zip(tickets1, tickets2))
 
 
 def test_odd_even_3d_positional_mode():
@@ -226,6 +239,51 @@ def test_balanced_3d_seed_reproducible():
     assert t1 == t2
 
 
+def test_balanced_3d_uses_positional_weights():
+    """当某位数字出现频率显著更高时，均衡策略倾向于选中该数字。"""
+    strategy = FC3DBalancedStrategy()
+    history = [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [7, (i % 10), ((i + 1) % 10)]},
+        )
+        for i in range(30)
+    ]
+    first_positions = [
+        strategy.generate(
+            count=1,
+            options={"history": history, "lookback": 30, "use_enumeration": False, "seed": s},
+        )[0].groups["pos"][0]
+        for s in range(100)
+    ]
+    assert first_positions.count(7) > 50
+
+
+def test_balanced_3d_span_and_tail_influence():
+    """均衡策略会参考历史跨度和和尾，生成与之相近的结果。"""
+    strategy = FC3DBalancedStrategy()
+    history = [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [1, 2, 8]},
+        )
+        for i in range(30)
+    ]
+    ticket = strategy.generate(
+        count=1,
+        options={"history": history, "lookback": 30, "use_enumeration": True},
+    )[0]
+    pos = ticket.groups["pos"]
+    span = max(pos) - min(pos)
+    tail = sum(pos) % 10
+    assert 5 <= span <= 9
+    assert tail in {0, 1, 2}
+
+
 @pytest.mark.parametrize("strategy_cls", [FC3DXGBoostStrategy, FC3DLightGBMStrategy, FC3DCatBoostStrategy])
 def test_ml_3d_strategy_generates_valid(strategy_cls):
     strategy = strategy_cls()
@@ -284,3 +342,34 @@ def test_ml_3d_insufficient_history_raises():
     strategy = FC3DXGBoostStrategy()
     with pytest.raises(ValueError):
         strategy.generate(count=1, options={"history": make_history(50)})
+
+
+@pytest.mark.parametrize(
+    "strategy_id",
+    [
+        "random_3d",
+        "odd_even_3d",
+        "hot_cold_3d",
+        "exclude_include_3d",
+        "smart_hot_cold_3d",
+        "missing_number_3d",
+        "balanced_3d",
+        "xgboost_3d",
+        "lightgbm_3d",
+        "catboost_3d",
+    ],
+)
+def test_all_3d_strategies_seed_reproducible(strategy_id):
+    profile = get_profile("3d")
+    from caipiao.core.strategies.generic import build_strategies
+
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    strategy = strategies[strategy_id]
+    options = {"seed": 123}
+    if needs_history(strategy_id):
+        options["history"] = make_history(120)
+        if is_ml_strategy(strategy_id):
+            options["history_count"] = 100
+    t1 = strategy.generate(count=1, options=options)[0].groups["pos"]
+    t2 = strategy.generate(count=1, options=options)[0].groups["pos"]
+    assert t1 == t2, strategy_id
