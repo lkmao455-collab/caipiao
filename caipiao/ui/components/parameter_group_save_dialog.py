@@ -232,6 +232,7 @@ class ParameterGroupSaveDialog(QDialog):
             if p.strategy_id == item.strategy_id
         }
         overall_best_item = items[0] if items else None
+        params_to_lock = {}
         if overall_best_item is not None:
             best_params = best_params_map.get(overall_best_item.strategy_id, {})
             params_to_lock = dict(best_params) if best_params else {}
@@ -244,31 +245,46 @@ class ParameterGroupSaveDialog(QDialog):
                 params_to_lock = {
                     overall_best_item.param_name: overall_best_item.param_value
                 }
-            for param_name, param_value in params_to_lock.items():
-                # 若用户已锁定到相同值，则保留原锁定记录（不覆盖 source/locked_at）
-                if (
-                    already_locked.get(
-                        (overall_best_item.strategy_id, param_name)
+
+        if params_to_lock:
+            lock_lines = [
+                f"{param_name} = {param_value}"
+                for param_name, param_value in params_to_lock.items()
+            ]
+            reply = QMessageBox.question(
+                self,
+                "锁定最优参数",
+                f"是否将排名第一的策略「{overall_best_item.strategy_name}」的以下参数锁定，"
+                f"以保证后续生成结果稳定？\n\n" + "\n".join(lock_lines),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                for param_name, param_value in params_to_lock.items():
+                    # 若用户已锁定到相同值，则保留原锁定记录（不覆盖 source/locked_at）
+                    if (
+                        already_locked.get(
+                            (overall_best_item.strategy_id, param_name)
+                        )
+                        == param_value
+                    ):
+                        continue
+                    self._optimal_param_store.lock(
+                        profile_key=self._profile_key,
+                        strategy_id=overall_best_item.strategy_id,
+                        param_name=param_name,
+                        param_value=param_value,
+                        source="scan",
+                        stability_score=overall_best_item.metrics.get(
+                            "stability_score", 0.0
+                        ),
+                        cv_mean_prize=overall_best_item.metrics.get(
+                            "cv_mean_prize", 0.0
+                        ),
+                        cv_std_prize=overall_best_item.metrics.get(
+                            "cv_std_prize", 0.0
+                        ),
                     )
-                    == param_value
-                ):
-                    continue
-                self._optimal_param_store.lock(
-                    profile_key=self._profile_key,
-                    strategy_id=overall_best_item.strategy_id,
-                    param_name=param_name,
-                    param_value=param_value,
-                    source="scan",
-                    stability_score=overall_best_item.metrics.get(
-                        "stability_score", 0.0
-                    ),
-                    cv_mean_prize=overall_best_item.metrics.get(
-                        "cv_mean_prize", 0.0
-                    ),
-                    cv_std_prize=overall_best_item.metrics.get(
-                        "cv_std_prize", 0.0
-                    ),
-                )
 
         self.group_saved.emit(group)
         QMessageBox.information(self, "保存成功", f"参数组「{name}」已保存")

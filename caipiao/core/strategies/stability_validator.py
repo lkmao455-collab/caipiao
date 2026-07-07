@@ -57,6 +57,7 @@ def cross_validate_params(
     n_folds: int = 3,
     progress_callback: Optional[Callable[[int, int], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
+    interruption_callback: Optional[Callable[[], bool]] = None,
     force_n_folds_for_ml: bool = True,
 ) -> List[CrossValidationResult]:
     """对每套参数组合做 n_folds 交叉验证."""
@@ -82,6 +83,8 @@ def cross_validate_params(
         n_folds = 1
 
     for idx, params in enumerate(param_combinations):
+        if interruption_callback is not None and interruption_callback():
+            break
         if progress_callback:
             progress_callback(idx, total)
         if status_callback:
@@ -153,7 +156,7 @@ def pick_best_param_cv(
     cv_results: List[CrossValidationResult],
 ) -> Optional[Tuple[Dict[str, Any], CrossValidationResult]]:
     """按稳定性优先、收益高、波动低选择最优参数."""
-    eligible = [r for r in cv_results if not r.errors]
+    eligible = [r for r in cv_results if r.fold_results]
     if not eligible:
         return None
     best = max(

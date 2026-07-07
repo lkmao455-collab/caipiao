@@ -63,6 +63,8 @@ def _make_rng(
     lookback: Optional[int] = None,
     strategy_id: str = "",
 ) -> random.Random:
+    if options.get("seed") is None and not history:
+        return random.Random()
     seed = deterministic_seed(options, history or [], lookback, strategy_id)
     return random.Random(seed)
 

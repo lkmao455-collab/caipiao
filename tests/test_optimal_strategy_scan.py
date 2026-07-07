@@ -371,6 +371,7 @@ def test_scan_respects_locked_params(monkeypatch, tmp_path):
                 stability_score=0.9,
                 mean_fixed_prize=100,
                 std_fixed_prize=10,
+                fold_results=[BatchBacktestResult()],
             )
         ]
 
@@ -439,6 +440,7 @@ def test_scan_downgrades_n_folds_for_large_grid(monkeypatch, tmp_path):
                 stability_score=0.9,
                 mean_fixed_prize=100,
                 std_fixed_prize=10,
+                fold_results=[BatchBacktestResult()],
             )
         ]
 

@@ -152,6 +152,9 @@ class OptimalStrategyScanThread(QThread):
                     resolved = resolve_optimal_param(strategy_id)
                     if resolved is not None:
                         param_name, param_values = resolved
+                        # 若该参数已被锁定，则只扫描锁定值，避免覆盖用户锁定
+                        if param_name in locked:
+                            param_values = [locked[param_name]]
                         results = scan_param_values(
                             base_context,
                             tasks,

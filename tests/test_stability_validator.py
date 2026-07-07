@@ -63,12 +63,14 @@ def test_pick_best_param_cv_prefers_stable():
         mean_fixed_prize=100,
         std_fixed_prize=10,
         stability_score=stability_score(100, 10),
+        fold_results=[BatchBacktestResult()],
     )
     r2 = CrossValidationResult(
         params={"lookback": 100},
         mean_fixed_prize=150,
         std_fixed_prize=100,
         stability_score=stability_score(150, 100),
+        fold_results=[BatchBacktestResult()],
     )
     best = pick_best_param_cv([r1, r2])
     assert best is not None

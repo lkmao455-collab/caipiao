@@ -131,7 +131,13 @@ class BatchBacktestDialog(QDialog):
         control_layout.addStretch()
         layout.addLayout(control_layout)
 
-        self.strategy_panel = StrategyPanel(self.context.engine)
+        self.strategy_panel = StrategyPanel(
+            self.context.engine,
+            profile_key=self.profile.key,
+            store=self._optimal_param_store,
+            locked_params=self._optimal_param_store.load(self.profile.key).locked,
+            parent=self,
+        )
         layout.addWidget(self.strategy_panel)
 
         self.progress = QProgressBar()
@@ -427,6 +433,7 @@ class BatchBacktestDialog(QDialog):
             tickets_per_round=self.count_spin.value(),
             base_options=base_options,
             plugin_dir=self.plugin_dir,
+            param_store=self._optimal_param_store,
             parent=self,
         )
         self._strategy_scan_thread.progress.connect(self._on_progress)
@@ -492,10 +499,11 @@ class BatchBacktestDialog(QDialog):
         self.save_group_btn.setVisible(True)
 
         # 排名规则与 OptimalStrategyScanThread._pick_best_strategy 保持一致：
-        # 固定奖金降序 -> 中奖次数降序 -> 策略 id 升序
+        # 稳定性降序 -> 固定奖金降序 -> 中奖次数降序 -> 策略 id 升序
         ranked = sorted(
             result.all_results,
             key=lambda item: (
+                -result.cv_results.get(item[0], {}).get("stability_score", 0.0),
                 -item[2].total_fixed_prize,
                 -item[2].hit_count,
                 item[0],

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..utils import app_data_dir
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -79,7 +83,17 @@ class OptimalParamStore:
             with path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             return OptimalParamsConfig.from_dict(data)
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("读取最优参数文件失败 %s: %s", path, exc)
+            if path.exists():
+                backup_path = path.with_suffix(
+                    f".corrupted-{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
+                )
+                try:
+                    path.rename(backup_path)
+                    logger.info("已备份损坏文件到 %s", backup_path)
+                except OSError as rename_exc:
+                    logger.error("备份损坏文件失败: %s", rename_exc)
             return OptimalParamsConfig(profile_key=profile_key)
 
     def save(self, config: OptimalParamsConfig) -> None:

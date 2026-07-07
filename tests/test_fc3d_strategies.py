@@ -384,12 +384,14 @@ def test_smart_hot_cold_3d_temperature_changes_concentration():
 
 
 def test_all_3d_strategies_deterministic_without_user_seed():
-    """未提供用户 seed 时，仍应基于历史内容可复现。"""
+    """未提供用户 seed 时，基于历史的策略仍应基于历史内容可复现。"""
     profile = get_profile("3d")
     from caipiao.core.strategies.generic import build_strategies
     strategies = {s.metadata.id: s for s in build_strategies(profile)}
     history = make_history(120)
     for sid, strategy in strategies.items():
+        if not needs_history(sid):
+            continue
         options = {}
         if needs_history(sid):
             options["history"] = history
