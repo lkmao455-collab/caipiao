@@ -162,6 +162,11 @@ class StrategyPanel(QWidget):
         locked = self._store.get_locked(self._profile_key, strategy_id)
         for param_name in list(locked.keys()):
             self._store.unlock(self._profile_key, strategy_id, param_name)
+        # 同步失效内存中的锁定参数缓存
+        if self._locked_params:
+            self._locked_params = [
+                p for p in self._locked_params if p.strategy_id != strategy_id
+            ]
         self._rebuild_options(self._current_strategy)
 
     def _refresh_strategies(self) -> None:
@@ -204,6 +209,19 @@ class StrategyPanel(QWidget):
         self._settings.ssq_filter_block_blue = self.ssq_block_blue_check.isChecked()
         self._settings.sync()
 
+    def _get_locked_for_strategy(self, strategy_id: str) -> Dict[str, Any]:
+        """读取某策略的锁定参数；优先使用内存缓存，缺失时回退到持久化存储."""
+        locked: Dict[str, Any] = {}
+        if self._locked_params:
+            locked = {
+                p.param_name: p.param_value
+                for p in self._locked_params
+                if p.strategy_id == strategy_id
+            }
+        if not locked:
+            locked = self._store.get_locked(self._profile_key, strategy_id)
+        return locked
+
     def _rebuild_options(self, strategy: GenerationStrategy | None) -> None:
         # 清空旧控件
         while self.options_layout.rowCount() > 0:
@@ -221,7 +239,7 @@ class StrategyPanel(QWidget):
             self.reset_defaults_btn.setVisible(False)
             return
 
-        locked = self._store.get_locked(self._profile_key, strategy.metadata.id)
+        locked = self._get_locked_for_strategy(strategy.metadata.id)
         self.options_group.setVisible(True)
         self.reset_defaults_btn.setVisible(True)
         for key, meta in schema.items():

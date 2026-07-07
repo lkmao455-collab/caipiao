@@ -163,17 +163,17 @@ class ParameterGroupSaveDialog(QDialog):
             QMessageBox.warning(self, "无可用结果", "没有可保存的非失败策略")
             return
 
+        def _float_cv(cv: Any, key: str, default: float = 0.0) -> float:
+            if isinstance(cv, dict):
+                val = cv.get(key, default)
+                if isinstance(val, (int, float)):
+                    return float(val)
+            return default
+
         items = []
         for strategy_id, value, res in results:
             hit_dist = _aggregate_hit_distribution(res, self._profile_key)
             cv = self._scan_result.cv_results.get(strategy_id, {})
-
-            def _float_cv(key: str, default: float = 0.0) -> float:
-                if isinstance(cv, dict):
-                    val = cv.get(key, default)
-                    if isinstance(val, (int, float)):
-                        return float(val)
-                return default
 
             metrics = {
                 "total_fixed_prize": res.total_fixed_prize,
@@ -182,9 +182,9 @@ class ParameterGroupSaveDialog(QDialog):
                 "first_ticket_hit_count": res.first_ticket_hit_count,
                 "total_cost": res.total_cost,
                 "hit_distribution": hit_dist,
-                "stability_score": _float_cv("stability_score"),
-                "cv_mean_prize": _float_cv("mean_fixed_prize"),
-                "cv_std_prize": _float_cv("std_fixed_prize"),
+                "stability_score": _float_cv(cv, "stability_score"),
+                "cv_mean_prize": _float_cv(cv, "mean_fixed_prize"),
+                "cv_std_prize": _float_cv(cv, "std_fixed_prize"),
             }
             items.append(
                 StrategyParameterItem(
