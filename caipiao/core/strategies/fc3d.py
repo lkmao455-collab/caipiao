@@ -18,6 +18,7 @@ from .fc3d_utils import (
     overall_odd_even_ratio,
     positional_frequency,
     positional_weights,
+    road_012_statistics,
     shape_ratio,
     span_statistics,
     sum_statistics,
@@ -528,11 +529,10 @@ class FC3DBalancedStrategy(GenerationStrategy):
         sum_stats = sum_statistics(records, lookback)
         avg_sum = sum_stats["avg"]
         std_sum = (sum_stats["max"] - sum_stats["min"]) / 6.0 or 1.0
-        sum_min = max(avg_sum - 1.5 * std_sum, sum_stats["min"])
-        sum_max = min(avg_sum + 1.5 * std_sum, sum_stats["max"])
         tail_avg = sum_tail_statistics(records, lookback)["avg"]
         span_avg = span_statistics(records, lookback)["avg"]
         shape = shape_ratio(records, lookback)
+        road = road_012_statistics(records, lookback)
         target_odd = round(3 * odd_ratio)
         target_high = round(3 * high_ratio)
         weights = positional_weights(records, lookback, smoothing=1.0)
@@ -564,6 +564,9 @@ class FC3DBalancedStrategy(GenerationStrategy):
             weight_score = -0.01 * sum(
                 weights[pos][candidate[pos]] for pos in range(3)
             )
+            road_score = sum(
+                1.0 - road[pos][candidate[pos] % 3] for pos in range(3)
+            )
 
             return (
                 abs(odd_count - target_odd)
@@ -573,6 +576,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 + abs(span - span_avg) / 5.0
                 + shape_score
                 + weight_score
+                + road_score
             )
 
         def sample_one() -> List[int]:

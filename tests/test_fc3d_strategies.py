@@ -10,6 +10,7 @@ from caipiao.core.strategies.fc3d import (
     FC3DHotColdStrategy,
     FC3DSmartHotColdStrategy,
     FC3DMissingNumberStrategy,
+    FC3DBalancedStrategy,
 )
 from caipiao.data.models import DrawRecord
 
@@ -140,10 +141,6 @@ def test_smart_hot_cold_3d_seed_reproducible():
     assert t1 == t2
 
 
-# 追加到 tests/test_fc3d_strategies.py
-from caipiao.data.analyzer import DrawAnalyzer
-
-
 def test_hot_cold_3d_generates_valid():
     strategy = FC3DHotColdStrategy()
     history = make_history(50)
@@ -151,6 +148,15 @@ def test_hot_cold_3d_generates_valid():
     assert len(tickets) == 3
     for t in tickets:
         assert len(t.groups["pos"]) == 3
+
+
+def test_hot_cold_3d_seed_reproducible():
+    strategy = FC3DHotColdStrategy()
+    history = make_history(50)
+    opts = {"mode": "hot", "history": history, "seed": 42}
+    t1 = strategy.generate(count=1, options=opts)[0].groups["pos"]
+    t2 = strategy.generate(count=1, options=opts)[0].groups["pos"]
+    assert t1 == t2
 
 
 def test_smart_hot_cold_3d_uses_history():
@@ -167,10 +173,6 @@ def test_missing_number_3d_generates_valid():
     assert len(tickets) == 3
 
 
-# 追加到 tests/test_fc3d_strategies.py
-from caipiao.core.strategies.fc3d import FC3DBalancedStrategy
-
-
 def test_balanced_3d_generates_valid():
     strategy = FC3DBalancedStrategy()
     history = make_history(50)
@@ -185,13 +187,17 @@ def test_balanced_3d_respects_order():
     """历史均衡结果应保留百十位的原始顺序，不应被排序。"""
     strategy = FC3DBalancedStrategy()
     history = [
-        DrawRecord("2024001", datetime(2024, 1, 1), profile="3d", groups={"pos": [9, 0, 1]}),
-        DrawRecord("2024002", datetime(2024, 1, 2), profile="3d", groups={"pos": [9, 0, 1]}),
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [9, 0, 1]},
+        )
+        for i in range(20)
     ]
-    # 使用枚举模式 + 固定种子确保确定性
     ticket = strategy.generate(
         count=1,
-        options={"history": history, "lookback": 10, "seed": 1, "use_enumeration": True},
+        options={"history": history, "lookback": 20, "seed": 1, "use_enumeration": True},
     )[0]
     assert ticket.groups["pos"] == [9, 0, 1]
 
