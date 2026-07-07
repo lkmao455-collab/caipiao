@@ -96,3 +96,92 @@ def test_cross_validate_params_uses_multiple_folds_for_subset(monkeypatch):
     assert len(result.fold_results) == 3
     # 每折都应分到任务，且按日期排序后均分为 50/50/50
     assert [fr.total_rounds for fr in result.fold_results] == [50, 50, 50]
+
+
+def test_cross_validate_params_skips_failed_folds(monkeypatch):
+    """失败的折不应计入零奖金，稳定性评分只基于成功折."""
+    context, _ = _make_context()
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-150:])]
+
+    def fake_worker(ctx, task):
+        # 仅让第一折（前 50 个任务）失败
+        if task.index < 50:
+            raise RuntimeError("fold 1 fails")
+        return RoundResult(index=task.index, total_fixed_prize=10)
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        fake_worker,
+    )
+
+    combos = [{"lookback": 50}]
+    results = cross_validate_params(context, tasks, combos, n_folds=3)
+    assert len(results) == 1
+    result = results[0]
+    # 第一折失败被跳过，剩余两折成功
+    assert len(result.fold_results) == 2
+    assert result.mean_fixed_prize == 500
+    assert result.std_fixed_prize == 0
+    assert result.stability_score == 1.0
+    assert len(result.errors) == 1
+
+
+def test_cross_validate_params_all_folds_failed(monkeypatch):
+    """某参数组合所有折均失败时，结果应标记为错误且稳定性分数为 0."""
+    context, _ = _make_context()
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-150:])]
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: (_ for _ in ()).throw(RuntimeError("always fails")),
+    )
+
+    combos = [{"lookback": 50}]
+    results = cross_validate_params(context, tasks, combos, n_folds=3)
+    assert len(results) == 1
+    result = results[0]
+    assert not result.fold_results
+    assert result.errors
+    assert result.mean_fixed_prize == 0
+    assert result.std_fixed_prize == 0
+    assert result.stability_score == 0
+
+
+def test_cross_validate_params_ml_downgrade_status(monkeypatch):
+    """ML 策略默认应降级为单区间并发出状态消息."""
+    context, _ = _make_context()
+    context = RoundBacktestContext(**{**context.__dict__, "is_ml": True, "strategy_id": "xgboost_3d"})
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-150:])]
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: RoundResult(index=task.index, total_fixed_prize=5),
+    )
+
+    statuses = []
+    combos = [{"history_count": 100}]
+    results = cross_validate_params(
+        context, tasks, combos, n_folds=3, status_callback=statuses.append
+    )
+    assert len(results) == 1
+    assert len(results[0].fold_results) == 1
+    assert any("ML" in s and "降级" in s for s in statuses)
+
+
+def test_cross_validate_params_force_n_folds_for_ml_false(monkeypatch):
+    """传入 force_n_folds_for_ml=False 时，ML 策略应保持调用方指定的折数."""
+    context, _ = _make_context()
+    context = RoundBacktestContext(**{**context.__dict__, "is_ml": True, "strategy_id": "xgboost_3d"})
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-150:])]
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: RoundResult(index=task.index, total_fixed_prize=5),
+    )
+
+    combos = [{"history_count": 100}]
+    results = cross_validate_params(
+        context, tasks, combos, n_folds=3, force_n_folds_for_ml=False
+    )
+    assert len(results) == 1
+    assert len(results[0].fold_results) == 3

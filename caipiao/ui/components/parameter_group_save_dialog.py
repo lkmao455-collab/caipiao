@@ -224,6 +224,12 @@ class ParameterGroupSaveDialog(QDialog):
 
         # 同步锁定保存的参数：使用最佳完整参数集合，而不是仅锁定代表参数
         best_params_map = getattr(self._scan_result, "best_params", {}) or {}
+        already_locked = {
+            (item.strategy_id, p.param_name): p.param_value
+            for item in items
+            for p in self._optimal_param_store.load(self._profile_key).locked
+            if p.strategy_id == item.strategy_id
+        }
         for item in items:
             best_params = best_params_map.get(item.strategy_id, {})
             params_to_lock = dict(best_params) if best_params else {}
@@ -231,6 +237,9 @@ class ParameterGroupSaveDialog(QDialog):
             if not params_to_lock and item.param_name is not None and item.param_value is not None:
                 params_to_lock = {item.param_name: item.param_value}
             for param_name, param_value in params_to_lock.items():
+                # 若用户已锁定到相同值，则保留原锁定记录（不覆盖 source/locked_at）
+                if already_locked.get((item.strategy_id, param_name)) == param_value:
+                    continue
                 self._optimal_param_store.lock(
                     profile_key=self._profile_key,
                     strategy_id=item.strategy_id,

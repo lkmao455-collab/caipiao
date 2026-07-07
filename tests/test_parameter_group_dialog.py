@@ -107,3 +107,56 @@ def test_save_locks_all_best_params(qtbot, tmp_path):
     assert locked.get("cold_weight") == 30
     assert locked.get("temperature") == 1.0
     group_store.save.assert_called_once()
+
+
+def test_save_does_not_overwrite_same_value_lock(qtbot, tmp_path):
+    """保存时应跳过已锁定且值相同的参数，避免覆盖用户原锁定记录."""
+    from caipiao.persistence.optimal_param_store import OptimalParamStore
+
+    param_store = OptimalParamStore(data_dir=tmp_path)
+    # 用户先锁定 lookback=50
+    param_store.lock("3d", "smart_hot_cold_3d", "lookback", 50, source="user")
+    original_locked_at = param_store.load("3d").locked[0].locked_at
+
+    group_store = MagicMock()
+    scan_result = MagicMock()
+    scan_result.all_results = [
+        (
+            "smart_hot_cold_3d",
+            50,
+            BatchBacktestResult(total_rounds=10, total_cost=20, total_fixed_prize=100, hit_count=5),
+        ),
+    ]
+    scan_result.param_name = "lookback"
+    scan_result.param_names = {"smart_hot_cold_3d": "lookback"}
+    scan_result.best_params = {
+        "smart_hot_cold_3d": {
+            "lookback": 50,
+            "hot_weight": 70,
+        }
+    }
+    scan_result.cv_results = {
+        "smart_hot_cold_3d": {
+            "stability_score": 0.9,
+            "mean_fixed_prize": 95,
+            "std_fixed_prize": 3,
+        }
+    }
+    dialog = ParameterGroupSaveDialog(
+        scan_result, "3d", group_store, optimal_param_store=param_store
+    )
+    qtbot.addWidget(dialog)
+    dialog._on_save()
+
+    locked = param_store.load("3d").locked
+    lookback_entry = next(
+        p for p in locked if p.strategy_id == "smart_hot_cold_3d" and p.param_name == "lookback"
+    )
+    # 应保持用户原锁定记录
+    assert lookback_entry.source == "user"
+    assert lookback_entry.locked_at == original_locked_at
+    # 新参数仍应被锁定
+    assert any(
+        p.strategy_id == "smart_hot_cold_3d" and p.param_name == "hot_weight" and p.param_value == 70
+        for p in locked
+    )

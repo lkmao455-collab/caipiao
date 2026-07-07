@@ -57,13 +57,18 @@ def cross_validate_params(
     n_folds: int = 3,
     progress_callback: Optional[Callable[[int, int], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
+    force_n_folds_for_ml: bool = True,
 ) -> List[CrossValidationResult]:
     """对每套参数组合做 n_folds 交叉验证."""
     results: List[CrossValidationResult] = []
     total = len(param_combinations)
 
-    # ML 策略交叉验证可能非常慢，降级为单区间回测
-    if base_context.is_ml and n_folds != 1:
+    # ML 策略交叉验证可能非常慢，默认降级为单区间回测；调用方可传入 force_n_folds_for_ml=False 保持原折叠数
+    if force_n_folds_for_ml and base_context.is_ml and n_folds != 1:
+        if status_callback:
+            status_callback(
+                f"ML 策略 {base_context.strategy_id} 交叉验证较慢，已降级为单区间回测"
+            )
         n_folds = 1
 
     # 数据量不足时降级为单区间并提示
@@ -108,16 +113,19 @@ def cross_validate_params(
                 merged = merge_round_results(round_results, len(fold_tasks))
             except Exception as exc:  # noqa: BLE001
                 errors.append(repr(exc))
-                merged = BatchBacktestResult(
-                    total_rounds=len(fold_tasks),
-                    errors=[repr(exc)],
-                )
+                continue
             if merged.errors:
                 errors.extend(merged.errors)
+                continue
             fold_results.append(merged)
 
         if not fold_results:
-            results.append(CrossValidationResult(params=params, errors=["no fold results"]))
+            results.append(
+                CrossValidationResult(
+                    params=params,
+                    errors=errors if errors else ["no fold results"],
+                )
+            )
             continue
 
         prizes = [r.total_fixed_prize for r in fold_results]

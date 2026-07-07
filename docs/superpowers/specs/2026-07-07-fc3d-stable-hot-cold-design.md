@@ -125,12 +125,12 @@ STRATEGY_PARAM_GRID: dict[str, dict[str, list]] = {
         "lookback": [30, 50, 80, 100, 150],
         "hot_weight": [30, 50, 70, 90],
         "cold_weight": [10, 30, 50, 70],
-        "temperature": [0.5, 1.0, 1.5],
+        "temperature": [5, 10, 20],  # 内部除以 10，即 0.5/1.0/2.0
     },
     "missing_number_3d": {
         "lookback": [30, 50, 80, 100],
         "pool_size": [3, 5, 7],
-        "temperature": [0.5, 1.0, 1.5],
+        "temperature": [5, 10, 20],
     },
     "balanced_3d": {
         "lookback": [50, 80, 100, 150],
@@ -138,7 +138,8 @@ STRATEGY_PARAM_GRID: dict[str, dict[str, list]] = {
     },
     "hot_cold_3d": {
         "mode": ["hot", "cold", "mixed"],
-        "temperature": [0.5, 1.0, 1.5],
+        "lookback": [50, 100, 150],
+        "temperature": [5, 10, 20],
     },
     "xgboost_3d": {"history_count": [100, 200, 300, 500, -1]},
     "lightgbm_3d": {"history_count": [100, 200, 300, 500, -1]},

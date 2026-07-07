@@ -165,6 +165,13 @@ class OptimalStrategyScanThread(QThread):
                     combos = build_param_combinations(grid, locked)
                     # 对非 ML 策略做 CV；ML 策略数据量大，先 n_folds=1
                     n_folds = 1 if base_context.is_ml else 3
+                    # 大网格下 CV 过慢，降级为单区间并提示
+                    if len(combos) > 50 and n_folds > 1:
+                        self.status_message.emit(
+                            f"{strategy.metadata.name} 参数组合较多（{len(combos)} 组），"
+                            f"交叉验证从 {n_folds} 折降级为单区间回测以提升速度"
+                        )
+                        n_folds = 1
                     cv_results = cross_validate_params(
                         base_context,
                         tasks,

@@ -270,6 +270,7 @@ def test_scan_respects_locked_params(monkeypatch, tmp_path):
 
     def fake_cross_validate(base_context, tasks, combos, **kwargs):
         captured["combos"] = combos
+        captured["n_folds"] = kwargs.get("n_folds")
         return [
             CrossValidationResult(
                 params=combos[0] if combos else {},
@@ -324,3 +325,78 @@ def test_scan_respects_locked_params(monkeypatch, tmp_path):
     assert result.cv_results.get("smart_hot_cold_3d", {}).get("stability_score") == 0.9
     assert "combos" in captured
     assert all(c["lookback"] == 50 for c in captured["combos"])
+
+
+def test_scan_downgrades_n_folds_for_large_grid(monkeypatch, tmp_path):
+    """大网格扫描时应自动降级为 n_folds=1 以提升速度."""
+    store = OptimalParamStore(data_dir=tmp_path)
+    records = _make_3d_records(120)
+    engine = GenerationEngine()
+    engine.register(FC3DSmartHotColdStrategy())
+
+    captured = {}
+    statuses = []
+
+    def fake_cross_validate(base_context, tasks, combos, **kwargs):
+        captured["n_folds"] = kwargs.get("n_folds")
+        return [
+            CrossValidationResult(
+                params=combos[0] if combos else {},
+                stability_score=0.9,
+                mean_fixed_prize=100,
+                std_fixed_prize=10,
+            )
+        ]
+
+    def fake_worker(context, task):
+        return RoundResult(index=task.index)
+
+    def fake_merge(results, total_rounds):
+        return BatchBacktestResult(
+            total_rounds=total_rounds,
+            total_cost=2 * total_rounds,
+            hit_count=total_rounds,
+            total_fixed_prize=100 * total_rounds,
+        )
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.cross_validate_params",
+        fake_cross_validate,
+    )
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.worker_round_backtest",
+        fake_worker,
+    )
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.merge_round_results",
+        fake_merge,
+    )
+
+    # 构造一个大网格：smart_hot_cold_3d 原始网格 240 种组合
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.resolve_optimal_param_grid",
+        lambda sid: {
+            "lookback": list(range(30, 150, 10)),
+            "hot_weight": [30, 50, 70, 90],
+            "cold_weight": [10, 30, 50, 70],
+            "temperature": [5, 10, 20],
+        } if sid == "smart_hot_cold_3d" else {},
+    )
+
+    thread = OptimalStrategyScanThread(
+        engine=engine,
+        profile=FC3D,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2024, 4, 1),
+        end_date=datetime(2024, 4, 10),
+        tickets_per_round=1,
+        base_options={},
+        param_store=store,
+        plugin_dir=None,
+    )
+    thread.status_message.connect(statuses.append)
+    result, error = _run_thread(thread)
+
+    assert error is None, error
+    assert captured.get("n_folds") == 1
+    assert any("降级" in s for s in statuses)
