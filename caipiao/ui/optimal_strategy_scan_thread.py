@@ -8,24 +8,19 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QThread, Signal
 
-from .batch_backtest_result import BatchBacktestResult
-from .batch_backtest_worker import (
-    RoundBacktestContext,
-    RoundTask,
-    merge_round_results,
-    worker_round_backtest,
-)
+from ..core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask
+from ..core.engine import GenerationEngine
+from ..core.profile import LotteryProfile
+from ..core.strategies.generic import needs_history
+from ..data.repository import DrawRepository
+from ..persistence.optimal_param_store import OptimalParamStore
+from .batch_backtest_worker import merge_round_results, worker_round_backtest
 from .optimal_period_config import (
     build_param_combinations,
     resolve_optimal_param,
     resolve_optimal_param_grid,
 )
 from .optimal_period_scan_thread import scan_param_values
-from ..core.engine import GenerationEngine
-from ..core.profile import LotteryProfile
-from ..core.strategies.generic import needs_history
-from ..data.repository import DrawRepository
-from ..persistence.optimal_param_store import OptimalParamStore
 
 
 @dataclass
@@ -41,6 +36,10 @@ class StrategyScanResult:
     cv_results: Dict[str, Any] = field(default_factory=dict)
     locked_params: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     interrupted: bool = False
+    # 每个策略的代表性参数名（向后兼容）
+    param_names: Dict[str, Optional[str]] = field(default_factory=dict)
+    # 每个策略扫描到的最佳完整参数集合
+    best_params: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
 
 class OptimalStrategyScanThread(QThread):
@@ -119,6 +118,7 @@ class OptimalStrategyScanThread(QThread):
             store = self.param_store or OptimalParamStore()
             all_results: List[Tuple[str, Optional[int], BatchBacktestResult]] = []
             param_names: Dict[str, Optional[str]] = {}
+            best_params_map: Dict[str, Dict[str, Any]] = {}
             cv_summary: Dict[str, Dict[str, Any]] = {}
             locked_params: Dict[str, Dict[str, Any]] = {}
             completed = 0
@@ -201,6 +201,7 @@ class OptimalStrategyScanThread(QThread):
                             "mean_fixed_prize": best_cv.mean_fixed_prize,
                             "std_fixed_prize": best_cv.std_fixed_prize,
                         }
+                        best_params_map[strategy_id] = best_params
                     else:
                         # 该策略所有参数组合均失败，记录一个失败结果
                         all_results.append(
@@ -268,26 +269,12 @@ class OptimalStrategyScanThread(QThread):
                 cv_results=cv_summary,
                 locked_params=locked_params,
                 interrupted=interrupted,
+                param_names=param_names,
+                best_params=best_params_map,
             )
             self.result_ready.emit(scan_result, None)
         except Exception as exc:  # noqa: BLE001
             self.result_ready.emit(None, exc)
-
-    @staticmethod
-    def _pick_best_param(
-        results: List[Tuple[Optional[int], BatchBacktestResult]],
-    ) -> Optional[Tuple[Optional[int], BatchBacktestResult]]:
-        eligible = [item for item in results if not item[1].errors]
-        if not eligible:
-            return None
-        return max(
-            eligible,
-            key=lambda item: (
-                item[1].total_fixed_prize,
-                item[1].hit_count,
-                -item[0] if item[0] is not None else 0,
-            ),
-        )
 
     @staticmethod
     def _pick_best_strategy(

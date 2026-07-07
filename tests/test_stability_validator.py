@@ -4,14 +4,13 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from caipiao.core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask
 from caipiao.core.strategies.stability_validator import (
     CrossValidationResult,
     cross_validate_params,
     pick_best_param_cv,
     stability_score,
 )
-from caipiao.ui.batch_backtest_result import BatchBacktestResult
-from caipiao.ui.batch_backtest_worker import RoundBacktestContext, RoundTask
 
 
 def _make_context():

@@ -175,39 +175,6 @@ def test_strategy_scan_empty_date_range():
     assert "没有开奖记录" in str(error)
 
 
-def test_pick_best_param_prefers_higher_prize_then_hits_then_lower_value():
-    """_pick_best_param 应按固定奖金 > 中奖次数 > 参数值升序选择."""
-    results = [
-        (20, BatchBacktestResult(total_fixed_prize=100, hit_count=2)),
-        (50, BatchBacktestResult(total_fixed_prize=200, hit_count=1)),
-        (80, BatchBacktestResult(total_fixed_prize=200, hit_count=3)),
-        (100, BatchBacktestResult(total_fixed_prize=200, hit_count=3)),
-    ]
-    best = OptimalStrategyScanThread._pick_best_param(results)
-    assert best is not None
-    assert best[0] == 80
-
-
-def test_pick_best_param_skips_failed_results():
-    """_pick_best_param 应跳过含 errors 的失败结果."""
-    results = [
-        (20, BatchBacktestResult(errors=["fail"])),
-        (50, BatchBacktestResult(total_fixed_prize=10)),
-    ]
-    best = OptimalStrategyScanThread._pick_best_param(results)
-    assert best is not None
-    assert best[0] == 50
-
-
-def test_pick_best_param_all_failed():
-    """_pick_best_param 全部失败时返回 None."""
-    results = [
-        (20, BatchBacktestResult(errors=["fail"])),
-        (50, BatchBacktestResult(errors=["fail"])),
-    ]
-    assert OptimalStrategyScanThread._pick_best_param(results) is None
-
-
 def test_pick_best_strategy_prefers_higher_prize_then_hits_then_id():
     """_pick_best_strategy 应按固定奖金 > 中奖次数 > 策略 id 升序选择."""
     results = [

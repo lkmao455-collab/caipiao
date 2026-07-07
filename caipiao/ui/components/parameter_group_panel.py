@@ -185,6 +185,10 @@ class ParameterGroupPanel(QWidget):
             stability = metrics.get("stability_score")
             if stability is not None:
                 metric_text += f", 稳定性 {stability:.2f}"
+            cv_mean = metrics.get("cv_mean_prize")
+            cv_std = metrics.get("cv_std_prize")
+            if cv_mean is not None and cv_std is not None:
+                metric_text += f", CV 收益 {cv_mean:.0f}±{cv_std:.0f}"
             checkbox = QCheckBox(
                 f"{idx}. {item.strategy_name}{param_text} — {metric_text}"
             )

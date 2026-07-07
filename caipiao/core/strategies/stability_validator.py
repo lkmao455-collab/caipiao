@@ -6,9 +6,12 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ..backtest_data import (
+    BatchBacktestResult,
+    RoundBacktestContext,
+    RoundTask,
+)
 from ...data.models import DrawRecord
-from ...ui.batch_backtest_result import BatchBacktestResult
-from ...ui.batch_backtest_worker import RoundBacktestContext, RoundTask, merge_round_results, worker_round_backtest
 
 
 @dataclass
@@ -55,11 +58,26 @@ def cross_validate_params(
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> List[CrossValidationResult]:
     """对每套参数组合做 n_folds 交叉验证."""
+    # 局部导入，避免 core 层依赖 UI worker 模块
+    from ...ui.batch_backtest_worker import merge_round_results, worker_round_backtest
+
     results: List[CrossValidationResult] = []
     total = len(param_combinations)
 
     # ML 策略交叉验证可能非常慢，降级为单区间回测
     if base_context.is_ml and n_folds != 1:
+        n_folds = 1
+
+    records = base_context.records
+    sorted_records = sorted(records, key=lambda r: r.draw_date)
+    # 数据量不足时降级为单区间并提示
+    if n_folds > 1 and len(sorted_records) < n_folds * 50:
+        msg = (
+            f"记录数 {len(sorted_records)} 不足 {n_folds} 折交叉验证所需 "
+            f"{n_folds * 50} 期，降级为单区间回测"
+        )
+        if status_callback:
+            status_callback(msg)
         n_folds = 1
 
     for idx, params in enumerate(param_combinations):
@@ -82,18 +100,23 @@ def cross_validate_params(
 
         fold_results: List[BatchBacktestResult] = []
         errors: List[str] = []
-        records = base_context.records
-        sorted_records = sorted(records, key=lambda r: r.draw_date)
         folds = _split_folds(sorted_records, n_folds)
 
         for start, end in folds:
             fold_tasks = [t for t in tasks if start <= t.index < end]
             if not fold_tasks:
                 continue
-            round_results = [
-                worker_round_backtest(context, task) for task in fold_tasks
-            ]
-            merged = merge_round_results(round_results, len(fold_tasks))
+            try:
+                round_results = [
+                    worker_round_backtest(context, task) for task in fold_tasks
+                ]
+                merged = merge_round_results(round_results, len(fold_tasks))
+            except Exception as exc:  # noqa: BLE001
+                errors.append(repr(exc))
+                merged = BatchBacktestResult(
+                    total_rounds=len(fold_tasks),
+                    errors=[repr(exc)],
+                )
             if merged.errors:
                 errors.extend(merged.errors)
             fold_results.append(merged)

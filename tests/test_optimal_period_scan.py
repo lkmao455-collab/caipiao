@@ -1,11 +1,11 @@
 import pytest
+from caipiao.core.backtest_data import RoundBacktestContext, RoundTask
 from caipiao.ui.optimal_period_config import (
     OPTIMAL_PERIOD_RANGES,
     STRATEGY_PARAM_MAP,
     resolve_optimal_param,
 )
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
-from caipiao.ui.batch_backtest_worker import RoundBacktestContext, RoundTask
 from caipiao.data.models import DrawRecord
 from datetime import datetime
 

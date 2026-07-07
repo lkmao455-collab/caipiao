@@ -261,7 +261,7 @@ class StrategyPanel(QWidget):
                     widget.setEnabled(False)
                     row = QHBoxLayout()
                     row.addWidget(widget, 1)
-                    lock_label = QLabel("🔒")
+                    lock_label = QLabel("[锁定]")
                     lock_label.setToolTip(
                         f"参数已锁定为 {locked[key]}，在「一键找最优」中不会被调整"
                     )

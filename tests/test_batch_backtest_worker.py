@@ -1,10 +1,7 @@
 import pytest
 from datetime import datetime
-from caipiao.ui.batch_backtest_result import BatchBacktestResult
+from caipiao.core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask, RoundResult
 from caipiao.ui.batch_backtest_worker import (
-    RoundBacktestContext,
-    RoundTask,
-    RoundResult,
     _detect_ml_strategy,
     merge_round_results,
     worker_round_backtest,

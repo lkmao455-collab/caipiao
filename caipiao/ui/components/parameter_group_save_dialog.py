@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from PySide6.QtCore import Signal
@@ -23,7 +24,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from collections import Counter
 from ...core.parameter_group import ParameterGroup, StrategyParameterItem
 from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.parameter_group_store import ParameterGroupStore
@@ -65,6 +65,7 @@ class ParameterGroupSaveDialog(QDialog):
         start_date: str = "",
         end_date: str = "",
         tickets_per_round: int = 0,
+        optimal_param_store: Optional[OptimalParamStore] = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -73,6 +74,7 @@ class ParameterGroupSaveDialog(QDialog):
         self._scan_result = scan_result
         self._profile_key = profile_key
         self._store = store
+        self._optimal_param_store = optimal_param_store or OptimalParamStore()
         self._strategy_name_map = strategy_name_map or {}
         self._start_date = start_date
         self._end_date = end_date
@@ -175,6 +177,11 @@ class ParameterGroupSaveDialog(QDialog):
             hit_dist = _aggregate_hit_distribution(res, self._profile_key)
             cv = self._scan_result.cv_results.get(strategy_id, {})
 
+            # 优先使用扫描线程按策略记录的代表性参数名
+            param_name = self._scan_result.param_names.get(strategy_id)
+            if param_name is None and value is not None:
+                param_name = self._scan_result.param_name
+
             metrics = {
                 "total_fixed_prize": res.total_fixed_prize,
                 "hit_count": res.hit_count,
@@ -192,9 +199,7 @@ class ParameterGroupSaveDialog(QDialog):
                     strategy_name=self._strategy_name_map.get(
                         strategy_id, strategy_id
                     ),
-                    param_name=self._scan_result.param_name
-                    if value is not None
-                    else None,
+                    param_name=param_name if value is not None else None,
                     param_value=value,
                     enabled=True,
                     metrics=metrics,
@@ -217,15 +222,20 @@ class ParameterGroupSaveDialog(QDialog):
 
         self._store.save(group)
 
-        # 同步锁定保存的参数
-        store = OptimalParamStore()
+        # 同步锁定保存的参数：使用最佳完整参数集合，而不是仅锁定代表参数
+        best_params_map = getattr(self._scan_result, "best_params", {}) or {}
         for item in items:
-            if item.param_name is not None and item.param_value is not None:
-                store.lock(
+            best_params = best_params_map.get(item.strategy_id, {})
+            params_to_lock = dict(best_params) if best_params else {}
+            # 若扫描结果未保存完整参数，回退到旧的代表参数
+            if not params_to_lock and item.param_name is not None and item.param_value is not None:
+                params_to_lock = {item.param_name: item.param_value}
+            for param_name, param_value in params_to_lock.items():
+                self._optimal_param_store.lock(
                     profile_key=self._profile_key,
                     strategy_id=item.strategy_id,
-                    param_name=item.param_name,
-                    param_value=item.param_value,
+                    param_name=param_name,
+                    param_value=param_value,
                     source="scan",
                     stability_score=item.metrics.get("stability_score", 0.0),
                     cv_mean_prize=item.metrics.get("cv_mean_prize", 0.0),

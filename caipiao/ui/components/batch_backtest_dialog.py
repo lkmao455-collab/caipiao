@@ -25,13 +25,14 @@ from PySide6.QtWidgets import (
 )
 
 from ...persistence.backtest_db import BacktestDatabase
+from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.parameter_group_store import ParameterGroupStore
 from ...core.profile import LotteryProfile
 from ...core.strategies.generic import needs_history
 from ...utils import app_data_dir
 from ..batch_backtest_thread import BatchBacktestThread
 from ..optimal_period_scan_thread import OptimalPeriodScanThread
-from ..optimal_strategy_scan_thread import OptimalStrategyScanThread
+from ..optimal_strategy_scan_thread import OptimalStrategyScanThread, StrategyScanResult
 from .parameter_group_save_dialog import ParameterGroupSaveDialog
 from .strategy_panel import StrategyPanel
 
@@ -43,6 +44,7 @@ class BatchBacktestDialog(QDialog):
         self,
         context,
         plugin_dir: str | None = None,
+        optimal_param_store: OptimalParamStore | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -50,6 +52,7 @@ class BatchBacktestDialog(QDialog):
         self.profile: LotteryProfile = context.profile
         self.data_repository = context.data_repository
         self.plugin_dir = plugin_dir
+        self._optimal_param_store = optimal_param_store or OptimalParamStore()
         self._db = BacktestDatabase()
         self._param_group_store = ParameterGroupStore(app_data_dir())
         self._last_strategy_scan_result: Optional[StrategyScanResult] = None
@@ -531,6 +534,7 @@ class BatchBacktestDialog(QDialog):
             scan_result=result,
             profile_key=self.profile.key,
             store=self._param_group_store,
+            optimal_param_store=self._optimal_param_store,
             strategy_name_map=name_map,
             start_date=self._start_date_for_scan,
             end_date=self._end_date_for_scan,

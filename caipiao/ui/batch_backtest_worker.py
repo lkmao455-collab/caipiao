@@ -10,12 +10,16 @@ import atexit
 import os
 import random
 import shutil
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
+from caipiao.core.backtest_data import (
+    BatchBacktestResult,
+    RoundBacktestContext,
+    RoundTask,
+    RoundResult,
+)
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
@@ -34,51 +38,6 @@ from caipiao.ml.lgbm_model import LotteryLightGBMModel
 from caipiao.ml.model import LotteryXGBoostModel
 from caipiao.ml.model_store import compute_lookback, new_model_path
 from caipiao.ml.predictor import MLPredictor
-from caipiao.ui.batch_backtest_result import BatchBacktestResult
-
-
-@dataclass(frozen=True)
-class RoundBacktestContext:
-    """一期回测所需的全部上下文（可序列化）。"""
-
-    strategy_id: str
-    profile_key: str
-    tickets_per_round: int
-    options: dict
-    is_ml: bool
-    needs_history: bool
-    records: list
-    seed: int
-    plugin_dir: str | None = None
-
-
-@dataclass(frozen=True)
-class RoundTask:
-    """一期回测任务。"""
-
-    index: int
-    actual: Any
-
-
-@dataclass(frozen=True)
-class RoundResult:
-    """一期回测结果。"""
-
-    index: int
-    total_cost: int = 0
-    hit_count: int = 0
-    total_fixed_prize: int = 0
-    float_prize_count: int = 0
-    first_ticket_hit_count: int = 0
-    winners: list[int] = field(default_factory=list)
-    ticket_results: list[dict] = field(default_factory=list)
-    ticket_index_hits: dict[int, int] = field(default_factory=dict)
-    # 以下字段用于在主线程还原旧版 round_ready 信号所需的详情字典
-    date_str: str = ""
-    issue_str: str = ""
-    actual_groups: dict = field(default_factory=dict)
-    tickets: list = field(default_factory=list)
-    error: str | None = None
 
 
 def _is_winner(prize_amount) -> bool:

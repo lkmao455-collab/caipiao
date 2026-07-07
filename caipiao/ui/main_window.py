@@ -2038,6 +2038,7 @@ class MainWindow(QMainWindow):
         dialog = BatchBacktestDialog(
             self.current,
             plugin_dir=str(self.plugin_managers[self.current_key].plugin_dir),
+            optimal_param_store=self._optimal_param_store,
             parent=self,
         )
         dialog.exec()
