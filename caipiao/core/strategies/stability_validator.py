@@ -12,7 +12,6 @@ from ..backtest_data import (
     RoundTask,
 )
 from ..backtest_worker import merge_round_results, worker_round_backtest
-from ...data.models import DrawRecord
 
 
 @dataclass
@@ -35,17 +34,18 @@ def stability_score(mean_prize: float, std_prize: float) -> float:
     return max(0.0, min(1.0, 1.0 - cv / 2.0))
 
 
-def _split_folds(records: List[DrawRecord], n_folds: int) -> List[Tuple[int, int]]:
-    """返回每折的起止索引（按时间顺序）."""
-    n = len(records)
+def _split_tasks(tasks: List[RoundTask], n_folds: int) -> List[List[RoundTask]]:
+    """将任务按开奖日期排序后切分为 n_folds 个子集（每折一个任务列表）."""
+    n = len(tasks)
     if n_folds <= 1 or n < n_folds:
-        return [(0, n)]
+        return [tasks]
+    sorted_tasks = sorted(tasks, key=lambda t: t.actual.draw_date)
     fold_size = n // n_folds
-    folds = []
+    folds: List[List[RoundTask]] = []
     start = 0
     for i in range(n_folds):
         end = start + fold_size if i < n_folds - 1 else n
-        folds.append((start, end))
+        folds.append(sorted_tasks[start:end])
         start = end
     return folds
 
@@ -66,12 +66,10 @@ def cross_validate_params(
     if base_context.is_ml and n_folds != 1:
         n_folds = 1
 
-    records = base_context.records
-    sorted_records = sorted(records, key=lambda r: r.draw_date)
     # 数据量不足时降级为单区间并提示
-    if n_folds > 1 and len(sorted_records) < n_folds * 50:
+    if n_folds > 1 and len(tasks) < n_folds * 50:
         msg = (
-            f"记录数 {len(sorted_records)} 不足 {n_folds} 折交叉验证所需 "
+            f"任务数 {len(tasks)} 不足 {n_folds} 折交叉验证所需 "
             f"{n_folds * 50} 期，降级为单区间回测"
         )
         if status_callback:
@@ -98,10 +96,9 @@ def cross_validate_params(
 
         fold_results: List[BatchBacktestResult] = []
         errors: List[str] = []
-        folds = _split_folds(sorted_records, n_folds)
+        folds = _split_tasks(tasks, n_folds)
 
-        for start, end in folds:
-            fold_tasks = [t for t in tasks if start <= t.index < end]
+        for fold_tasks in folds:
             if not fold_tasks:
                 continue
             try:

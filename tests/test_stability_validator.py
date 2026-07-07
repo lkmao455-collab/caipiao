@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from caipiao.core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask
+from caipiao.core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask, RoundResult
 from caipiao.core.strategies.stability_validator import (
     CrossValidationResult,
     cross_validate_params,
@@ -22,7 +22,7 @@ def _make_context():
             profile="3d",
             groups={"pos": [(i + j) % 10 for j in range(3)]},
         )
-        for i in range(120)
+        for i in range(200)
     ]
     return RoundBacktestContext(
         strategy_id="smart_hot_cold_3d",
@@ -74,3 +74,25 @@ def test_pick_best_param_cv_prefers_stable():
     assert best is not None
     # 稳定性分数高者胜出
     assert best[1].stability_score >= max(r1.stability_score, r2.stability_score) - 1e-9
+
+
+def test_cross_validate_params_uses_multiple_folds_for_subset(monkeypatch):
+    """Regression: tasks 是日期区间子集时仍应产生 n_folds 个有效折."""
+    context, all_records = _make_context()
+    # 仅使用最后 150 条记录作为目标区间，任务 index 为子集局部索引 0..149
+    target_records = all_records[-150:]
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(target_records)]
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: RoundResult(index=task.index, total_fixed_prize=task.index),
+    )
+
+    combos = [{"lookback": 50}]
+    results = cross_validate_params(context, tasks, combos, n_folds=3)
+    assert len(results) == 1
+    result = results[0]
+    assert not result.errors
+    assert len(result.fold_results) == 3
+    # 每折都应分到任务，且按日期排序后均分为 50/50/50
+    assert [fr.total_rounds for fr in result.fold_results] == [50, 50, 50]

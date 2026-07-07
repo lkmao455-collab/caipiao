@@ -75,7 +75,7 @@ class OptimalStrategyScanThread(QThread):
         self.param_store = param_store
 
     def run(self) -> None:
-        # 局部导入避免与 stability_validator 的循环导入（stability_validator 也依赖 ui 模块）
+        # 局部导入避免与 stability_validator 的循环导入（stability_validator 仅依赖 core 模块）
         from ..core.strategies.stability_validator import (
             cross_validate_params,
             pick_best_param_cv,
