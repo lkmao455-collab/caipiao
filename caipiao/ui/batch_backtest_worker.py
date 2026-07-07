@@ -126,18 +126,10 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
         engine.register(BayesianStrategy())
         engine.register(MarkovChainStrategy())
     elif profile_key == "3d":
-        # 福彩3D：仅保留核心策略
-        from caipiao.core.strategies.generic import (
-            GenericSmartHotColdStrategy,
-            GenericMissingNumberStrategy,
-            GenericXGBoostStrategy,
-            GenericBalancedStrategy,
-        )
-        profile = get_profile(profile_key)
-        engine.register(GenericSmartHotColdStrategy(profile))
-        engine.register(GenericMissingNumberStrategy(profile))
-        engine.register(GenericXGBoostStrategy(profile))
-        engine.register(GenericBalancedStrategy(profile))
+        # 福彩3D：使用独立的 3D 策略模块
+        from caipiao.core.strategies.fc3d import build_fc3d_strategies
+        for strategy in build_fc3d_strategies(get_profile(profile_key)):
+            engine.register(strategy)
     elif profile_key == "dlt":
         # 大乐透：仅保留XGBoost
         from caipiao.core.strategies.generic import GenericXGBoostStrategy
