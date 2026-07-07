@@ -6,6 +6,10 @@ from caipiao.core.profile import SSQ
 from caipiao.core.strategies import HotColdStrategy, RandomStrategy, SmartHotColdStrategy
 from caipiao.data.models import DrawRecord
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
+from caipiao.ui.optimal_period_config import (
+    build_param_combinations,
+    resolve_optimal_param_grid,
+)
 from caipiao.ui.optimal_strategy_scan_thread import (
     OptimalStrategyScanThread,
     StrategyScanResult,
@@ -236,3 +240,19 @@ def test_strategy_scan_parameterless_strategy_has_none_value():
     assert result.optimal_value is None
     assert result.param_name is None
     assert result.optimal_result.total_rounds == 5
+
+
+def test_resolve_optimal_param_grid_for_smart_hot_cold():
+    grid = resolve_optimal_param_grid("smart_hot_cold_3d")
+    assert "lookback" in grid
+    assert "hot_weight" in grid
+    assert "cold_weight" in grid
+    assert "temperature" in grid
+
+
+def test_build_param_combinations_with_locked():
+    grid = {"lookback": [50, 100], "hot_weight": [30, 70]}
+    combos = build_param_combinations(grid, locked={"lookback": 50})
+    assert len(combos) == 2
+    assert all(c["lookback"] == 50 for c in combos)
+    assert {c["hot_weight"] for c in combos} == {30, 70}
