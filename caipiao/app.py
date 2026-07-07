@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
+from .persistence.optimal_param_store import OptimalParamStore
 from .ui.main_window import MainWindow
 
 
@@ -46,7 +47,8 @@ def run() -> int:
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
-    window = MainWindow()
+    optimal_param_store = OptimalParamStore()
+    window = MainWindow(optimal_param_store=optimal_param_store)
     window.showMaximized()
 
     return app.exec()

@@ -182,6 +182,9 @@ class ParameterGroupPanel(QWidget):
                 f"盈亏 {profit_str}"
                 f"{dist_text}"
             )
+            stability = metrics.get("stability_score")
+            if stability is not None:
+                metric_text += f", 稳定性 {stability:.2f}"
             checkbox = QCheckBox(
                 f"{idx}. {item.strategy_name}{param_text} — {metric_text}"
             )

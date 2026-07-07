@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from collections import Counter
 from ...core.parameter_group import ParameterGroup, StrategyParameterItem
+from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.parameter_group_store import ParameterGroupStore
 from ..optimal_strategy_scan_thread import StrategyScanResult
 
@@ -165,6 +166,26 @@ class ParameterGroupSaveDialog(QDialog):
         items = []
         for strategy_id, value, res in results:
             hit_dist = _aggregate_hit_distribution(res, self._profile_key)
+            cv = self._scan_result.cv_results.get(strategy_id, {})
+
+            def _float_cv(key: str, default: float = 0.0) -> float:
+                if isinstance(cv, dict):
+                    val = cv.get(key, default)
+                    if isinstance(val, (int, float)):
+                        return float(val)
+                return default
+
+            metrics = {
+                "total_fixed_prize": res.total_fixed_prize,
+                "hit_count": res.hit_count,
+                "total_rounds": res.total_rounds,
+                "first_ticket_hit_count": res.first_ticket_hit_count,
+                "total_cost": res.total_cost,
+                "hit_distribution": hit_dist,
+                "stability_score": _float_cv("stability_score"),
+                "cv_mean_prize": _float_cv("mean_fixed_prize"),
+                "cv_std_prize": _float_cv("std_fixed_prize"),
+            }
             items.append(
                 StrategyParameterItem(
                     strategy_id=strategy_id,
@@ -176,14 +197,7 @@ class ParameterGroupSaveDialog(QDialog):
                     else None,
                     param_value=value,
                     enabled=True,
-                    metrics={
-                        "total_fixed_prize": res.total_fixed_prize,
-                        "hit_count": res.hit_count,
-                        "total_rounds": res.total_rounds,
-                        "first_ticket_hit_count": res.first_ticket_hit_count,
-                        "total_cost": res.total_cost,
-                        "hit_distribution": hit_dist,
-                    },
+                    metrics=metrics,
                 )
             )
 
@@ -202,6 +216,22 @@ class ParameterGroupSaveDialog(QDialog):
         )
 
         self._store.save(group)
+
+        # 同步锁定保存的参数
+        store = OptimalParamStore()
+        for item in items:
+            if item.param_name is not None and item.param_value is not None:
+                store.lock(
+                    profile_key=self._profile_key,
+                    strategy_id=item.strategy_id,
+                    param_name=item.param_name,
+                    param_value=item.param_value,
+                    source="scan",
+                    stability_score=item.metrics.get("stability_score", 0.0),
+                    cv_mean_prize=item.metrics.get("cv_mean_prize", 0.0),
+                    cv_std_prize=item.metrics.get("cv_std_prize", 0.0),
+                )
+
         self.group_saved.emit(group)
         QMessageBox.information(self, "保存成功", f"参数组「{name}」已保存")
         self.accept()

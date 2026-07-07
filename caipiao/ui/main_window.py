@@ -48,6 +48,7 @@ from ..ml.lgbm_model import LotteryLightGBMModel
 from ..ml.model import LotteryXGBoostModel
 from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
+from ..persistence.optimal_param_store import OptimalParamStore
 from ..persistence.parameter_group_store import ParameterGroupStore
 from ..persistence.settings import AppSettings
 from ..plugins.plugin_manager import PluginManager
@@ -99,7 +100,7 @@ class MainWindow(QMainWindow):
     - 体育彩票：超级大乐透、排列3、排列5、7星彩、广东36选7
     """
 
-    def __init__(self) -> None:
+    def __init__(self, optimal_param_store: OptimalParamStore | None = None) -> None:
         super().__init__()
         self.setWindowTitle("彩票号码生成器")
         self.setMinimumSize(950, 720)
@@ -122,6 +123,9 @@ class MainWindow(QMainWindow):
         # 参数组持久化
         self._param_group_store = ParameterGroupStore(self.data_dir)
 
+        # 最优参数锁定持久化
+        self._optimal_param_store = optimal_param_store or OptimalParamStore()
+
         # 彩种上下文管理器
         self.context_manager = ContextManager(self.data_dir, self.history_manager)
         self.current_key = self._validated_current_key(
@@ -130,6 +134,9 @@ class MainWindow(QMainWindow):
         self.settings.set("current_lottery", self.current_key)
         self.settings.sync()
         self.current = self.context_manager.get(self.current_key)
+
+        # 启动时加载当前彩种的锁定参数
+        self._locked_params = self._optimal_param_store.load(self.current_key).locked
 
         # 插件（每个彩种上下文独立加载，策略 id 互不冲突）
         self.plugin_managers: dict[str, PluginManager] = {}
@@ -328,7 +335,13 @@ class MainWindow(QMainWindow):
         left_layout.addLayout(count_layout)
 
         # 策略面板
-        self.strategy_panel = StrategyPanel(self.current.engine)
+        self.strategy_panel = StrategyPanel(
+            self.current.engine,
+            profile_key=self.current_key,
+            store=self._optimal_param_store,
+            locked_params=self._locked_params,
+            parent=self,
+        )
         self._restore_last_strategy()
         left_layout.addWidget(self.strategy_panel)
 
@@ -626,6 +639,8 @@ class MainWindow(QMainWindow):
 
         # 策略面板重新绑定到当前引擎
         self.strategy_panel.engine = self.current.engine
+        self._locked_params = self._optimal_param_store.load(self.current_key).locked
+        self.strategy_panel.set_profile_key(self.current_key, self._locked_params)
         self.strategy_panel._refresh_strategies()
         self._restore_last_strategy()
 

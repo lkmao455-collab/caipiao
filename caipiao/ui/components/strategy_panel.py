@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from ...core.engine import GenerationEngine
 from ...core.strategy import GenerationStrategy
+from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.settings import AppSettings
 from ...utils.validators import parse_int_list
 
@@ -29,9 +31,19 @@ class StrategyPanel(QWidget):
 
     options_changed = Signal()
 
-    def __init__(self, engine: GenerationEngine, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        engine: GenerationEngine,
+        profile_key: str = "3d",
+        store: OptimalParamStore | None = None,
+        locked_params: list | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.engine = engine
+        self._profile_key = profile_key
+        self._store = store or OptimalParamStore()
+        self._locked_params = locked_params or []
         self._settings = AppSettings()
         self._current_strategy: GenerationStrategy | None = None
         self._option_widgets: Dict[str, Any] = {}
@@ -135,7 +147,22 @@ class StrategyPanel(QWidget):
         self.options_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         self.layout.addWidget(self.options_group)
 
+        # 恢复默认参数
+        self.reset_defaults_btn = QPushButton("恢复默认参数")
+        self.reset_defaults_btn.setToolTip("清除该策略的所有锁定参数")
+        self.reset_defaults_btn.clicked.connect(self._on_reset_defaults)
+        self.layout.addWidget(self.reset_defaults_btn)
+
         self.layout.addStretch()
+
+    def _on_reset_defaults(self) -> None:
+        strategy_id = self.current_strategy_id()
+        if not strategy_id:
+            return
+        locked = self._store.get_locked(self._profile_key, strategy_id)
+        for param_name in list(locked.keys()):
+            self._store.unlock(self._profile_key, strategy_id, param_name)
+        self._rebuild_options(self._current_strategy)
 
     def _refresh_strategies(self) -> None:
         self.strategy_combo.clear()
@@ -185,16 +212,25 @@ class StrategyPanel(QWidget):
 
         if strategy is None:
             self.options_group.setVisible(False)
+            self.reset_defaults_btn.setVisible(False)
             return
 
         schema = strategy.get_config_schema()
         if not schema:
             self.options_group.setVisible(False)
+            self.reset_defaults_btn.setVisible(False)
             return
 
+        locked = self._store.get_locked(self._profile_key, strategy.metadata.id)
         self.options_group.setVisible(True)
+        self.reset_defaults_btn.setVisible(True)
         for key, meta in schema.items():
-            widget = self._create_option_widget(key, meta)
+            locked_value = locked.get(key)
+            effective_meta = meta
+            if locked_value is not None:
+                effective_meta = dict(meta)
+                effective_meta["default"] = locked_value
+            widget = self._create_option_widget(key, effective_meta)
             if widget:
                 tooltip = meta.get("tooltip") or meta.get("description") or ""
                 if tooltip:
@@ -203,7 +239,18 @@ class StrategyPanel(QWidget):
                 label.setWordWrap(True)
                 if tooltip:
                     label.setToolTip(tooltip)
-                self.options_layout.addRow(label, widget)
+                if key in locked:
+                    widget.setEnabled(False)
+                    row = QHBoxLayout()
+                    row.addWidget(widget, 1)
+                    lock_label = QLabel("🔒")
+                    lock_label.setToolTip(
+                        f"参数已锁定为 {locked[key]}，在「一键找最优」中不会被调整"
+                    )
+                    row.addWidget(lock_label)
+                    self.options_layout.addRow(label, row)
+                else:
+                    self.options_layout.addRow(label, widget)
 
     def _create_option_widget(self, key: str, meta: Dict[str, Any]):
         type_ = meta.get("type", "string")
@@ -266,6 +313,14 @@ class StrategyPanel(QWidget):
 
     def current_strategy_id(self) -> str:
         return self.strategy_combo.currentData() or ""
+
+    def set_profile_key(
+        self, profile_key: str, locked_params: list | None = None
+    ) -> None:
+        """切换彩种时更新 profile_key 与锁定参数列表."""
+        self._profile_key = profile_key
+        if locked_params is not None:
+            self._locked_params = locked_params
 
     def set_strategy_id(self, strategy_id: str) -> None:
         idx = self.strategy_combo.findData(strategy_id)
