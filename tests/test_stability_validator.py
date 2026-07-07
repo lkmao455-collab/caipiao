@@ -78,6 +78,28 @@ def test_pick_best_param_cv_prefers_stable():
     assert best[1].stability_score >= max(r1.stability_score, r2.stability_score) - 1e-9
 
 
+def test_cross_validate_params_honors_interruption_callback(monkeypatch):
+    """interruption_callback 返回 True 时应提前停止扫描."""
+    context, _ = _make_context()
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-30:])]
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: RoundResult(index=task.index, total_fixed_prize=5),
+    )
+    combos = [{"lookback": i} for i in range(10)]
+    call_count = 0
+
+    def interrupt():
+        nonlocal call_count
+        call_count += 1
+        return call_count > 3
+
+    results = cross_validate_params(
+        context, tasks, combos, n_folds=1, interruption_callback=interrupt
+    )
+    assert len(results) < len(combos)
+
+
 def test_cross_validate_params_uses_multiple_folds_for_subset(monkeypatch):
     """Regression: tasks 是日期区间子集时仍应产生 n_folds 个有效折."""
     context, all_records = _make_context()

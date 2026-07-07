@@ -210,6 +210,7 @@ class OptimalStrategyScanThread(QThread):
                         n_folds=n_folds,
                         progress_callback=None,
                         status_callback=lambda msg: self.status_message.emit(msg),
+                        interruption_callback=self.isInterruptionRequested,
                     )
                     best = pick_best_param_cv(cv_results)
                     if best is not None:

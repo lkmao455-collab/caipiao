@@ -77,6 +77,47 @@ def _run_thread(thread):
     return result, error
 
 
+def test_single_param_fallback_respects_locked_value(monkeypatch, tmp_path):
+    """非 3D 策略的单参数扫描应尊重已锁定的参数值."""
+    store = OptimalParamStore(data_dir=tmp_path)
+    store.lock("ssq", "smart_hot_cold", "lookback", 80)
+
+    records = _make_records(120)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    captured = {}
+
+    def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
+        captured["param_values"] = list(param_values)
+        return [
+            (v, BatchBacktestResult(total_rounds=len(tasks)))
+            for v in param_values
+        ]
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.scan_param_values",
+        fake_scan_param_values,
+    )
+
+    thread = OptimalStrategyScanThread(
+        engine=engine,
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2023, 4, 11),
+        end_date=datetime(2023, 4, 20),
+        tickets_per_round=1,
+        base_options={},
+        param_store=store,
+        plugin_dir=None,
+    )
+    result, error = _run_thread(thread)
+
+    assert error is None, error
+    assert isinstance(result, StrategyScanResult)
+    assert captured.get("param_values") == [80]
+
+
 def test_strategy_scan_finds_best(monkeypatch):
     records = _make_records(150)
     engine = GenerationEngine()

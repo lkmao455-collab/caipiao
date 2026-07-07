@@ -224,6 +224,18 @@ class ParameterGroupSaveDialog(QDialog):
 
         # 同步锁定保存的参数：仅锁定综合排名第一（overall best）的策略参数，
         # 其余策略仍保存到参数组但不自动锁定。
+        # 使用扫描线程实际选出的最优策略，与 _pick_best_strategy 保持一致。
+        best_strategy_id = getattr(self._scan_result, "optimal_strategy_id", None)
+        overall_best_item = None
+        if best_strategy_id:
+            overall_best_item = next(
+                (item for item in items if item.strategy_id == best_strategy_id),
+                None,
+            )
+        if overall_best_item is None:
+            overall_best_item = items[0] if items else None
+
+        params_to_lock = {}
         best_params_map = getattr(self._scan_result, "best_params", {}) or {}
         already_locked = {
             (item.strategy_id, p.param_name): p.param_value
@@ -231,8 +243,6 @@ class ParameterGroupSaveDialog(QDialog):
             for p in self._optimal_param_store.load(self._profile_key).locked
             if p.strategy_id == item.strategy_id
         }
-        overall_best_item = items[0] if items else None
-        params_to_lock = {}
         if overall_best_item is not None:
             best_params = best_params_map.get(overall_best_item.strategy_id, {})
             params_to_lock = dict(best_params) if best_params else {}
@@ -285,7 +295,15 @@ class ParameterGroupSaveDialog(QDialog):
                             "cv_std_prize", 0.0
                         ),
                     )
+                QMessageBox.information(
+                    self, "保存成功", f"参数组「{name}」已保存，并已锁定最优参数"
+                )
+            else:
+                QMessageBox.information(
+                    self, "保存成功", f"参数组「{name}」已保存（未锁定参数）"
+                )
+        else:
+            QMessageBox.information(self, "保存成功", f"参数组「{name}」已保存")
 
         self.group_saved.emit(group)
-        QMessageBox.information(self, "保存成功", f"参数组「{name}」已保存")
         self.accept()
