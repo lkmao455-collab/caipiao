@@ -89,3 +89,25 @@ venv/Scripts/python -m pytest tests/test_fc3d_strategies.py -v
 结果：21 passed in 2.66s。
 
 提交信息：`refactor: clean up 3D ML strategy imports and is_ml attr`
+
+## 修复记录（Task 5 Re-review Fix）
+
+修复 `caipiao/core/strategies/fc3d.py` 中 `build_fc3d_strategies(profile)` 使用 `assert` 进行参数校验的问题：
+
+- `assert` 在 `python -O` 运行模式下会被静默剥离，导致 `profile.key != "3d"` 的防御失效。
+- 将 `assert profile.key == "3d", ...` 替换为显式异常：
+
+```python
+if profile.key != "3d":
+    raise ValueError("build_fc3d_strategies only supports 3d profile")
+```
+
+验证命令：
+
+```bash
+venv/Scripts/python -m pytest tests/test_fc3d_strategies.py -v
+```
+
+结果：21 passed in 2.63s。
+
+提交信息：`fix: replace assert with ValueError in build_fc3d_strategies`

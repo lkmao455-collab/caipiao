@@ -762,7 +762,8 @@ class FC3DCatBoostStrategy(_FC3DMLStrategy):
 
 def build_fc3d_strategies(profile) -> List[GenerationStrategy]:
     # Kept the profile argument to match the generic factory signature used in Task 6.
-    assert profile.key == "3d", "fc3d strategies only support the 3D profile"
+    if profile.key != "3d":
+        raise ValueError("build_fc3d_strategies only supports 3d profile")
     return [
         FC3DRandomStrategy(),
         FC3DOddEvenStrategy(),
