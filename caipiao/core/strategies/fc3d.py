@@ -193,13 +193,17 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
         }
 
     def validate_options(self, options: Dict[str, Any]) -> None:
-        for key in ("include_pos", "exclude_pos"):
-            value = options.get(key, [[], [], []])
+        include_pos = options.get("include_pos", [[], [], []])
+        exclude_pos = options.get("exclude_pos", [[], [], []])
+        for key, value in (("include_pos", include_pos), ("exclude_pos", exclude_pos)):
             if len(value) != 3:
                 raise ValueError(f"{key} 必须提供3个位置的列表")
             for idx, nums in enumerate(value):
                 if not all(0 <= n <= 9 for n in nums):
                     raise ValueError(f"{key} 第{idx}位包含越界号码")
+        for idx in range(3):
+            if not include_pos[idx] and set(exclude_pos[idx]) == set(range(10)):
+                raise ValueError(f"第{idx + 1}位排除后没有可用号码")
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None

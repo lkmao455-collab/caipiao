@@ -78,3 +78,13 @@ def test_exclude_include_3d_no_sort():
         options={"include_pos": [[9], [1], [0]]},
     )[0]
     assert ticket.groups["pos"] == [9, 1, 0]
+
+
+def test_exclude_include_3d_empty_pool_raises():
+    strategy = FC3DExcludeIncludeStrategy()
+    options = {
+        "include_pos": [[], [], []],
+        "exclude_pos": [[], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], []],
+    }
+    with pytest.raises(ValueError, match=r"第2位排除后没有可用号码"):
+        strategy.validate_options(options)
