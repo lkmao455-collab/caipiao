@@ -2,11 +2,13 @@
 
 from .balanced_strategy import BalancedStrategy
 from .exclude_include_strategy import ExcludeIncludeStrategy
+from .hot_cold_strategy import HotColdStrategy
 from .hybrid_strategy import HybridStrategy
 from .lstm_strategy import LSTMStrategy
 from .ml_strategy import MLStrategy
 from .odd_even_strategy import OddEvenStrategy
 from .random_strategy import RandomStrategy
+from .smart_hot_cold_strategy import SmartHotColdStrategy
 from .stats_strategy import StatsStrategy
 
 # 高级预测策略
@@ -23,6 +25,8 @@ __all__ = [
     "RandomStrategy",
     "OddEvenStrategy",
     "ExcludeIncludeStrategy",
+    "HotColdStrategy",
+    "SmartHotColdStrategy",
     "StatsStrategy",
     "BalancedStrategy",
     "MLStrategy",

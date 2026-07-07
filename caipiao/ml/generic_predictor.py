@@ -41,6 +41,7 @@ class GenericMLPredictor:
         self.backend = backend
         self.model = LotteryGenericModel(profile, lookback=lookback, backend=backend, temp_dir=temp_dir)
         self._needs_training = True
+        self._feature_count: Optional[int] = None
 
         if model_path and model_path.exists():
             if self._metadata_matches():
@@ -71,9 +72,23 @@ class GenericMLPredictor:
         try:
             with meta_path.open("r", encoding="utf-8") as f:
                 meta = json.load(f)
-            return meta.get("fingerprint") == self._data_fingerprint()
+            if meta.get("fingerprint") != self._data_fingerprint():
+                return False
+            # 旧模型没有 feature_count 字段，按不一致处理（避免特征维度不匹配报错）
+            if "feature_count" not in meta:
+                return False
+            return meta.get("feature_count") == self._expected_feature_count()
         except Exception:  # noqa: BLE001
             return False
+
+    def _expected_feature_count(self) -> int:
+        """当前特征工程期望的特征维度（缓存）。"""
+        if self._feature_count is None:
+            X = build_prediction_features(self.records, self.profile, self.lookback)
+            if X.size == 0:
+                raise ValueError("历史数据不足，无法计算特征维度")
+            self._feature_count = int(X.shape[1])
+        return self._feature_count
 
     def _save_metadata(self) -> None:
         meta_path = self._metadata_path()
@@ -83,6 +98,7 @@ class GenericMLPredictor:
             "fingerprint": self._data_fingerprint(),
             "record_count": len(self.records),
             "lookback": self.lookback,
+            "feature_count": self._expected_feature_count(),
             "profile": self.profile.key,
             "backend": self.backend,
         }

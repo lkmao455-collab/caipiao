@@ -224,7 +224,7 @@ def test_batch_thread_cancellation():
     assert result.total_rounds == 50
 
 def test_batch_thread_ml_strategy():
-    """验证 BatchBacktestThread 能正确运行 ML 策略（xgboost）。"""
+    """验证 BatchBacktestThread 能正确运行 ML 策略（ml_xgboost）。"""
     pytest.importorskip("xgboost")
 
     records = _make_ml_records(120)
@@ -233,7 +233,7 @@ def test_batch_thread_ml_strategy():
 
     thread = BatchBacktestThread(
         engine=engine,
-        strategy_id="xgboost",
+        strategy_id="ml_xgboost",
         profile=SSQ,
         start_date=datetime(2024, 4, 25),
         end_date=datetime(2024, 4, 29),
