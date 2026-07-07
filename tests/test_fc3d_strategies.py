@@ -15,6 +15,7 @@ from caipiao.core.strategies.fc3d import (
     FC3DLightGBMStrategy,
     FC3DCatBoostStrategy,
 )
+from caipiao.core.strategies.generic import build_strategies, needs_history, is_ml_strategy
 from caipiao.data.models import DrawRecord
 
 
@@ -234,3 +235,23 @@ def test_ml_3d_strategy_generates_valid(strategy_cls):
     assert len(tickets) == 1
     assert len(tickets[0].groups["pos"]) == 3
     assert all(0 <= n <= 9 for n in tickets[0].groups["pos"])
+
+
+def test_build_strategies_3d_uses_fc3d_classes():
+    profile = get_profile("3d")
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    assert "random_3d" in strategies
+    assert "balanced_3d" in strategies
+    assert "xgboost_3d" in strategies
+    # 确认是3D专属类，不是通用类
+    from caipiao.core.strategies.fc3d import FC3DBalancedStrategy
+    assert isinstance(strategies["balanced_3d"], FC3DBalancedStrategy)
+
+
+def test_needs_history_and_is_ml_3d_unchanged():
+    assert needs_history("balanced_3d")
+    assert needs_history("xgboost_3d")
+    assert is_ml_strategy("xgboost_3d")
+    assert is_ml_strategy("lightgbm_3d")
+    assert is_ml_strategy("catboost_3d")
+    assert not needs_history("random_3d")
