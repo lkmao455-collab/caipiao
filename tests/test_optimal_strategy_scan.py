@@ -9,7 +9,7 @@ from caipiao.core.strategies.fc3d import FC3DSmartHotColdStrategy
 from caipiao.data.models import DrawRecord
 from caipiao.persistence.optimal_param_store import OptimalParamStore
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
-from caipiao.ui.batch_backtest_worker import RoundResult
+from caipiao.core.backtest_data import RoundResult
 from caipiao.core.strategies.stability_validator import CrossValidationResult
 from caipiao.ui.optimal_period_config import (
     build_param_combinations,

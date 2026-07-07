@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime
 from caipiao.core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask, RoundResult
-from caipiao.ui.batch_backtest_worker import (
+from caipiao.core.backtest_worker import (
     _detect_ml_strategy,
     merge_round_results,
     worker_round_backtest,
@@ -78,7 +78,7 @@ def test_merge_round_results_skips_error_rounds():
 
 def test_prepare_ml_options_signature():
     # 仅验证函数可导入并返回 dict
-    from caipiao.ui.batch_backtest_worker import prepare_ml_options
+    from caipiao.core.backtest_worker import prepare_ml_options
 
     result = prepare_ml_options([], {}, "ssq", datetime(2024, 1, 1), "/tmp")
     assert isinstance(result, dict)

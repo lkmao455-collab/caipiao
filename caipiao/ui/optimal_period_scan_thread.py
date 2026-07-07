@@ -11,13 +11,9 @@ from PySide6.QtCore import QThread, Signal
 
 from .batch_backtest_result import BatchBacktestResult
 from .batch_backtest_thread import _normalize_max_workers
-from .batch_backtest_worker import (
-    RoundBacktestContext,
-    RoundTask,
-    init_worker_process,
-    merge_round_results,
-    worker_round_backtest,
-)
+from ..core.backtest_worker import merge_round_results, worker_round_backtest
+from .batch_backtest_worker import init_worker_process
+from ..core.backtest_data import RoundBacktestContext, RoundTask
 from .optimal_period_config import resolve_optimal_param
 from ..core.profile import LotteryProfile
 from ..core.strategies.generic import needs_history

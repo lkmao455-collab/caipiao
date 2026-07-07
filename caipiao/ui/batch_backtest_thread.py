@@ -20,11 +20,8 @@ from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QThread, Signal
 
 from .batch_backtest_result import BatchBacktestResult
-from .batch_backtest_worker import (
-    init_worker_process,
-    merge_round_results,
-    worker_round_backtest,
-)
+from ..core.backtest_worker import merge_round_results, worker_round_backtest
+from .batch_backtest_worker import init_worker_process
 from ..core.backtest_data import RoundBacktestContext, RoundTask
 from .components.ball_display import compute_highlight_map
 from ..core.engine import GenerationEngine

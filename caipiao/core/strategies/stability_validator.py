@@ -11,6 +11,7 @@ from ..backtest_data import (
     RoundBacktestContext,
     RoundTask,
 )
+from ..backtest_worker import merge_round_results, worker_round_backtest
 from ...data.models import DrawRecord
 
 
@@ -58,9 +59,6 @@ def cross_validate_params(
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> List[CrossValidationResult]:
     """对每套参数组合做 n_folds 交叉验证."""
-    # 局部导入，避免 core 层依赖 UI worker 模块
-    from ...ui.batch_backtest_worker import merge_round_results, worker_round_backtest
-
     results: List[CrossValidationResult] = []
     total = len(param_combinations)
 

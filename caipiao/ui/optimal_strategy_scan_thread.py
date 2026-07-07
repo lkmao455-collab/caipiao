@@ -14,7 +14,7 @@ from ..core.profile import LotteryProfile
 from ..core.strategies.generic import needs_history
 from ..data.repository import DrawRepository
 from ..persistence.optimal_param_store import OptimalParamStore
-from .batch_backtest_worker import merge_round_results, worker_round_backtest
+from ..core.backtest_worker import merge_round_results, worker_round_backtest
 from .optimal_period_config import (
     build_param_combinations,
     resolve_optimal_param,
