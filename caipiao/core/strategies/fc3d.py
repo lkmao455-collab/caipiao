@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import itertools
 import random
-from collections import Counter
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -12,13 +11,20 @@ import numpy as np
 from ..profile import get_profile
 from ..strategy import GenerationStrategy, StrategyMetadata
 from ..ticket import Ticket
-from ...data.analyzer import DrawAnalyzer
 from ...data.models import DrawRecord
+from .fc3d_stability import (
+    deterministic_seed,
+    sample_weighted,
+    softmax_scores,
+    stable_frequency,
+    stable_missing,
+    stable_scores,
+)
 from .fc3d_utils import (
+    DIGIT_POOL,
     fc3d_bet_type,
     overall_high_low_ratio,
     overall_odd_even_ratio,
-    positional_frequency,
     positional_weights,
     road_012_statistics,
     shape_ratio,
@@ -51,9 +57,14 @@ def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
     return records
 
 
-def _make_rng(options: Dict[str, Any]) -> random.Random:
-    seed = options.get("seed")
-    return random.Random(seed) if seed is not None else random.Random()
+def _make_rng(
+    options: Dict[str, Any],
+    history: Optional[List[DrawRecord]] = None,
+    lookback: Optional[int] = None,
+    strategy_id: str = "",
+) -> random.Random:
+    seed = deterministic_seed(options, history or [], lookback, strategy_id)
+    return random.Random(seed)
 
 
 class FC3DRandomStrategy(GenerationStrategy):
@@ -84,7 +95,7 @@ class FC3DRandomStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options)
+        rng = _make_rng(options, [], None, self.metadata.id)
         basis = "完全随机策略：百、十、个位分别独立随机生成0-9数字。"
         seed = options.get("seed")
         if seed is not None:
@@ -148,7 +159,7 @@ class FC3DOddEvenStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options)
+        rng = _make_rng(options, [], None, self.metadata.id)
         positional = options.get("positional", [])
         odd_count = int(options.get("odd_count", 1))
 
@@ -289,6 +300,8 @@ class FC3DHotColdStrategy(GenerationStrategy):
                 "choices": ["hot", "cold", "mixed"],
                 "default": "mixed",
             },
+            "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
+            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50, "tooltip": "温度越低概率越集中，10=1.0"},
             "history": {"type": "history", "label": "历史记录", "default": []},
             "seed": {
                 "type": "int",
@@ -308,29 +321,41 @@ class FC3DHotColdStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options)
+        rng = _make_rng(options, _records_from_options(options), options.get("lookback", 100), self.metadata.id)
         mode = options.get("mode", "mixed")
+        lookback = int(options.get("lookback", 100))
+        temperature = int(options.get("temperature", 10)) / 10.0
         records = _records_from_options(options)
 
-        freq = positional_frequency(records)
-        tickets: List[Ticket] = []
-        basis = f"冷热号分析策略：{mode} 模式，基于按位历史频率抽取号码。"
+        freq = stable_frequency(records, lookback)
+        basis = f"冷热号分析策略：{mode} 模式，lookback={lookback}，temperature={temperature}。"
         seed = options.get("seed")
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
+        tickets: List[Ticket] = []
         for _ in range(count):
             result = []
             for pos in range(3):
-                pos_freq = freq.get(pos, {})
-                ranked = sorted(range(10), key=lambda d: pos_freq.get(d, 0), reverse=True)
+                pos_freq = freq[pos]
+                ranked = sorted(range(10), key=lambda d: pos_freq[d], reverse=True)
                 if mode == "hot":
-                    pool = ranked[:5]
+                    order = ranked
                 elif mode == "cold":
-                    pool = ranked[-5:]
-                else:
-                    pool = ranked[:2] + ranked[-2:]
-                result.append(rng.choice(pool))
+                    order = list(reversed(ranked))
+                else:  # mixed
+                    order = []
+                    for i in range(5):
+                        if 2 * i < len(ranked):
+                            order.append(ranked[2 * i])
+                        if 2 * i + 1 < len(ranked):
+                            order.append(ranked[-(2 * i + 1)])
+                # 将 order 中的排名转换为分数：排名越高分数越高
+                scores = {d: 0.0 for d in range(10)}
+                for rank_idx, d in enumerate(order):
+                    scores[d] = len(order) - rank_idx
+                probs = softmax_scores([scores[d] for d in range(10)], temperature)
+                result.append(sample_weighted(rng, list(range(10)), probs))
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
@@ -355,6 +380,7 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
             "cold_weight": {"type": "int", "label": "冷号权重", "default": 40, "min": 0, "max": 100},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
+            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50},
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -373,22 +399,19 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options)
         records = _records_from_options(options)
+        lookback = int(options.get("lookback", 100))
         hot_weight = int(options.get("hot_weight", 60))
         cold_weight = int(options.get("cold_weight", 40))
-        lookback = int(options.get("lookback", 100))
+        temperature = int(options.get("temperature", 10)) / 10.0
+        rng = _make_rng(options, records, lookback, self.metadata.id)
 
-        analyzer = DrawAnalyzer(records, FC3D_PROFILE)
-        freq = analyzer.frequency("pos")
-        max_freq = max(freq.values()) if freq else 1
-        missing = dict(analyzer.missing("pos", lookback))
-        max_missing = max(missing.values()) if missing else 1
-        max_missing = max(max_missing, 1)
+        freq = stable_frequency(records, lookback)
+        missing = stable_missing(records, lookback, cap=lookback)
 
         basis = (
-            f"智能冷热号策略：综合最近 {lookback} 期按位热号频率（权重 {hot_weight}）"
-            f"与冷号遗漏值（权重 {cold_weight}）加权评分后抽取号码。"
+            f"智能冷热号策略：lookback={lookback}，热权重={hot_weight}，"
+            f"冷权重={cold_weight}，温度={temperature}。"
         )
         seed = options.get("seed")
         if seed is not None:
@@ -398,21 +421,10 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
         for _ in range(count):
             result = []
             for pos in range(3):
-                pos_records = [r.groups["pos"][pos] for r in records[-lookback:] if len(r.groups.get("pos", [])) > pos]
-                pos_freq = Counter(pos_records)
-                pos_missing = {}
-                for idx, n in enumerate(reversed(pos_records)):
-                    if n not in pos_missing:
-                        pos_missing[n] = idx
-                for d in range(10):
-                    pos_missing.setdefault(d, len(pos_records))
-
-                scores = []
-                for d in range(10):
-                    hot_score = hot_weight * (pos_freq.get(d, 0) / max_freq)
-                    cold_score = cold_weight * (pos_missing[d] / max_missing)
-                    scores.append(max(0.1, hot_score + cold_score))
-                result.append(rng.choices(range(10), weights=scores, k=1)[0])
+                probs = stable_scores(
+                    freq[pos], missing[pos], hot_weight, cold_weight, temperature
+                )
+                result.append(sample_weighted(rng, list(range(10)), probs))
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
@@ -442,6 +454,7 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
                 "min": 1,
                 "max": 10,
             },
+            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50},
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -460,14 +473,15 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options)
         records = _records_from_options(options)
         lookback = int(options.get("lookback", 50))
         pool_size = int(options.get("pool_size", 5))
+        temperature = int(options.get("temperature", 10)) / 10.0
+        rng = _make_rng(options, records, lookback, self.metadata.id)
 
-        analyzer = DrawAnalyzer(records, FC3D_PROFILE)
+        missing = stable_missing(records, lookback, cap=lookback)
 
-        basis = f"遗漏号追踪策略：基于最近 {lookback} 期，按位从高遗漏值候选池抽取号码。"
+        basis = f"遗漏号追踪策略：lookback={lookback}，候选池={pool_size}，温度={temperature}。"
         seed = options.get("seed")
         if seed is not None:
             basis += f" 随机种子：{seed}。"
@@ -476,13 +490,12 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
         for _ in range(count):
             result = []
             for pos in range(3):
-                pos_records = [r.groups["pos"][pos] for r in records[-lookback:] if len(r.groups.get("pos", [])) > pos]
-                missing: Dict[int, int] = {d: lookback for d in range(10)}
-                for idx, n in enumerate(reversed(pos_records)):
-                    if missing[n] == lookback:
-                        missing[n] = idx
-                pool = [d for d, _ in sorted(missing.items(), key=lambda x: x[1], reverse=True)[:pool_size]]
-                result.append(rng.choice(pool))
+                ranked = sorted(range(10), key=lambda d: missing[pos][d], reverse=True)
+                pool = ranked[:pool_size]
+                # 在候选池内按遗漏值 softmax 采样
+                scores = {d: missing[pos][d] if d in pool else 0.0 for d in range(10)}
+                probs = softmax_scores([scores[d] for d in range(10)], temperature)
+                result.append(sample_weighted(rng, list(range(10)), probs))
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
@@ -530,11 +543,13 @@ class FC3DBalancedStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options)
         records = _records_from_options(options)
         lookback = int(options.get("lookback", 100))
         max_attempts = int(options.get("max_attempts", 1000))
         use_enumeration = bool(options.get("use_enumeration", True))
+
+        seed = deterministic_seed(options, records, lookback, self.metadata.id)
+        rng = random.Random(seed)
 
         odd_ratio, _ = overall_odd_even_ratio(records, lookback)
         high_ratio, _ = overall_high_low_ratio(records, lookback)
@@ -572,9 +587,10 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 shape_score = 1 - shape["group6"]
 
             # 按位权重作为轻量级 tie-breaker，保留历史中的位置顺序
-            weight_score = -0.01 * sum(
-                weights[pos][candidate[pos]] for pos in range(3)
-            )
+            # 权重归一化到 [-1, 1] 区间，降低对历史长度的敏感度
+            weight_score = -sum(
+                weights[pos][candidate[pos]] * len(DIGIT_POOL) for pos in range(3)
+            ) / (lookback or 1)
             road_score = sum(
                 1.0 - road[pos][candidate[pos] % 3] for pos in range(3)
             )

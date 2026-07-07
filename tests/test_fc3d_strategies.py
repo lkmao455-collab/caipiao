@@ -62,8 +62,9 @@ def test_odd_even_3d_respects_overall_count():
 
 def test_odd_even_3d_overall_preserves_random_order():
     strategy = FC3DOddEvenStrategy()
-    tickets1 = strategy.generate(count=20, options={"odd_count": 2})
-    tickets2 = strategy.generate(count=20, options={"odd_count": 2})
+    # 不同种子应产生不同顺序；未指定种子时策略已改为基于内容确定性输出
+    tickets1 = strategy.generate(count=20, options={"odd_count": 2, "seed": 1})
+    tickets2 = strategy.generate(count=20, options={"odd_count": 2, "seed": 2})
     assert any(t1.groups["pos"] != t2.groups["pos"] for t1, t2 in zip(tickets1, tickets2))
 
 
@@ -351,6 +352,40 @@ def test_balanced_3d_no_history_raises():
     strategy = FC3DBalancedStrategy()
     with pytest.raises(ValueError):
         strategy.generate(count=1, options={"history": []})
+
+
+def test_hot_cold_3d_temperature_changes_concentration():
+    strategy = FC3DHotColdStrategy()
+    history = make_history(50)
+    low_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 5, "seed": 1})
+    high_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 50, "seed": 1})
+    # 低温度下应更集中在高频数字，这里仅验证两次结果不同
+    assert any(a.groups["pos"] != b.groups["pos"] for a, b in zip(low_t, high_t))
+
+
+def test_smart_hot_cold_3d_temperature_changes_concentration():
+    strategy = FC3DSmartHotColdStrategy()
+    history = make_history(50)
+    low_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 5, "seed": 1})
+    high_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 50, "seed": 1})
+    assert any(a.groups["pos"] != b.groups["pos"] for a, b in zip(low_t, high_t))
+
+
+def test_all_3d_strategies_deterministic_without_user_seed():
+    """未提供用户 seed 时，仍应基于历史内容可复现。"""
+    profile = get_profile("3d")
+    from caipiao.core.strategies.generic import build_strategies
+    strategies = {s.metadata.id: s for s in build_strategies(profile)}
+    history = make_history(120)
+    for sid, strategy in strategies.items():
+        options = {}
+        if needs_history(sid):
+            options["history"] = history
+            if is_ml_strategy(sid):
+                options["history_count"] = 100
+        t1 = strategy.generate(count=1, options=options)[0].groups["pos"]
+        t2 = strategy.generate(count=1, options=options)[0].groups["pos"]
+        assert t1 == t2, sid
 
 
 def test_ml_3d_insufficient_history_raises():
