@@ -11,6 +11,9 @@ from caipiao.core.strategies.fc3d import (
     FC3DSmartHotColdStrategy,
     FC3DMissingNumberStrategy,
     FC3DBalancedStrategy,
+    FC3DXGBoostStrategy,
+    FC3DLightGBMStrategy,
+    FC3DCatBoostStrategy,
 )
 from caipiao.data.models import DrawRecord
 
@@ -220,3 +223,14 @@ def test_balanced_3d_seed_reproducible():
     t1 = strategy.generate(count=1, options=opts)[0].groups["pos"]
     t2 = strategy.generate(count=1, options=opts)[0].groups["pos"]
     assert t1 == t2
+
+
+@pytest.mark.parametrize("strategy_cls", [FC3DXGBoostStrategy, FC3DLightGBMStrategy, FC3DCatBoostStrategy])
+def test_ml_3d_strategy_generates_valid(strategy_cls):
+    strategy = strategy_cls()
+    assert strategy.is_ml
+    history = make_history(120)
+    tickets = strategy.generate(count=1, options={"history": history, "history_count": 100})
+    assert len(tickets) == 1
+    assert len(tickets[0].groups["pos"]) == 3
+    assert all(0 <= n <= 9 for n in tickets[0].groups["pos"])

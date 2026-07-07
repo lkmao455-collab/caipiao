@@ -618,3 +618,163 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 )
             )
         return tickets
+
+
+import numpy as np
+
+from ...ml.generic_predictor import GenericMLPredictor
+from ...ml.model_store import compute_lookback, find_current_model, new_model_path
+
+
+class _FC3DMLStrategy(GenerationStrategy):
+    _backend: str = "xgboost"
+
+    @property
+    def is_ml(self) -> bool:
+        return True
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {
+            "diversity_boost": {
+                "type": "int",
+                "label": "多样性增强 (0-10)",
+                "default": 3,
+                "min": 0,
+                "max": 10,
+            },
+            "history": {"type": "history", "label": "历史记录", "default": []},
+            "history_count": {
+                "type": "int",
+                "label": "使用历史记录期数",
+                "default": -1,
+                "min": -1,
+                "max": 10000,
+            },
+        }
+
+    def validate_options(self, options: Dict[str, Any]) -> None:
+        if len(options.get("history", [])) < 100:
+            raise ValueError(f"{self.metadata.name} 策略需要至少 100 期历史数据")
+        history_count = options.get("history_count", -1)
+        if not isinstance(history_count, int) or history_count < -1:
+            raise ValueError("使用历史记录期数必须大于等于 -1")
+
+    def generate(
+        self, count: int = 1, options: Optional[Dict[str, Any]] = None
+    ) -> List[Ticket]:
+        options = options or {}
+        records = _records_from_options(options)
+        diversity = int(options.get("diversity_boost", 3)) / 10.0
+
+        history_count = options.get("history_count", -1)
+        if isinstance(history_count, int) and history_count > 0 and len(records) > history_count:
+            records = records[-history_count:]
+
+        lookback = compute_lookback(len(records))
+        if self._backend == "xgboost":
+            prefix = FC3D_PROFILE.xgboost_prefix()
+        elif self._backend == "lightgbm":
+            prefix = FC3D_PROFILE.lightgbm_prefix()
+        else:
+            prefix = FC3D_PROFILE.catboost_prefix()
+
+        model_path = (
+            find_current_model(records, lookback, prefix=prefix, options=options)
+            or new_model_path(records, lookback, prefix=prefix, options=options)
+        )
+
+        predictor = GenericMLPredictor(
+            records, profile=FC3D_PROFILE, lookback=lookback, model_path=model_path, backend=self._backend
+        )
+        if not predictor.is_ready():
+            predictor.train()
+
+        proba = predictor.predict()
+        proba_lists = {}
+        for k, v in proba.items():
+            if v.ndim == 1:
+                proba_lists[k] = [round(float(p), 4) for p in v]
+            else:
+                proba_lists[k] = [[round(float(x), 4) for x in row] for row in v]
+
+        details = {
+            "lookback": lookback,
+            "diversity_boost": int(diversity * 10),
+            "probabilities": proba_lists,
+            "model_name": self._backend.upper(),
+        }
+        basis = (
+            f"{self.metadata.name}：基于最近 {len(records)} 期历史数据训练模型，"
+            f"特征回看期数 {lookback}，按预测概率加权采样。"
+        )
+
+        group_picks = {"pos": 3}
+        tickets: List[Ticket] = []
+        seed = 42
+        for i in range(count):
+            np_rng = np.random.RandomState(seed + i)
+            rec_groups = predictor.recommend(group_picks=group_picks, diversity_boost=diversity, rng=np_rng)
+            tickets.append(
+                Ticket(
+                    profile=FC3D_PROFILE,
+                    groups=rec_groups,
+                    strategy_name=self.metadata.name,
+                    basis=basis,
+                    details=details,
+                )
+            )
+        return tickets
+
+
+class FC3DXGBoostStrategy(_FC3DMLStrategy):
+    _backend = "xgboost"
+
+    @property
+    def metadata(self) -> StrategyMetadata:
+        return StrategyMetadata(
+            id="xgboost_3d",
+            name="XGBoost 智能分析",
+            description="基于 XGBoost 模型分析历史数据，生成概率优先的号码组合。",
+            configurable=True,
+        )
+
+
+class FC3DLightGBMStrategy(_FC3DMLStrategy):
+    _backend = "lightgbm"
+
+    @property
+    def metadata(self) -> StrategyMetadata:
+        return StrategyMetadata(
+            id="lightgbm_3d",
+            name="LightGBM 智能分析",
+            description="基于 LightGBM 模型分析历史数据，生成概率优先的号码组合。",
+            configurable=True,
+        )
+
+
+class FC3DCatBoostStrategy(_FC3DMLStrategy):
+    _backend = "catboost"
+
+    @property
+    def metadata(self) -> StrategyMetadata:
+        return StrategyMetadata(
+            id="catboost_3d",
+            name="CatBoost 智能分析",
+            description="基于 CatBoost 模型分析历史数据，生成概率优先的号码组合。",
+            configurable=True,
+        )
+
+
+def build_fc3d_strategies(profile) -> List[GenerationStrategy]:
+    return [
+        FC3DRandomStrategy(),
+        FC3DOddEvenStrategy(),
+        FC3DHotColdStrategy(),
+        FC3DExcludeIncludeStrategy(),
+        FC3DSmartHotColdStrategy(),
+        FC3DMissingNumberStrategy(),
+        FC3DBalancedStrategy(),
+        FC3DXGBoostStrategy(),
+        FC3DLightGBMStrategy(),
+        FC3DCatBoostStrategy(),
+    ]
