@@ -321,11 +321,11 @@ class FC3DHotColdStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         self.validate_options(options)
-        rng = _make_rng(options, _records_from_options(options), options.get("lookback", 100), self.metadata.id)
-        mode = options.get("mode", "mixed")
-        lookback = int(options.get("lookback", 100))
-        temperature = int(options.get("temperature", 10)) / 10.0
         records = _records_from_options(options)
+        lookback = int(options.get("lookback", 100))
+        rng = _make_rng(options, records, lookback, self.metadata.id)
+        mode = options.get("mode", "mixed")
+        temperature = int(options.get("temperature", 10)) / 10.0
 
         freq = stable_frequency(records, lookback)
         basis = f"冷热号分析策略：{mode} 模式，lookback={lookback}，temperature={temperature}。"
@@ -548,8 +548,8 @@ class FC3DBalancedStrategy(GenerationStrategy):
         max_attempts = int(options.get("max_attempts", 1000))
         use_enumeration = bool(options.get("use_enumeration", True))
 
-        seed = deterministic_seed(options, records, lookback, self.metadata.id)
-        rng = random.Random(seed)
+        det_seed = deterministic_seed(options, records, lookback, self.metadata.id)
+        rng = random.Random(det_seed)
 
         odd_ratio, _ = overall_odd_even_ratio(records, lookback)
         high_ratio, _ = overall_high_low_ratio(records, lookback)
@@ -567,9 +567,9 @@ class FC3DBalancedStrategy(GenerationStrategy):
             f"历史均衡策略：基于最近 {lookback} 期，"
             f"使3D号码的按位频率、奇偶、大小、和值、跨度、和尾、012路和形态接近历史平均。"
         )
-        seed = options.get("seed")
-        if seed is not None:
-            basis += f" 随机种子：{seed}。"
+        user_seed = options.get("seed")
+        if user_seed is not None:
+            basis += f" 随机种子：{user_seed}。"
 
         def score(candidate: List[int]) -> float:
             odd_count = sum(1 for n in candidate if n % 2 == 1)
@@ -616,7 +616,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
 
             if use_enumeration:
                 candidates = [list(c) for c in itertools.product(range(10), repeat=3)]
-                if seed is not None:
+                if user_seed is not None:
                     rng.shuffle(candidates)
                 for candidate in candidates:
                     s = score(candidate)

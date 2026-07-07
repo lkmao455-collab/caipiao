@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime, timedelta
 
 import pytest
@@ -28,6 +29,15 @@ def make_history(n=30):
         )
         for i in range(n)
     ]
+
+
+def _max_digit_concentration(tickets):
+    """返回所有 ticket 中按位数字出现频率的最大值。"""
+    counts = Counter()
+    for t in tickets:
+        counts.update(t.groups["pos"])
+    total = sum(counts.values())
+    return max(counts.values()) / total if total else 0.0
 
 
 def test_random_3d_generates_three_digits():
@@ -359,8 +369,9 @@ def test_hot_cold_3d_temperature_changes_concentration():
     history = make_history(50)
     low_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 5, "seed": 1})
     high_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 50, "seed": 1})
-    # 低温度下应更集中在高频数字，这里仅验证两次结果不同
+    # 低温度下应更集中在高频数字
     assert any(a.groups["pos"] != b.groups["pos"] for a, b in zip(low_t, high_t))
+    assert _max_digit_concentration(low_t) > _max_digit_concentration(high_t)
 
 
 def test_smart_hot_cold_3d_temperature_changes_concentration():
@@ -369,6 +380,7 @@ def test_smart_hot_cold_3d_temperature_changes_concentration():
     low_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 5, "seed": 1})
     high_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 50, "seed": 1})
     assert any(a.groups["pos"] != b.groups["pos"] for a, b in zip(low_t, high_t))
+    assert _max_digit_concentration(low_t) > _max_digit_concentration(high_t)
 
 
 def test_all_3d_strategies_deterministic_without_user_seed():
