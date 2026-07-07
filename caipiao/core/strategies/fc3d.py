@@ -793,7 +793,6 @@ def build_fc3d_strategies(profile) -> List[GenerationStrategy]:
         FC3DRandomStrategy(),
         FC3DOddEvenStrategy(),
         FC3DHotColdStrategy(),
-        FC3DExcludeIncludeStrategy(),
         FC3DSmartHotColdStrategy(),
         FC3DMissingNumberStrategy(),
         FC3DBalancedStrategy(),

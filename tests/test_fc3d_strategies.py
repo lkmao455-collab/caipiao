@@ -6,7 +6,6 @@ from caipiao.core.profile import get_profile
 from caipiao.core.strategies.fc3d import (
     FC3DRandomStrategy,
     FC3DOddEvenStrategy,
-    FC3DExcludeIncludeStrategy,
     FC3DHotColdStrategy,
     FC3DSmartHotColdStrategy,
     FC3DMissingNumberStrategy,
@@ -78,55 +77,71 @@ def test_odd_even_3d_positional_mode():
 
 
 def test_exclude_include_3d_positional():
-    strategy = FC3DExcludeIncludeStrategy()
-    tickets = strategy.generate(
-        count=5,
-        options={
-            "include_pos": [[1], [], [5]],
-            "exclude_pos": [[], [2, 3], []],
-        },
-    )
-    for t in tickets:
-        assert t.groups["pos"][0] == 1
-        assert t.groups["pos"][1] not in (2, 3)
-        assert t.groups["pos"][2] == 5
+    pytest.skip("exclude_include_3d 策略已从福彩3D移除")
+
+
+# def test_exclude_include_3d_positional():
+#     strategy = FC3DExcludeIncludeStrategy()
+#     tickets = strategy.generate(
+#         count=5,
+#         options={
+#             "include_pos": [[1], [], [5]],
+#             "exclude_pos": [[], [2, 3], []],
+#         },
+#     )
+#     for t in tickets:
+#         assert t.groups["pos"][0] == 1
+#         assert t.groups["pos"][1] not in (2, 3)
+#         assert t.groups["pos"][2] == 5
 
 
 def test_exclude_include_3d_no_sort():
-    strategy = FC3DExcludeIncludeStrategy()
-    ticket = strategy.generate(
-        count=1,
-        options={"include_pos": [[9], [1], [0]]},
-    )[0]
-    assert ticket.groups["pos"] == [9, 1, 0]
+    pytest.skip("exclude_include_3d 策略已从福彩3D移除")
+
+
+# def test_exclude_include_3d_no_sort():
+#     strategy = FC3DExcludeIncludeStrategy()
+#     ticket = strategy.generate(
+#         count=1,
+#         options={"include_pos": [[9], [1], [0]]},
+#     )[0]
+#     assert ticket.groups["pos"] == [9, 1, 0]
 
 
 def test_exclude_include_3d_empty_pool_raises():
-    strategy = FC3DExcludeIncludeStrategy()
-    options = {
-        "include_pos": [[], [], []],
-        "exclude_pos": [[], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], []],
-    }
-    with pytest.raises(ValueError, match=r"第2位排除后没有可用号码"):
-        strategy.validate_options(options)
+    pytest.skip("exclude_include_3d 策略已从福彩3D移除")
+
+
+# def test_exclude_include_3d_empty_pool_raises():
+#     strategy = FC3DExcludeIncludeStrategy()
+#     options = {
+#         "include_pos": [[], [], []],
+#         "exclude_pos": [[], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], []],
+#     }
+#     with pytest.raises(ValueError, match=r"第2位排除后没有可用号码"):
+#         strategy.validate_options(options)
 
 
 def test_exclude_include_3d_empty_include_with_exclude():
-    """Regression: empty include_pos but non-empty exclude_pos must choose from available pool."""
-    strategy = FC3DExcludeIncludeStrategy()
-    tickets = strategy.generate(
-        count=20,
-        options={
-            "include_pos": [[], [], []],
-            "exclude_pos": [[0, 1, 2], [3, 4], [5, 6, 7, 8]],
-            "seed": 123,
-        },
-    )
-    assert len(tickets) == 20
-    for t in tickets:
-        assert t.groups["pos"][0] not in (0, 1, 2)
-        assert t.groups["pos"][1] not in (3, 4)
-        assert t.groups["pos"][2] not in (5, 6, 7, 8)
+    pytest.skip("exclude_include_3d 策略已从福彩3D移除")
+
+
+# def test_exclude_include_3d_empty_include_with_exclude():
+#     """Regression: empty include_pos but non-empty exclude_pos must choose from available pool."""
+#     strategy = FC3DExcludeIncludeStrategy()
+#     tickets = strategy.generate(
+#         count=20,
+#         options={
+#             "include_pos": [[], [], []],
+#             "exclude_pos": [[0, 1, 2], [3, 4], [5, 6, 7, 8]],
+#             "seed": 123,
+#         },
+#     )
+#     assert len(tickets) == 20
+#     for t in tickets:
+#         assert t.groups["pos"][0] not in (0, 1, 2)
+#         assert t.groups["pos"][1] not in (3, 4)
+#         assert t.groups["pos"][2] not in (5, 6, 7, 8)
 
 
 def test_smart_hot_cold_3d_all_digits_in_lookback():
@@ -350,7 +365,6 @@ def test_ml_3d_insufficient_history_raises():
         "random_3d",
         "odd_even_3d",
         "hot_cold_3d",
-        "exclude_include_3d",
         "smart_hot_cold_3d",
         "missing_number_3d",
         "balanced_3d",
