@@ -64,8 +64,85 @@ def test_save_emits_group_saved(qtbot):
     store.save.assert_called_once()
 
 
-def test_save_locks_all_best_params(qtbot, tmp_path):
-    """保存多参数策略时应锁定 best_params 中的所有参数."""
+def test_save_locks_only_overall_best_params(qtbot, tmp_path):
+    """保存 top-N 时仅锁定综合排名第一的策略参数."""
+    from caipiao.persistence.optimal_param_store import OptimalParamStore
+
+    param_store = OptimalParamStore(data_dir=tmp_path)
+    group_store = MagicMock()
+    scan_result = MagicMock()
+    scan_result.all_results = [
+        (
+            "smart_hot_cold_3d",
+            50,
+            BatchBacktestResult(
+                total_rounds=10, total_cost=20, total_fixed_prize=120, hit_count=5
+            ),
+        ),
+        (
+            "missing_number_3d",
+            80,
+            BatchBacktestResult(
+                total_rounds=10, total_cost=20, total_fixed_prize=100, hit_count=4
+            ),
+        ),
+    ]
+    scan_result.param_name = "lookback"
+    scan_result.param_names = {
+        "smart_hot_cold_3d": "lookback",
+        "missing_number_3d": "lookback",
+    }
+    scan_result.best_params = {
+        "smart_hot_cold_3d": {
+            "lookback": 50,
+            "hot_weight": 70,
+            "cold_weight": 30,
+            "temperature": 1.0,
+        },
+        "missing_number_3d": {
+            "lookback": 80,
+            "pool_size": 5,
+        },
+    }
+    scan_result.cv_results = {
+        "smart_hot_cold_3d": {
+            "stability_score": 0.9,
+            "mean_fixed_prize": 95,
+            "std_fixed_prize": 3,
+        },
+        "missing_number_3d": {
+            "stability_score": 0.8,
+            "mean_fixed_prize": 90,
+            "std_fixed_prize": 5,
+        },
+    }
+    dialog = ParameterGroupSaveDialog(
+        scan_result, "3d", group_store, optimal_param_store=param_store
+    )
+    qtbot.addWidget(dialog)
+    dialog._on_save()
+
+    # 仅排名第一的策略被锁定
+    locked_best = param_store.get_locked("3d", "smart_hot_cold_3d")
+    assert locked_best.get("lookback") == 50
+    assert locked_best.get("hot_weight") == 70
+    assert locked_best.get("cold_weight") == 30
+    assert locked_best.get("temperature") == 1.0
+
+    # 排名第二的策略不应被锁定
+    locked_second = param_store.get_locked("3d", "missing_number_3d")
+    assert locked_second == {}
+
+    # 但两个策略都应保存到参数组
+    group_store.save.assert_called_once()
+    saved_group = group_store.save.call_args[0][0]
+    assert len(saved_group.items) == 2
+    assert saved_group.items[0].strategy_id == "smart_hot_cold_3d"
+    assert saved_group.items[1].strategy_id == "missing_number_3d"
+
+
+def test_save_locks_best_params_for_single_strategy(qtbot, tmp_path):
+    """只保存一个策略时仍应锁定其 best_params."""
     from caipiao.persistence.optimal_param_store import OptimalParamStore
 
     param_store = OptimalParamStore(data_dir=tmp_path)

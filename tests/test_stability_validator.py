@@ -147,6 +147,46 @@ def test_cross_validate_params_all_folds_failed(monkeypatch):
     assert result.stability_score == 0
 
 
+def test_cross_validate_params_downgrades_when_tasks_below_threshold(monkeypatch):
+    """任务数低于 n_folds * 20 时应降级为单区间并发出状态消息."""
+    context, _ = _make_context()
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-59:])]
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: RoundResult(index=task.index, total_fixed_prize=5),
+    )
+
+    statuses = []
+    combos = [{"lookback": 50}]
+    results = cross_validate_params(
+        context, tasks, combos, n_folds=3, status_callback=statuses.append
+    )
+    assert len(results) == 1
+    assert len(results[0].fold_results) == 1
+    assert any("59" in s and "60" in s and "降级" in s for s in statuses)
+
+
+def test_cross_validate_params_keeps_folds_at_threshold(monkeypatch):
+    """任务数达到 n_folds * 20 时应保持多折交叉验证."""
+    context, _ = _make_context()
+    tasks = [RoundTask(index=i, actual=r) for i, r in enumerate(context.records[-60:])]
+
+    monkeypatch.setattr(
+        "caipiao.core.strategies.stability_validator.worker_round_backtest",
+        lambda ctx, task: RoundResult(index=task.index, total_fixed_prize=5),
+    )
+
+    statuses = []
+    combos = [{"lookback": 50}]
+    results = cross_validate_params(
+        context, tasks, combos, n_folds=3, status_callback=statuses.append
+    )
+    assert len(results) == 1
+    assert len(results[0].fold_results) == 3
+    assert not any("降级" in s for s in statuses)
+
+
 def test_cross_validate_params_ml_downgrade_status(monkeypatch):
     """ML 策略默认应降级为单区间并发出状态消息."""
     context, _ = _make_context()

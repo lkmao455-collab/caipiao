@@ -140,7 +140,7 @@ class OptimalStrategyScanThread(QThread):
                     profile_key=self.profile.key,
                     tickets_per_round=self.tickets_per_round,
                     options=dict(self.base_options),
-                    is_ml=strategy_id.startswith(("xgboost", "lightgbm", "catboost")),
+                    is_ml=getattr(strategy, "is_ml", False),
                     needs_history=True,
                     records=records,
                     seed=42,
@@ -148,19 +148,47 @@ class OptimalStrategyScanThread(QThread):
                 )
 
                 if not grid:
-                    # 无网格配置的策略，回退到单一回测
-                    results = scan_param_values(
-                        base_context,
-                        tasks,
-                        "",
-                        [None],  # 占位，实际不使用
-                        progress_callback=None,
-                        status_callback=None,
-                        interruption_callback=self.isInterruptionRequested,
-                    )
-                    value, result = results[0]
-                    all_results.append((strategy_id, None, result))
-                    param_names[strategy_id] = None
+                    # 无多参数网格时，先尝试单一参数扫描（向后兼容非 3D 彩种）
+                    resolved = resolve_optimal_param(strategy_id)
+                    if resolved is not None:
+                        param_name, param_values = resolved
+                        results = scan_param_values(
+                            base_context,
+                            tasks,
+                            param_name,
+                            param_values,
+                            progress_callback=None,
+                            status_callback=None,
+                            interruption_callback=self.isInterruptionRequested,
+                        )
+                        best = max(
+                            (r for r in results if not r[1].errors),
+                            key=lambda item: (
+                                item[1].total_fixed_prize,
+                                item[1].hit_count,
+                                -(item[0] or 0),
+                            ),
+                            default=None,
+                        )
+                        if best is None:
+                            best = results[0]
+                        value, result = best
+                        all_results.append((strategy_id, value, result))
+                        param_names[strategy_id] = param_name
+                    else:
+                        # 真正无参策略，回退到单一回测
+                        results = scan_param_values(
+                            base_context,
+                            tasks,
+                            "",
+                            [None],  # 占位，实际不使用
+                            progress_callback=None,
+                            status_callback=None,
+                            interruption_callback=self.isInterruptionRequested,
+                        )
+                        value, result = results[0]
+                        all_results.append((strategy_id, None, result))
+                        param_names[strategy_id] = None
                 else:
                     combos = build_param_combinations(grid, locked)
                     # 对非 ML 策略做 CV；ML 策略数据量大，先 n_folds=1

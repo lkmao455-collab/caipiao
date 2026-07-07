@@ -222,7 +222,8 @@ class ParameterGroupSaveDialog(QDialog):
 
         self._store.save(group)
 
-        # 同步锁定保存的参数：使用最佳完整参数集合，而不是仅锁定代表参数
+        # 同步锁定保存的参数：仅锁定综合排名第一（overall best）的策略参数，
+        # 其余策略仍保存到参数组但不自动锁定。
         best_params_map = getattr(self._scan_result, "best_params", {}) or {}
         already_locked = {
             (item.strategy_id, p.param_name): p.param_value
@@ -230,25 +231,43 @@ class ParameterGroupSaveDialog(QDialog):
             for p in self._optimal_param_store.load(self._profile_key).locked
             if p.strategy_id == item.strategy_id
         }
-        for item in items:
-            best_params = best_params_map.get(item.strategy_id, {})
+        overall_best_item = items[0] if items else None
+        if overall_best_item is not None:
+            best_params = best_params_map.get(overall_best_item.strategy_id, {})
             params_to_lock = dict(best_params) if best_params else {}
             # 若扫描结果未保存完整参数，回退到旧的代表参数
-            if not params_to_lock and item.param_name is not None and item.param_value is not None:
-                params_to_lock = {item.param_name: item.param_value}
+            if (
+                not params_to_lock
+                and overall_best_item.param_name is not None
+                and overall_best_item.param_value is not None
+            ):
+                params_to_lock = {
+                    overall_best_item.param_name: overall_best_item.param_value
+                }
             for param_name, param_value in params_to_lock.items():
                 # 若用户已锁定到相同值，则保留原锁定记录（不覆盖 source/locked_at）
-                if already_locked.get((item.strategy_id, param_name)) == param_value:
+                if (
+                    already_locked.get(
+                        (overall_best_item.strategy_id, param_name)
+                    )
+                    == param_value
+                ):
                     continue
                 self._optimal_param_store.lock(
                     profile_key=self._profile_key,
-                    strategy_id=item.strategy_id,
+                    strategy_id=overall_best_item.strategy_id,
                     param_name=param_name,
                     param_value=param_value,
                     source="scan",
-                    stability_score=item.metrics.get("stability_score", 0.0),
-                    cv_mean_prize=item.metrics.get("cv_mean_prize", 0.0),
-                    cv_std_prize=item.metrics.get("cv_std_prize", 0.0),
+                    stability_score=overall_best_item.metrics.get(
+                        "stability_score", 0.0
+                    ),
+                    cv_mean_prize=overall_best_item.metrics.get(
+                        "cv_mean_prize", 0.0
+                    ),
+                    cv_std_prize=overall_best_item.metrics.get(
+                        "cv_std_prize", 0.0
+                    ),
                 )
 
         self.group_saved.emit(group)

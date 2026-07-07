@@ -72,10 +72,10 @@ def cross_validate_params(
         n_folds = 1
 
     # 数据量不足时降级为单区间并提示
-    if n_folds > 1 and len(tasks) < n_folds * 50:
+    if n_folds > 1 and len(tasks) < n_folds * 20:
         msg = (
             f"任务数 {len(tasks)} 不足 {n_folds} 折交叉验证所需 "
-            f"{n_folds * 50} 期，降级为单区间回测"
+            f"{n_folds * 20} 期，降级为单区间回测"
         )
         if status_callback:
             status_callback(msg)

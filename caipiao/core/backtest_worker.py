@@ -342,7 +342,8 @@ def merge_round_results(results: list[RoundResult], total_rounds: int) -> BatchB
 
     for r in sorted_results:
         if r.error:
-            # 错误期数不影响汇总，仅记录
+            # 错误期数不影响汇总，但需记录到 errors
+            merged.errors.append(r.error)
             continue
         merged.total_cost += r.total_cost
         merged.hit_count += r.hit_count

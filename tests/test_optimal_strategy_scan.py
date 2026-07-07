@@ -12,6 +12,7 @@ from caipiao.ui.batch_backtest_result import BatchBacktestResult
 from caipiao.core.backtest_data import RoundResult
 from caipiao.core.strategies.stability_validator import CrossValidationResult
 from caipiao.ui.optimal_period_config import (
+    OPTIMAL_PERIOD_RANGES,
     build_param_combinations,
     resolve_optimal_param_grid,
 )
@@ -76,18 +77,42 @@ def _run_thread(thread):
     return result, error
 
 
-def test_strategy_scan_finds_best():
-    records = _make_records(120)
+def test_strategy_scan_finds_best(monkeypatch):
+    records = _make_records(150)
     engine = GenerationEngine()
     engine.register(HotColdStrategy())
     engine.register(SmartHotColdStrategy())
+
+    def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
+        # 模拟两个策略的扫描结果，smart_hot_cold 更优
+        if base_context.strategy_id == "smart_hot_cold":
+            prize = 200
+        else:
+            prize = 100
+        return [
+            (
+                value,
+                BatchBacktestResult(
+                    total_rounds=len(tasks),
+                    total_cost=2 * len(tasks),
+                    hit_count=len(tasks),
+                    total_fixed_prize=prize,
+                ),
+            )
+            for value in param_values
+        ]
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.scan_param_values",
+        fake_scan_param_values,
+    )
 
     thread = OptimalStrategyScanThread(
         engine=engine,
         profile=SSQ,
         data_repository=_MockRepository(records),
-        start_date=datetime(2023, 4, 1),
-        end_date=datetime(2023, 4, 10),
+        start_date=datetime(2023, 5, 1),
+        end_date=datetime(2023, 5, 10),
         tickets_per_round=1,
         base_options={"hot_weight": 60, "cold_weight": 40},
         plugin_dir=None,
@@ -97,7 +122,7 @@ def test_strategy_scan_finds_best():
 
     assert error is None, error
     assert isinstance(result, StrategyScanResult)
-    assert result.optimal_strategy_id in ("hot_cold", "smart_hot_cold")
+    assert result.optimal_strategy_id == "smart_hot_cold"
     assert result.optimal_result.total_rounds == 10
 
 
@@ -199,18 +224,36 @@ def test_pick_best_strategy_skips_failed_results():
     assert best[0] == "smart_hot_cold"
 
 
-def test_strategy_scan_parameterless_strategy_has_none_value():
+def test_strategy_scan_parameterless_strategy_has_none_value(monkeypatch):
     """无独立参数的历史策略（如 hot_cold）扫描结果中 optimal_value 应为 None."""
-    records = _make_records(120)
+    records = _make_records(150)
     engine = GenerationEngine()
     engine.register(HotColdStrategy())
+
+    def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
+        return [
+            (
+                None,
+                BatchBacktestResult(
+                    total_rounds=len(tasks),
+                    total_cost=2 * len(tasks),
+                    hit_count=len(tasks),
+                    total_fixed_prize=100,
+                ),
+            )
+        ]
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.scan_param_values",
+        fake_scan_param_values,
+    )
 
     thread = OptimalStrategyScanThread(
         engine=engine,
         profile=SSQ,
         data_repository=_MockRepository(records),
-        start_date=datetime(2023, 4, 1),
-        end_date=datetime(2023, 4, 5),
+        start_date=datetime(2023, 5, 1),
+        end_date=datetime(2023, 5, 5),
         tickets_per_round=1,
         base_options={},
         plugin_dir=None,
@@ -224,6 +267,57 @@ def test_strategy_scan_parameterless_strategy_has_none_value():
     assert result.optimal_value is None
     assert result.param_name is None
     assert result.optimal_result.total_rounds == 5
+
+
+def test_non_3d_strategy_uses_single_param_scan(monkeypatch):
+    """无多参数网格但有 resolve_optimal_param 的非 3D 策略应扫描参数范围."""
+    records = _make_records(150)
+    engine = GenerationEngine()
+    engine.register(SmartHotColdStrategy())
+
+    captured = {}
+
+    def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
+        captured["param_name"] = param_name
+        captured["param_values"] = param_values
+        captured["strategy_id"] = base_context.strategy_id
+        # 返回一个成功结果，避免真实进程池
+        return [
+            (
+                value,
+                BatchBacktestResult(
+                    total_rounds=len(tasks),
+                    total_cost=2 * len(tasks),
+                    hit_count=len(tasks),
+                    total_fixed_prize=value or 0,
+                ),
+            )
+            for value in param_values
+        ]
+
+    monkeypatch.setattr(
+        "caipiao.ui.optimal_strategy_scan_thread.scan_param_values",
+        fake_scan_param_values,
+    )
+
+    thread = OptimalStrategyScanThread(
+        engine=engine,
+        profile=SSQ,
+        data_repository=_MockRepository(records),
+        start_date=datetime(2023, 5, 1),
+        end_date=datetime(2023, 5, 5),
+        tickets_per_round=1,
+        base_options={},
+        plugin_dir=None,
+    )
+    result, error = _run_thread(thread)
+
+    assert error is None, error
+    assert isinstance(result, StrategyScanResult)
+    assert captured.get("strategy_id") == "smart_hot_cold"
+    assert captured.get("param_name") == "lookback"
+    assert captured.get("param_values") == OPTIMAL_PERIOD_RANGES["lookback"]
+    assert result.param_names.get("smart_hot_cold") == "lookback"
 
 
 def test_resolve_optimal_param_grid_for_smart_hot_cold():

@@ -66,7 +66,7 @@ def test_merge_round_results_sorts_by_index():
     assert [tr["round"] for tr in merged.ticket_results] == [0, 1, 2]
 
 
-def test_merge_round_results_skips_error_rounds():
+def test_merge_round_results_records_error_rounds():
     r0 = RoundResult(index=0, total_cost=2, hit_count=1)
     r1 = RoundResult(index=1, error="history too short")
     r2 = RoundResult(index=2, total_cost=2, hit_count=0)
@@ -74,6 +74,7 @@ def test_merge_round_results_skips_error_rounds():
     assert merged.total_cost == 4
     assert merged.hit_count == 1
     assert merged.total_rounds == 3
+    assert merged.errors == ["history too short"]
 
 
 def test_prepare_ml_options_signature():
