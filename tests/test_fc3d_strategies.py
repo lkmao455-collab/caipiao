@@ -93,6 +93,53 @@ def test_exclude_include_3d_empty_pool_raises():
         strategy.validate_options(options)
 
 
+def test_exclude_include_3d_empty_include_with_exclude():
+    """Regression: empty include_pos but non-empty exclude_pos must choose from available pool."""
+    strategy = FC3DExcludeIncludeStrategy()
+    tickets = strategy.generate(
+        count=20,
+        options={
+            "include_pos": [[], [], []],
+            "exclude_pos": [[0, 1, 2], [3, 4], [5, 6, 7, 8]],
+            "seed": 123,
+        },
+    )
+    assert len(tickets) == 20
+    for t in tickets:
+        assert t.groups["pos"][0] not in (0, 1, 2)
+        assert t.groups["pos"][1] not in (3, 4)
+        assert t.groups["pos"][2] not in (5, 6, 7, 8)
+
+
+def test_smart_hot_cold_3d_all_digits_in_lookback():
+    """Guard: lookback window contains every digit, so no division by zero can occur."""
+    strategy = FC3DSmartHotColdStrategy()
+    # 10 draws where each position cycles through 0-9, then repeat to satisfy minimum 20.
+    history = [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [(i + j) % 10 for j in range(3)]},
+        )
+        for i in range(20)
+    ]
+    tickets = strategy.generate(count=5, options={"history": history, "lookback": 10, "seed": 7})
+    assert len(tickets) == 5
+    for t in tickets:
+        assert len(t.groups["pos"]) == 3
+        assert all(0 <= n <= 9 for n in t.groups["pos"])
+
+
+def test_smart_hot_cold_3d_seed_reproducible():
+    strategy = FC3DSmartHotColdStrategy()
+    history = make_history(50)
+    opts = {"history": history, "lookback": 30, "seed": 42}
+    t1 = strategy.generate(count=1, options=opts)[0].groups["pos"]
+    t2 = strategy.generate(count=1, options=opts)[0].groups["pos"]
+    assert t1 == t2
+
+
 # 追加到 tests/test_fc3d_strategies.py
 from caipiao.data.analyzer import DrawAnalyzer
 

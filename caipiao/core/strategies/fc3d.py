@@ -237,6 +237,9 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
                 exclude = set(exclude_pos[idx])
                 if include:
                     chosen = rng.choice(list(include))
+                else:
+                    available = set(range(10)) - exclude
+                    chosen = rng.choice(list(available))
                 result.append(chosen)
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
@@ -359,6 +362,7 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
         max_freq = max(freq.values()) if freq else 1
         missing = dict(analyzer.missing("pos", lookback))
         max_missing = max(missing.values()) if missing else 1
+        max_missing = max(max_missing, 1)
 
         basis = (
             f"智能冷热号策略：综合最近 {lookback} 期按位热号频率（权重 {hot_weight}）"
