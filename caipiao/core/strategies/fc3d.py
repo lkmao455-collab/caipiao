@@ -150,8 +150,7 @@ class FC3DOddEvenStrategy(GenerationStrategy):
                     for p in positional
                 ]
             else:
-                result = sorted(rng.sample(odd_pool, odd_count) + rng.sample(even_pool, 3 - odd_count))
-                # 整体模式仍排序以保持与原通用策略行为一致；按位模式保留顺序
+                result = rng.sample(odd_pool, odd_count) + rng.sample(even_pool, 3 - odd_count)
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )

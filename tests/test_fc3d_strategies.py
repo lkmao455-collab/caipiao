@@ -44,7 +44,7 @@ def test_odd_even_3d_respects_overall_count():
     tickets = strategy.generate(count=5, options={"odd_count": 2})
     for t in tickets:
         odd = sum(1 for n in t.groups["pos"] if n % 2 == 1)
-        assert odd == 2
+        assert odd == 2  # 仅校验奇数个数，不校验位置顺序
 
 
 def test_odd_even_3d_positional_mode():
