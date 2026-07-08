@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .....core.profile import PL3
-from ....generic_model import LotteryGenericModel
+from ....common.base import LotteryGenericModel
 
 
 class PL3CatBoostModel(LotteryGenericModel):

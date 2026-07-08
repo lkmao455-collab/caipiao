@@ -7,7 +7,7 @@ from typing import Optional
 
 from ....core.profile import QXC
 from ....data.models import DrawRecord
-from ...generic_predictor import GenericMLPredictor
+from ...common.predictor import BaseMLPredictor as GenericMLPredictor
 
 
 class QXCPredictor(GenericMLPredictor):

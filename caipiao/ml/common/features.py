@@ -10,8 +10,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ..core.profile import LotteryProfile, NumberGroup
-from ..data.models import DrawRecord
+from ...core.profile import LotteryProfile, NumberGroup
+from ...data.models import DrawRecord
 
 
 def build_features(

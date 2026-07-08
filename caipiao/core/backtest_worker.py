@@ -24,7 +24,7 @@ from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
 from caipiao.core.strategies import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
-from caipiao.ml.generic_predictor import GenericMLPredictor
+from caipiao.ml.common.predictor import BaseMLPredictor as GenericMLPredictor
 from caipiao.ml.lgbm_model import LotteryLightGBMModel
 from caipiao.ml.common.model_store import compute_lookback, new_model_path
 from caipiao.ml.model import LotteryXGBoostModel

@@ -175,7 +175,7 @@ class TrainModelThread(QThread):
     def run(self) -> None:
         try:
             if self.profile is not None and self.profile.key != "ssq":
-                from ..ml.generic_predictor import GenericMLPredictor
+                from ..ml.common.predictor import BaseMLPredictor as GenericMLPredictor
 
                 predictor = GenericMLPredictor(
                     self.records,

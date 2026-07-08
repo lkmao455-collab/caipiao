@@ -1,6 +1,6 @@
 """通用 ML 策略基类工厂.
 
-按彩种绑定 ``LotteryProfile``，复用 ``caipiao.ml.generic_predictor.GenericMLPredictor``，
+按彩种绑定 ``LotteryProfile``，复用 ``caipiao.ml.common.predictor.BaseMLPredictor``，
 避免为每个彩种复制一份 ML 策略公共逻辑。
 """
 
@@ -17,7 +17,7 @@ from ....core.strategy import GenerationStrategy
 from ....core.ticket import Ticket
 from ....data.models import DrawRecord
 from ....ml.common.model_store import compute_lookback, find_current_model, new_model_path
-from ....ml.generic_predictor import GenericMLPredictor
+from ....ml.common.predictor import BaseMLPredictor as GenericMLPredictor
 from .records import records_from_options
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def make_generic_ml_base(
 
     Args:
         profile: 彩种档案。
-        predictor_class: 可选的专属预测器类；默认使用 ``GenericMLPredictor``。
+        predictor_class: 可选的专属预测器类；默认使用 ``BaseMLPredictor``。
             传入的类应接受 ``(records, lookback, model_path, backend, temp_dir)``
             参数并在内部固定彩种。
     """

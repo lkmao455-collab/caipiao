@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .....core.profile import FC3D
-from ....generic_model import LotteryGenericModel
+from ....common.base import LotteryGenericModel
 
 
 class FC3DLightGBMModel(LotteryGenericModel):

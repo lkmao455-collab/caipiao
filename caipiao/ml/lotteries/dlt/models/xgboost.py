@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .....core.profile import DLT
-from ....generic_model import LotteryGenericModel
+from ....common.base import LotteryGenericModel
 
 
 class DLTXGBoostModel(LotteryGenericModel):

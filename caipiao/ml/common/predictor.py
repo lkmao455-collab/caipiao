@@ -2,6 +2,8 @@
 
 镜像 ``caipiao.ml.predictor.MLPredictor`` 的接口，
 但支持任意 ``LotteryProfile``。
+
+本模块位于 ``caipiao.ml.common``，为各彩种专属预测器提供可复用的基类。
 """
 
 from __future__ import annotations
@@ -13,16 +15,16 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ..core.profile import LotteryProfile, NumberGroup
-from ..data.models import DrawRecord
-from .common import model_store
-from .generic_features import build_features, build_prediction_features
-from .generic_model import LotteryGenericModel
+from ...core.profile import LotteryProfile, NumberGroup
+from ...data.models import DrawRecord
+from . import model_store
+from .features import build_features, build_prediction_features
+from .base import LotteryGenericModel
 
 logger = logging.getLogger(__name__)
 
 
-class GenericMLPredictor:
+class BaseMLPredictor:
     """基于历史数据的通用机器学习号码推荐器."""
 
     def __init__(
@@ -227,3 +229,7 @@ class GenericMLPredictor:
 
     def is_ready(self) -> bool:
         return self.model.is_trained
+
+
+# 向后兼容旧导入路径的别名
+GenericMLPredictor = BaseMLPredictor

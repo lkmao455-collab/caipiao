@@ -12,9 +12,9 @@ from caipiao.data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from caipiao.data.fetcher import LotteryDataFetcher
 from caipiao.data.models import DrawRecord
 from caipiao.data.repository import DrawRepository
-from caipiao.ml.generic_features import build_features
-from caipiao.ml.generic_model import LotteryGenericModel
-from caipiao.ml.generic_predictor import GenericMLPredictor
+from caipiao.ml.common.features import build_features
+from caipiao.ml.common.base import LotteryGenericModel
+from caipiao.ml.common.predictor import BaseMLPredictor as GenericMLPredictor
 
 
 # --------------------------------------------------------------------------- #

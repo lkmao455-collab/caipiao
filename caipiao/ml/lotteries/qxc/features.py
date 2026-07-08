@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 
 from ....core.profile import QXC
-from ...generic_features import build_features as _build_features
-from ...generic_features import build_prediction_features as _build_prediction_features
+from ...common.features import build_features as _build_features
+from ...common.features import build_prediction_features as _build_prediction_features
 
 if TYPE_CHECKING:
     from ....core.profile import LotteryProfile

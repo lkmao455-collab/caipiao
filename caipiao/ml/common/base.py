@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
 
-from ..core.profile import LotteryProfile, NumberGroup
+from ...core.profile import LotteryProfile, NumberGroup
 
 logger = logging.getLogger(__name__)
 

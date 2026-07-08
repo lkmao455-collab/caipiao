@@ -9,7 +9,7 @@ import numpy as np
 
 from ....core.profile import SSQ
 from ....data.models import DrawRecord
-from ...generic_predictor import GenericMLPredictor
+from ...common.predictor import BaseMLPredictor as GenericMLPredictor
 from .features import build_prediction_features
 
 
