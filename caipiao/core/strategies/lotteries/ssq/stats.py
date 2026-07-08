@@ -9,8 +9,6 @@ import random
 from collections import Counter
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-
 from .....data.analyzer import DrawAnalyzer
 from ....profile import SSQ
 from ....strategy import GenerationStrategy, StrategyMetadata
