@@ -88,7 +88,7 @@ def test_single_param_fallback_respects_locked_value(monkeypatch, tmp_path):
 
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SSQSmartSSQHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     captured = {}
 
@@ -126,7 +126,7 @@ def test_strategy_scan_finds_best(monkeypatch):
     records = _make_records(150)
     engine = GenerationEngine()
     engine.register(SSQHotColdStrategy())
-    engine.register(SSQSmartSSQHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
         # 模拟两个策略的扫描结果，smart_hot_cold 更优
@@ -200,7 +200,7 @@ def test_strategy_scan_insufficient_history():
     """历史记录不足 100 期时应返回数据不足错误."""
     records = _make_records(50)
     engine = GenerationEngine()
-    engine.register(SSQSmartSSQHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     thread = OptimalStrategyScanThread(
         engine=engine,
@@ -225,7 +225,7 @@ def test_strategy_scan_empty_date_range():
     """日期范围内没有记录时应返回明确错误."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SSQSmartSSQHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     thread = OptimalStrategyScanThread(
         engine=engine,
@@ -318,7 +318,7 @@ def test_non_3d_strategy_uses_single_param_scan(monkeypatch):
     """无多参数网格但有 resolve_optimal_param 的非 3D 策略应扫描参数范围."""
     records = _make_records(150)
     engine = GenerationEngine()
-    engine.register(SSQSmartSSQHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     captured = {}
 
@@ -403,7 +403,7 @@ def test_scan_respects_locked_params(monkeypatch, tmp_path):
 
     records = _make_3d_records(120)
     engine = GenerationEngine()
-    engine.register(FC3DSSQSmartSSQHotColdStrategy())
+    engine.register(FC3DSmartHotColdStrategy())
 
     captured = {}
 
@@ -472,7 +472,7 @@ def test_scan_downgrades_n_folds_for_large_grid(monkeypatch, tmp_path):
     store = OptimalParamStore(data_dir=tmp_path)
     records = _make_3d_records(120)
     engine = GenerationEngine()
-    engine.register(FC3DSSQSmartSSQHotColdStrategy())
+    engine.register(FC3DSmartHotColdStrategy())
 
     captured = {}
     statuses = []
