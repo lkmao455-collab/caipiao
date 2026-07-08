@@ -22,15 +22,7 @@ from caipiao.core.backtest_data import (
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
-from caipiao.core.strategies.advanced.bayesian_strategy import BayesianStrategy
-from caipiao.core.strategies.advanced.markov_strategy import MarkovChainStrategy
-from caipiao.core.strategies.balanced_strategy import BalancedStrategy
-from caipiao.core.strategies.generic import build_strategies
-from caipiao.core.strategies.hot_cold_strategy import HotColdStrategy
-from caipiao.core.strategies.ml_strategy import MLStrategy
-from caipiao.core.strategies.odd_even_strategy import OddEvenStrategy
-from caipiao.core.strategies.random_strategy import RandomStrategy
-from caipiao.core.strategies.smart_hot_cold_strategy import SmartHotColdStrategy
+from caipiao.core.strategies import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
 from caipiao.ml.generic_predictor import GenericMLPredictor
 from caipiao.ml.lgbm_model import LotteryLightGBMModel
@@ -79,46 +71,25 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
     """
     engine = GenerationEngine()
     if profile_key == "ssq":
-        engine.register(RandomStrategy())
-        engine.register(BalancedStrategy())
-        engine.register(OddEvenStrategy())
-        engine.register(HotColdStrategy())
-        engine.register(SmartHotColdStrategy())
-        engine.register(MLStrategy("xgboost"))
-        engine.register(BayesianStrategy())
-        engine.register(MarkovChainStrategy())
-    elif profile_key == "3d":
-        # 福彩3D：使用新独立包中的策略
-        for strategy in build_strategies(get_profile(profile_key)):
-            engine.register(strategy)
-    elif profile_key == "dlt":
-        # 大乐透：仅保留XGBoost
-        from caipiao.core.strategies.generic import GenericXGBoostStrategy
-        profile = get_profile(profile_key)
-        engine.register(GenericXGBoostStrategy(profile))
-    elif profile_key == "pl3":
-        # 排列3：智能冷热号、遗漏号追踪、历史均衡、XGBoost
-        from caipiao.core.strategies.generic import (
-            GenericSmartHotColdStrategy,
-            GenericMissingNumberStrategy,
-            GenericBalancedStrategy,
-            GenericXGBoostStrategy,
-        )
-        profile = get_profile(profile_key)
-        engine.register(GenericSmartHotColdStrategy(profile))
-        engine.register(GenericMissingNumberStrategy(profile))
-        engine.register(GenericBalancedStrategy(profile))
-        engine.register(GenericXGBoostStrategy(profile))
+        from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
+        from caipiao.core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
+        from caipiao.core.strategies.lotteries.ssq.hot_cold import SSQHotColdStrategy
+        from caipiao.core.strategies.lotteries.ssq.smart_hot_cold import SSQSmartHotColdStrategy
+        from caipiao.core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
+        from caipiao.core.strategies.lotteries.ssq.ml.xgboost import SSQXGBoostStrategy
+        from caipiao.core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
+        from caipiao.core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
+        engine.register(SSQRandomStrategy())
+        engine.register(SSQOddEvenStrategy())
+        engine.register(SSQHotColdStrategy())
+        engine.register(SSQSmartHotColdStrategy())
+        engine.register(SSQBalancedStrategy())
+        engine.register(SSQXGBoostStrategy())
+        engine.register(SSQBayesianStrategy())
+        engine.register(SSQMarkovStrategy())
     else:
-        from caipiao.core.strategies.generic import (
-            GenericRandomStrategy, GenericExcludeIncludeStrategy,
-            GenericLightGBMStrategy, GenericCatBoostStrategy,
-        )
         profile = get_profile(profile_key)
         for strategy in build_strategies(profile):
-            if isinstance(strategy, (GenericRandomStrategy, GenericExcludeIncludeStrategy,
-                                     GenericLightGBMStrategy, GenericCatBoostStrategy)):
-                continue
             engine.register(strategy)
 
     if plugin_dir:

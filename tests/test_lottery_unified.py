@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from caipiao.core.profile import get_profile, list_profiles
-from caipiao.core.strategies.generic import build_strategies, needs_history
+from caipiao.core.strategies import build_strategies, needs_history
 from caipiao.core.ticket import Ticket
 from caipiao.data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from caipiao.data.fetcher import LotteryDataFetcher

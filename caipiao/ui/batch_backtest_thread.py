@@ -26,7 +26,7 @@ from ..core.backtest_data import RoundBacktestContext, RoundTask
 from .components.ball_display import compute_highlight_map
 from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile
-from ..core.strategies.generic import is_ml_strategy, needs_history
+from ..core.strategies import is_ml_strategy, needs_history
 from ..data.repository import DrawRepository
 
 

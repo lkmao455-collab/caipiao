@@ -15,7 +15,7 @@ from caipiao.core.strategies.lotteries.fc3d import (
     FC3DLightGBMStrategy,
     FC3DCatBoostStrategy,
 )
-from caipiao.core.strategies.generic import build_strategies, needs_history, is_ml_strategy
+from caipiao.core.strategies import build_strategies, needs_history, is_ml_strategy
 from caipiao.data.models import DrawRecord
 
 
@@ -343,7 +343,7 @@ def test_needs_history_and_is_ml_3d_unchanged():
 
 def test_all_3d_strategies_respect_count():
     profile = get_profile("3d")
-    from caipiao.core.strategies.generic import build_strategies
+    from caipiao.core.strategies import build_strategies
 
     strategies = {s.metadata.id: s for s in build_strategies(profile)}
     history = make_history(120)
@@ -397,7 +397,7 @@ def test_smart_hot_cold_3d_temperature_changes_concentration():
 def test_all_3d_strategies_deterministic_without_user_seed():
     """未提供用户 seed 时，基于历史的策略仍应基于历史内容可复现。"""
     profile = get_profile("3d")
-    from caipiao.core.strategies.generic import build_strategies
+    from caipiao.core.strategies import build_strategies
     strategies = {s.metadata.id: s for s in build_strategies(profile)}
     history = make_history(120)
     for sid, strategy in strategies.items():
@@ -435,7 +435,7 @@ def test_ml_3d_insufficient_history_raises():
 )
 def test_all_3d_strategies_seed_reproducible(strategy_id):
     profile = get_profile("3d")
-    from caipiao.core.strategies.generic import build_strategies
+    from caipiao.core.strategies import build_strategies
 
     strategies = {s.metadata.id: s for s in build_strategies(profile)}
     strategy = strategies[strategy_id]

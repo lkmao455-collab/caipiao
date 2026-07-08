@@ -28,7 +28,7 @@ from ...persistence.backtest_db import BacktestDatabase
 from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.parameter_group_store import ParameterGroupStore
 from ...core.profile import LotteryProfile
-from ...core.strategies.generic import needs_history
+from ...core.strategies import needs_history
 from ...utils import app_data_dir
 from ..batch_backtest_thread import BatchBacktestThread
 from ..optimal_period_scan_thread import OptimalPeriodScanThread

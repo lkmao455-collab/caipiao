@@ -11,7 +11,7 @@ from PySide6.QtCore import QThread, Signal
 from ..core.backtest_data import BatchBacktestResult, RoundBacktestContext, RoundTask
 from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile
-from ..core.strategies.generic import needs_history
+from ..core.strategies import needs_history
 from ..data.repository import DrawRepository
 from ..persistence.optimal_param_store import OptimalParamStore
 from ..core.backtest_worker import merge_round_results, worker_round_backtest

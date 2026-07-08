@@ -16,7 +16,7 @@ from .batch_backtest_worker import init_worker_process
 from ..core.backtest_data import RoundBacktestContext, RoundTask
 from .optimal_period_config import resolve_optimal_param
 from ..core.profile import LotteryProfile
-from ..core.strategies.generic import needs_history
+from ..core.strategies import needs_history
 from ..data.repository import DrawRepository
 
 

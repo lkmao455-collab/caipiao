@@ -41,7 +41,7 @@ from ..core.profile import (
     profile_keys,
 )
 from ..core.prize import fc3d_bet_type
-from ..core.strategies.generic import is_ml_strategy, needs_history
+from ..core.strategies import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
 from ..ml.catboost_model import LotteryCatBoostModel

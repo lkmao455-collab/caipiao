@@ -21,7 +21,7 @@ from ..core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
 from ..core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
 from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
 from ..core.strategies.ml_strategy import MLStrategy
-from ..core.strategies.generic import build_strategies as build_generic_strategies
+from ..core.strategies.ml_strategy import MLStrategy
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
 from ..data.models import DrawRecord
@@ -74,40 +74,33 @@ class LotteryContext(QObject):
             self.engine.register(SSQMarkovStrategy())
         elif self.profile.key == "3d":
             # 福彩3D：仅保留核心策略
-            from ..core.strategies.generic import (
-                GenericSmartHotColdStrategy,
-                GenericMissingNumberStrategy,
-                GenericXGBoostStrategy,
-                GenericBalancedStrategy,
-            )
-            self.engine.register(GenericSmartHotColdStrategy(self.profile))
-            self.engine.register(GenericMissingNumberStrategy(self.profile))
-            self.engine.register(GenericXGBoostStrategy(self.profile))
-            self.engine.register(GenericBalancedStrategy(self.profile))
+            from ..core.strategies.lotteries.fc3d.smart_hot_cold import FC3DSmartHotColdStrategy
+            from ..core.strategies.lotteries.fc3d.missing_number import FC3DMissingNumberStrategy
+            from ..core.strategies.lotteries.fc3d.ml.xgboost import FC3DXGBoostStrategy
+            from ..core.strategies.lotteries.fc3d.balanced import FC3DBalancedStrategy
+            self.engine.register(FC3DSmartHotColdStrategy())
+            self.engine.register(FC3DMissingNumberStrategy())
+            self.engine.register(FC3DXGBoostStrategy())
+            self.engine.register(FC3DBalancedStrategy())
         elif self.profile.key == "dlt":
-            # 大乐透：仅保留XGBoost
-            from ..core.strategies.generic import GenericXGBoostStrategy
-            self.engine.register(GenericXGBoostStrategy(self.profile))
+            # 大乐透：原仅保留 XGBoost，generic 移除后注册全部基础策略
+            from ..core.strategies import build_strategies
+            for strategy in build_strategies(self.profile):
+                self.engine.register(strategy)
         elif self.profile.key == "pl3":
-            # 排列3：智能冷热号、遗漏号追踪、历史均衡、XGBoost
-            from ..core.strategies.generic import (
-                GenericSmartHotColdStrategy,
-                GenericMissingNumberStrategy,
-                GenericBalancedStrategy,
-                GenericXGBoostStrategy,
-            )
-            self.engine.register(GenericSmartHotColdStrategy(self.profile))
-            self.engine.register(GenericMissingNumberStrategy(self.profile))
-            self.engine.register(GenericBalancedStrategy(self.profile))
-            self.engine.register(GenericXGBoostStrategy(self.profile))
+            # 排列3：智能冷热号、遗漏号追踪、历史均衡（XGBoost 暂无 per-lottery 实现）
+            from ..core.strategies.lotteries.pl3.smart_hot_cold import PL3SmartHotColdStrategy
+            from ..core.strategies.lotteries.pl3.missing_number import PL3MissingNumberStrategy
+            from ..core.strategies.lotteries.pl3.balanced import PL3BalancedStrategy
+            self.engine.register(PL3SmartHotColdStrategy())
+            self.engine.register(PL3MissingNumberStrategy())
+            self.engine.register(PL3BalancedStrategy())
         else:
-            from ..core.strategies.generic import (
-                GenericRandomStrategy, GenericExcludeIncludeStrategy,
-                GenericLightGBMStrategy, GenericCatBoostStrategy,
-            )
-            for strategy in build_generic_strategies(self.profile):
-                if isinstance(strategy, (GenericRandomStrategy, GenericExcludeIncludeStrategy,
-                                         GenericLightGBMStrategy, GenericCatBoostStrategy)):
+            # 其它彩种：过滤随机与排除/包含策略
+            from ..core.strategies import build_strategies
+            for strategy in build_strategies(self.profile):
+                sid = strategy.metadata.id
+                if sid.startswith(("random_", "exclude_include_", "lightgbm_", "catboost_")):
                     continue
                 self.engine.register(strategy)
 

@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import PROFILES, get_profile
-from caipiao.core.strategies.generic import build_strategies, is_ml_strategy, needs_history
+from caipiao.core.strategies import build_strategies, is_ml_strategy, needs_history
 from caipiao.data.repository import DrawRepository
 
 
@@ -28,21 +28,6 @@ def _register_all_strategies(engine: GenerationEngine, profile) -> None:
     """注册该彩种全部可用策略."""
     for strategy in build_strategies(profile):
         engine.register(strategy)
-
-    # 双色球/大乐透在 generic.build_strategies 之外还有 legacy 策略
-    if profile.key == "ssq":
-        from caipiao.core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
-        from caipiao.core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
-        from caipiao.core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
-        from caipiao.core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
-        from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
-        from caipiao.core.strategies.ml_strategy import MLStrategy
-        engine.register(SSQRandomStrategy())
-        engine.register(SSQOddEvenStrategy())
-        engine.register(SSQBalancedStrategy())
-        engine.register(SSQBayesianStrategy())
-        engine.register(SSQMarkovStrategy())
-        engine.register(MLStrategy("xgboost"))
 
 
 def _run_backtest(

@@ -31,7 +31,7 @@ from ...persistence.backtest_db import BacktestDatabase
 from ...persistence.settings import AppSettings
 from ...core.profile import LotteryProfile
 from ...core.prize import calculate_prize
-from ...core.strategies.generic import needs_history
+from ...core.strategies import needs_history
 from ...core.ticket import Ticket
 from ..workers import GenerateTicketsThread
 from .ball_display import TicketRowWidget
