@@ -9,7 +9,7 @@ import numpy as np
 
 from ......data.models import DrawRecord
 from ......ml.common.model_store import compute_lookback, find_current_model, new_model_path
-from ......ml.predictor import MLPredictor
+from ......ml.lotteries.ssq.predictor import SSQPredictor as MLPredictor
 from .....profile import SSQ
 from .....strategy import GenerationStrategy
 from ....common.records import records_from_options
@@ -55,12 +55,13 @@ class _SSQMLStrategyBase(GenerationStrategy):
 
     def _load_predictor(self, options: Dict[str, Any]) -> MLPredictor:
         records = records_from_options(options)
+        if len(records) < 100:
+            raise ValueError(f"{self._label} 智能分析策略需要至少 100 期历史数据")
         history_count = options.get("history_count", -1)
         if isinstance(history_count, int) and history_count > 0 and len(records) > history_count:
             records = records[-history_count:]
         lookback = compute_lookback(len(records))
 
-        model_class = self._model_class()
         prefix_map = {
             "xgboost": "ml_xgboost",
             "lightgbm": "ml_lightgbm",
@@ -72,7 +73,9 @@ class _SSQMLStrategyBase(GenerationStrategy):
             find_current_model(records, lookback, prefix=prefix, options=options)
             or new_model_path(records, lookback, prefix=prefix, options=options)
         )
-        predictor = MLPredictor(records, lookback=lookback, model_path=model_path, model_class=model_class)
+        predictor = MLPredictor(
+            records, lookback=lookback, model_path=model_path, backend=self._backend
+        )
         if not predictor.is_ready():
             predictor.train()
         return predictor
