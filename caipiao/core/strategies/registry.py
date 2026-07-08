@@ -31,7 +31,9 @@ from .lotteries.ssq import stats as ssq_stats
 from .lotteries.ssq import transformer as ssq_transformer
 from .lotteries.ssq import trend as ssq_trend
 from .lotteries.ssq.ml import catboost as ssq_catboost
+from .lotteries.ssq.ml import hybrid as ssq_hybrid
 from .lotteries.ssq.ml import lightgbm as ssq_lightgbm
+from .lotteries.ssq.ml import lstm as ssq_lstm
 from .lotteries.ssq.ml import xgboost as ssq_xgboost
 from ..strategy import GenerationStrategy
 
@@ -49,6 +51,8 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         ssq_xgboost.SSQXGBoostStrategy,
         ssq_lightgbm.SSQLightGBMStrategy,
         ssq_catboost.SSQCatBoostStrategy,
+        ssq_lstm.SSQLSTMStrategy,
+        ssq_hybrid.SSQHybridStrategy,
         ssq_random_forest.SSQRandomForestStrategy,
         ssq_bayesian.SSQBayesianStrategy,
         ssq_markov.SSQMarkovStrategy,
