@@ -21,7 +21,6 @@ from ..core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
 from ..core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
 from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
 from ..core.strategies.ml_strategy import MLStrategy
-from ..core.strategies.ml_strategy import MLStrategy
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
 from ..data.models import DrawRecord
