@@ -50,3 +50,52 @@ def test_build_strategies_includes_ssq():
     ids = {s.metadata.id for s in strategies}
     assert "random" in ids
     assert "odd_even" in ids
+
+
+from datetime import datetime
+
+from caipiao.data.models import DrawRecord
+
+
+def make_ssq_history(n=50):
+    return [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + __import__("datetime").timedelta(days=i),
+            red_balls=sorted(__import__("random").sample(range(1, 34), 6)),
+            blue_ball=(i % 16) + 1,
+        )
+        for i in range(n)
+    ]
+
+
+def test_ssq_all_basic_strategies_generate_valid_tickets():
+    from caipiao.core.strategies.lotteries.ssq import (
+        SSQBalancedStrategy,
+        SSQExcludeIncludeStrategy,
+        SSQHotColdStrategy,
+        SSQMissingNumberStrategy,
+        SSQSmartHotColdStrategy,
+        SSQStatsStrategy,
+    )
+
+    history = make_ssq_history(50)
+    strategies = [
+        SSQHotColdStrategy(),
+        SSQSmartHotColdStrategy(),
+        SSQMissingNumberStrategy(),
+        SSQBalancedStrategy(),
+        SSQStatsStrategy(),
+    ]
+    for s in strategies:
+        tickets = s.generate(count=2, options={"history": history})
+        assert len(tickets) == 2
+        for t in tickets:
+            assert t.profile.key == "ssq"
+            assert len(t.groups["red"]) == 6
+            assert len(t.groups["blue"]) == 1
+
+    s = SSQExcludeIncludeStrategy()
+    tickets = s.generate(count=2, options={"include_red": [1, 2, 3]})
+    for t in tickets:
+        assert {1, 2, 3} <= set(t.groups["red"])
