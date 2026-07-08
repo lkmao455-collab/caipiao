@@ -50,12 +50,12 @@ def compute_lookback(record_count: int) -> int:
 def data_fingerprint(records: List[DrawRecord]) -> str:
     """基于记录数量与最新一期生成数据指纹.
 
-    与 :class:`caipiao.ml.predictor.MLPredictor` 保持一致，用于判断模型是否过期。
+    版本前缀 v2 表示顺序组合生成模型；旧版模型会被视为过期并重新训练。
     """
     if not records:
         return "empty"
     latest = max(records, key=lambda r: r.draw_date)
-    return f"{len(records)}|{latest.issue}|{latest.draw_date.isoformat()}"
+    return f"v2|{len(records)}|{latest.issue}|{latest.draw_date.isoformat()}"
 
 
 def _meta_path(model_path: Path) -> Path:

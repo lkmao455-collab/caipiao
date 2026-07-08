@@ -145,6 +145,7 @@ class CatBoostStrategy(GenerationStrategy):
             f"特征回看期数 {lookback}，按预测概率加权采样，多样性增强 {int(diversity * 10)}，"
             f"与上期红球最大允许重复数 {max_red_overlap}，"
             f"{'允许' if allow_blue_repeat else '不允许'}蓝球与上期重复。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
 
         tickets: List[Ticket] = []

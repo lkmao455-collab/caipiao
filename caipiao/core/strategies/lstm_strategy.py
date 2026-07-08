@@ -27,7 +27,7 @@ def _to_blue_list(records: List[DrawRecord]) -> List[int]:
 class LSTMStrategy(GenerationStrategy):
     """基于 LSTM 时序模型的号码生成策略."""
 
-    is_ml = False  # 不走 ML 策略的自动训练流程
+    is_ml = True  # 每次 generate 都会训练 LSTM，属于 ML 策略
 
     @property
     def metadata(self) -> StrategyMetadata:
@@ -78,6 +78,7 @@ class LSTMStrategy(GenerationStrategy):
         history = options.get("history", [])
         seq_len = int(options.get("seq_len", 20))
         epochs = int(options.get("epochs", 50))
+        seed = options.get("seed")
 
         history_count = options.get("history_count", -1)
         if isinstance(history_count, int) and history_count > 0 and len(history) > history_count:
@@ -122,6 +123,7 @@ class LSTMStrategy(GenerationStrategy):
         basis = (
             f"LSTM 时序分析策略：基于 {len(records)} 期历史数据，"
             f"时序窗口 {seq_len}，训练 {epochs} 轮。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
 
         tickets: List[Ticket] = []
@@ -132,22 +134,15 @@ class LSTMStrategy(GenerationStrategy):
         red_weights = red_proba + 0.05
         red_weights = red_weights / red_weights.sum()
 
-        # 蓝球剔除上期
-        last_blue = blue_list[-1] if blue_list else 0
-        blue_adj = blue_proba.copy()
-        if 1 <= last_blue <= 16:
-            blue_adj[last_blue - 1] = 0
-        blue_sum = blue_adj.sum()
-        if blue_sum > 0:
-            blue_adj = blue_adj / blue_sum
-        else:
-            blue_adj = np.ones(16) / 16.0
+        # 蓝球加权采样（不再无根据地剔除上期）
+        blue_weights = blue_proba + 0.05
+        blue_weights = blue_weights / blue_weights.sum()
 
-        rng = np.random.RandomState(options.get("seed", 42))
+        rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
 
         for i in range(count):
             reds = sorted(rng.choice(range(1, 34), size=6, replace=False, p=red_weights))
-            blue = int(rng.choice(range(1, 17), p=blue_adj))
+            blue = int(rng.choice(range(1, 17), p=blue_weights))
             tickets.append(
                 Ticket(
                     red_balls=reds,

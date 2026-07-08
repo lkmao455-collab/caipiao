@@ -40,8 +40,8 @@ def test_compute_lookback():
 def test_data_fingerprint_reflects_latest():
     records = make_records(120)
     fp1 = model_store.data_fingerprint(records)
-    # 记录数与最新一期都参与指纹
-    assert fp1.startswith("120|")
+    # 记录数与最新一期都参与指纹（v2 版本前缀）
+    assert fp1.startswith("v2|120|")
     records2 = make_records(121)
     assert model_store.data_fingerprint(records2) != fp1
     # 空数据

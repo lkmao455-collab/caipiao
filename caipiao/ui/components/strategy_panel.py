@@ -75,6 +75,16 @@ class StrategyPanel(QWidget):
         )
         self.layout.addWidget(self.description_label)
 
+        # 免责声明
+        self.disclaimer_label = QLabel(
+            "注意：所有策略均基于历史数据统计，不保证中奖。彩票开奖是独立随机事件。"
+        )
+        self.disclaimer_label.setWordWrap(True)
+        self.disclaimer_label.setStyleSheet(
+            "color: #d32f2f; padding: 4px; background: #fff3e0; border-radius: 4px;"
+        )
+        self.layout.addWidget(self.disclaimer_label)
+
         # 福彩3D 无过滤（开奖独立事件，过滤只会降低覆盖）
 
         # 双色球过滤参数

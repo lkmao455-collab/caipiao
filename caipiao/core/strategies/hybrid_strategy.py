@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class HybridStrategy(GenerationStrategy):
     """红球使用 XGBoost，蓝球使用 LSTM 的混合策略."""
 
-    is_ml = False
+    is_ml = True  # 每次 generate 都会训练 XGBoost + LSTM
 
     @property
     def metadata(self) -> StrategyMetadata:
@@ -76,6 +76,7 @@ class HybridStrategy(GenerationStrategy):
         diversity = int(options.get("diversity_boost", 3)) / 10.0
         blue_seq_len = int(options.get("blue_seq_len", 20))
         blue_epochs = int(options.get("blue_epochs", 50))
+        seed = options.get("seed")
 
         history_count = options.get("history_count", -1)
         if isinstance(history_count, int) and history_count > 0 and len(history) > history_count:
@@ -118,18 +119,14 @@ class HybridStrategy(GenerationStrategy):
                 progress("蓝球数据不足，使用均匀概率")
             blue_proba = np.ones(16) / 16.0
 
-        # 剔除上期蓝球
-        last_blue = blue_list[-1] if blue_list else 0
-        blue_adj = blue_proba.copy()
-        if 1 <= last_blue <= 16:
-            blue_adj[last_blue - 1] = 0
-        blue_sum = blue_adj.sum()
-        if blue_sum > 0:
-            blue_adj = blue_adj / blue_sum
+        # 蓝球加权采样（不再无根据地剔除上期）
+        blue_weights = blue_proba + 0.05
+        blue_weights = blue_weights / blue_weights.sum()
 
         basis = (
             f"智能混合分析：红球 XGBoost（{len(records)}期，lookback={lookback}），"
             f"蓝球 LSTM（窗口={blue_seq_len}，{blue_epochs}轮）。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
 
         tickets: List[Ticket] = []
@@ -139,10 +136,10 @@ class HybridStrategy(GenerationStrategy):
         red_weights = red_proba + 0.05
         red_weights = red_weights / red_weights.sum()
 
-        rng = np.random.RandomState(options.get("seed", 42))
+        rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
         for i in range(count):
             reds = sorted(rng.choice(range(1, 34), size=6, replace=False, p=red_weights))
-            blue = int(rng.choice(range(1, 17), p=blue_adj))
+            blue = int(rng.choice(range(1, 17), p=blue_weights))
             tickets.append(
                 Ticket(
                     red_balls=reds,

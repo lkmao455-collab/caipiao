@@ -72,13 +72,13 @@ class BayesianStrategy(_AdvancedBase):
                 proba[pos] = self._bayesian_inference(
                     analyzer, group.key, size, lookback, prior_weight, alpha, pos
                 )
-            basis = f"贝叶斯推断（{self._profile.name}）：先验权重 {int(prior_weight*100)}%，观测窗口 {lookback} 期。"
+            basis = f"贝叶斯推断（{self._profile.name}）：先验权重 {int(prior_weight*100)}%，观测窗口 {lookback} 期。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         else:
             # 组合：整体推断
             proba = self._bayesian_inference(
                 analyzer, group.key, size, lookback, prior_weight, alpha
             )
-            basis = f"贝叶斯推断（{self._profile.name}）：先验权重 {int(prior_weight*100)}%，观测窗口 {lookback} 期。"
+            basis = f"贝叶斯推断（{self._profile.name}）：先验权重 {int(prior_weight*100)}%，观测窗口 {lookback} 期。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
 
         return proba, basis
 

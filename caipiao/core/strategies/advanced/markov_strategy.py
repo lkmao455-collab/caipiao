@@ -91,7 +91,7 @@ class MarkovChainStrategy(_AdvancedBase):
         n = len(sequences)
         if n < order + 1:
             proba = np.ones(size) / size
-            basis = f"马尔可夫链分析（{self._profile.name}）：数据不足，使用均匀概率。"
+            basis = f"马尔可夫链分析（{self._profile.name}）：数据不足，使用均匀概率。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
             return proba, basis
 
         # 初始概率
@@ -134,5 +134,5 @@ class MarkovChainStrategy(_AdvancedBase):
         if group.positional:
             proba = np.tile(proba, (pick, 1))
 
-        basis = f"马尔可夫链分析（{self._profile.name}，{order}阶）：基于 {len(records)} 期数据。"
+        basis = f"马尔可夫链分析（{self._profile.name}，{order}阶）：基于 {len(records)} 期数据。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis

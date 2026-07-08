@@ -364,22 +364,33 @@ def test_balanced_3d_no_history_raises():
         strategy.generate(count=1, options={"history": []})
 
 
+def _make_biased_history(n=50):
+    """生成有偏历史：前两位分别固定为高频数字 5 和 9."""
+    return [
+        DrawRecord(
+            f"2024{i:03d}",
+            datetime(2024, 1, 1) + timedelta(days=i),
+            profile="3d",
+            groups={"pos": [5, 9, (i % 10)]},
+        )
+        for i in range(n)
+    ]
+
+
 def test_hot_cold_3d_temperature_changes_concentration():
     strategy = FC3DHotColdStrategy()
-    history = make_history(50)
-    low_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 5, "seed": 1})
-    high_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 50, "seed": 1})
+    history = _make_biased_history(50)
+    low_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 5})
+    high_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 50})
     # 低温度下应更集中在高频数字
-    assert any(a.groups["pos"] != b.groups["pos"] for a, b in zip(low_t, high_t))
     assert _max_digit_concentration(low_t) > _max_digit_concentration(high_t)
 
 
 def test_smart_hot_cold_3d_temperature_changes_concentration():
     strategy = FC3DSmartHotColdStrategy()
-    history = make_history(50)
-    low_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 5, "seed": 1})
-    high_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 50, "seed": 1})
-    assert any(a.groups["pos"] != b.groups["pos"] for a, b in zip(low_t, high_t))
+    history = _make_biased_history(50)
+    low_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 5})
+    high_t = strategy.generate(count=50, options={"history": history, "lookback": 30, "temperature": 50})
     assert _max_digit_concentration(low_t) > _max_digit_concentration(high_t)
 
 

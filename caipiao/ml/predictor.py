@@ -143,15 +143,7 @@ class MLPredictor:
     ) -> Tuple[List[int], List[int]]:
         """推荐号码组合.
 
-        Args:
-            red_count: 推荐红球个数。
-            blue_count: 推荐蓝球个数。
-            diversity_boost: 多样性增强系数，避免总是选相似号码。
-            rng: 随机数生成器，用于多样化采样。
-
-        Returns:
-            reds: 推荐红球列表
-            blues: 推荐蓝球列表
+        红球使用顺序生成模型不放回采样；蓝球使用预测概率加权采样。
         """
         if rng is None:
             rng = np.random.RandomState()
@@ -162,41 +154,21 @@ class MLPredictor:
             raise ValueError("blue_count 必须在 0..16 之间")
 
         red_proba, blue_proba = self.predict()
+        X_pred = build_prediction_features(self.records, self.lookback)
+        if X_pred.size == 0:
+            raise ValueError("历史数据不足，无法预测")
 
-        # 对概率进行加权随机采样，既尊重模型预测又保证多样性
-        # 加入少量噪声，避免每次结果完全相同
-        red_weights = red_proba + 0.05
-        red_weights = red_weights / red_weights.sum()
+        selected_reds = sorted(self.model.sample_reds(X_pred, red_count, rng))
+
         blue_weights = blue_proba + 0.05
         blue_weights = blue_weights / blue_weights.sum()
-
-        selected_reds: List[int] = []
-        available_reds = list(range(1, 34))
-        red_p = red_weights.copy()
-
-        while len(selected_reds) < red_count:
-            # 多样性惩罚：与已选号码相邻的概率降低
-            if selected_reds and diversity_boost > 0:
-                for s in selected_reds:
-                    for neighbor in range(max(1, s - 1), min(34, s + 2)):
-                        if neighbor in available_reds:
-                            idx_in_available = available_reds.index(neighbor)
-                            red_p[idx_in_available] *= (1 - diversity_boost * 0.5)
-                red_p = red_p / red_p.sum()
-
-            idx = rng.choice(len(available_reds), p=red_p)
-            n = available_reds[idx]
-            selected_reds.append(n)
-            available_reds.pop(idx)
-            red_p = np.delete(red_p, idx)
-
         selected_blues: List[int] = []
         if blue_count > 0:
             selected_blues = rng.choice(
                 range(1, 17), size=blue_count, replace=False, p=blue_weights
             ).tolist()
 
-        return sorted(selected_reds), selected_blues
+        return selected_reds, selected_blues
 
     def is_ready(self) -> bool:
         """模型是否已准备好."""

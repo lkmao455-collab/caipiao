@@ -82,7 +82,7 @@ class EnsembleVotingStrategy(_AdvancedBase):
         if group.positional and proba.ndim == 1:
             proba = np.tile(proba, (pick, 1))
 
-        basis = f"集成投票分析（{self._profile.name}）：随机森林 {rf_w}%，统计 {stats_w}%，贝叶斯 {bayes_w}%。"
+        basis = f"集成投票分析（{self._profile.name}）：随机森林 {rf_w}%，统计 {stats_w}%，贝叶斯 {bayes_w}%。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis
 
     def _rf_probability(self, records, group, size, pick):

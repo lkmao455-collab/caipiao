@@ -92,7 +92,7 @@ class HotColdStrategy(GenerationStrategy):
             pool = ranked_reds[:8] + ranked_reds[-8:]
             mode_text = "热号与冷号混合"
 
-        basis = f"冷热号分析策略：{mode_text}，基于历史记录统计频率后选取候选池。"
+        basis = f"冷热号分析策略：{mode_text}，基于历史记录统计频率后选取候选池。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 

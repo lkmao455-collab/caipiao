@@ -119,7 +119,9 @@ class MLStrategy(GenerationStrategy):
         if isinstance(history_count, int) and history_count > 0 and len(history) > history_count:
             history = history[-history_count:]
 
-        FIXED_SEED = 42
+        seed = options.get("seed")
+        if seed is None:
+            seed = int(np.random.randint(0, 2**31))
 
         records = [
             r if isinstance(r, DrawRecord) else DrawRecord(
@@ -165,6 +167,7 @@ class MLStrategy(GenerationStrategy):
         basis = (
             f"{label} 智能分析策略：基于最近 {len(records)} 期历史数据训练模型，"
             f"特征回看期数 {lookback}，按预测概率加权采样，多样性增强 {int(diversity * 10)}。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
 
         tickets: List[Ticket] = []
@@ -182,7 +185,7 @@ class MLStrategy(GenerationStrategy):
                 red_proba=red_proba,
                 blue_proba=blue_proba,
                 diversity=diversity,
-                fixed_seed=FIXED_SEED,
+                seed=seed,
                 seed_offset=seed_offset,
                 batch_size=batch_size,
                 basis=basis,
@@ -213,7 +216,7 @@ class MLStrategy(GenerationStrategy):
         red_proba: np.ndarray,
         blue_proba: np.ndarray,
         diversity: float,
-        fixed_seed: int,
+        seed: int,
         seed_offset: int,
         batch_size: int,
         basis: str,
@@ -221,7 +224,7 @@ class MLStrategy(GenerationStrategy):
     ) -> List[Ticket]:
         tickets: List[Ticket] = []
         for i in range(batch_size):
-            np_rng = np.random.RandomState(fixed_seed + seed_offset + i)
+            np_rng = np.random.RandomState(seed + seed_offset + i)
             reds, blues = predictor.recommend(
                 red_count=6, blue_count=1, diversity_boost=diversity, rng=np_rng
             )

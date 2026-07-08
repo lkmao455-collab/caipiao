@@ -98,5 +98,5 @@ class CorrelationMiningStrategy(_AdvancedBase):
         if group.positional:
             proba = np.tile(proba, (pick, 1))
 
-        basis = f"相关性挖掘（{self._profile.name}）：最小支持度 {int(min_support*100)}%，相关性权重 {int(corr_weight*100)}%。"
+        basis = f"相关性挖掘（{self._profile.name}）：最小支持度 {int(min_support*100)}%，相关性权重 {int(corr_weight*100)}%。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis

@@ -312,7 +312,7 @@ class GenericHotColdStrategy(_GenericBase):
         else:
             pool = ranked[:half] + ranked[-(pick - half):]
 
-        basis = f"冷热号分析策略：{mode} 模式，基于历史频率选取候选池，投注 {pick} 个号码。"
+        basis = f"冷热号分析策略：{mode} 模式，基于历史频率选取候选池，投注 {pick} 个号码。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
@@ -614,7 +614,7 @@ class GenericMissingNumberStrategy(_GenericBase):
         missing = analyzer.missing(primary.key, lookback)
         pool = [n for n, _ in missing[:pool_size]]
 
-        basis = f"遗漏号追踪策略：基于最近 {lookback} 期，从高遗漏值候选池抽取 {pick} 个号码。"
+        basis = f"遗漏号追踪策略：基于最近 {lookback} 期，从高遗漏值候选池抽取 {pick} 个号码。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
@@ -876,6 +876,7 @@ class _GenericMLStrategy(_GenericBase):
         basis = (
             f"{self.metadata.name}：基于最近 {len(records)} 期历史数据训练模型，"
             f"特征回看期数 {lookback}，按预测概率加权采样。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
 
         # 每组默认 pick 数

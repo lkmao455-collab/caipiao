@@ -389,7 +389,7 @@ class FC3DHotColdStrategy(GenerationStrategy):
         dedup = bool(options.get("dedup", True))
 
         freq = stable_frequency(records, lookback)
-        basis = f"冷热号分析策略：{mode} 模式，lookback={lookback}，temperature={temperature}。"
+        basis = f"冷热号分析策略：{mode} 模式，lookback={lookback}，temperature={temperature}。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         seed = options.get("seed")
         if seed is not None:
             basis += f" 随机种子：{seed}。"
@@ -588,7 +588,7 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
 
         missing = stable_missing(records, lookback, cap=lookback)
 
-        basis = f"遗漏号追踪策略：lookback={lookback}，候选池={pool_size}，温度={temperature}。"
+        basis = f"遗漏号追踪策略：lookback={lookback}，候选池={pool_size}，温度={temperature}。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         seed = options.get("seed")
         if seed is not None:
             basis += f" 随机种子：{seed}。"

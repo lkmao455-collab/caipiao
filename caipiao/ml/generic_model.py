@@ -1,8 +1,10 @@
 """通用机器学习模型（按彩种档案驱动）.
 
 支持任意 NumberGroup 结构：
-- 组合组：为号池中每个号码训练一个二分类器；
-- 按位组：为每个位置训练一个多分类器。
+- 组合组（如双色球红球、快乐8号码）：使用**顺序生成模型**，将不放回抽取
+  建模为“给定已选号码，预测下一个号码”的多分类问题，更符合真实开奖机制。
+- 单号码组（如双色球蓝球）：为每个候选号码训练二分类器。
+- 按位组（如福彩3D）：为每个位置训练一个多分类器。
 
 后端可以是 xgboost、lightgbm 或 catboost。
 """
@@ -16,7 +18,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
-from sklearn.multioutput import MultiOutputClassifier
 from sklearn.preprocessing import LabelEncoder
 
 from ..core.profile import LotteryProfile, NumberGroup
@@ -100,6 +101,7 @@ class LotteryGenericModel:
         self.backend = backend
         self.temp_dir = temp_dir
         self.group_models: Dict[str, List[Any]] = {}
+        self._base_feature_dim: Optional[int] = None
         self.is_trained = False
 
     def _create_classifier(self, positional: bool = False, num_class: int = 0) -> Any:
@@ -116,6 +118,41 @@ class LotteryGenericModel:
                 clf.set_params(objective="multiclass", num_class=num_class)
         return clf
 
+    @staticmethod
+    def _is_combination_group(group: NumberGroup) -> bool:
+        """是否需要用顺序生成模型建模不放回组合."""
+        return not group.positional and group.count > 1
+
+    def _build_sequence_input(
+        self, base_x: np.ndarray, group: NumberGroup, mask: np.ndarray, step: int
+    ) -> np.ndarray:
+        """构造顺序生成模型的一个输入向量."""
+        step_norm = step / max(group.count - 1, 1)
+        return np.concatenate([base_x.flatten(), mask, [step_norm]]).astype(np.float32)
+
+    def _build_sequence_training_data(
+        self, X: np.ndarray, y: np.ndarray, group: NumberGroup
+    ) -> Tuple[np.ndarray, np.ndarray, LabelEncoder]:
+        """从 one-hot 标签构造顺序生成训练数据.
+
+        对每期开奖，将号码按升序排列，依次生成 count 个子样本：
+        输入 = [历史特征, 已选号码 mask, 当前步数]
+        标签 = 下一个号码的索引。
+        """
+        X_seq: List[np.ndarray] = []
+        y_seq: List[int] = []
+        for i in range(X.shape[0]):
+            nums = [idx for idx, val in enumerate(y[i]) if val]
+            nums.sort()
+            mask = np.zeros(group.size, dtype=np.float32)
+            for step, num_idx in enumerate(nums):
+                X_seq.append(self._build_sequence_input(X[i], group, mask, step))
+                y_seq.append(num_idx)
+                mask[num_idx] = 1.0
+        encoder = LabelEncoder()
+        y_enc = encoder.fit_transform(y_seq)
+        return np.array(X_seq), y_enc, encoder
+
     def fit(
         self,
         X: np.ndarray,
@@ -126,6 +163,7 @@ class LotteryGenericModel:
             raise ValueError("训练数据为空")
         if X.ndim != 2:
             raise ValueError("X 必须是二维数组")
+        self._base_feature_dim = X.shape[1]
 
         total_steps = 0
         plan: List[Tuple[str, Any]] = []  # (group_key, task_description)
@@ -136,6 +174,9 @@ class LotteryGenericModel:
             if g.positional:
                 total_steps += g.count
                 plan.append((g.key, "positional"))
+            elif self._is_combination_group(g):
+                total_steps += 1
+                plan.append((g.key, "sequence"))
             else:
                 total_steps += g.size
                 plan.append((g.key, "binary"))
@@ -151,7 +192,6 @@ class LotteryGenericModel:
                     y_pos = y[:, pos]
                     unique = np.unique(y_pos)
                     if len(unique) == 1:
-                        # 退化：该位置所有样本标签相同，使用常数概率
                         val = int(unique[0])
                         if not (g.lo <= val <= g.hi):
                             raise ValueError(f"按位标签 {val} 超出范围 [{g.lo}, {g.hi}]")
@@ -159,10 +199,6 @@ class LotteryGenericModel:
                         const[val - g.lo] = 1.0
                         models.append(const)
                     else:
-                        # 训练数据中可能未出现全部类别，使用 LabelEncoder 将实际类别
-                        # 映射为连续索引，避免 LightGBM/CatBoost 报
-                        # "Found only N unique classes in the data, but have defined M classes" 警告，
-                        # 同时防止 LightGBM 丢弃未出现类别导致概率维度错误。
                         encoder = LabelEncoder()
                         y_enc = encoder.fit_transform(y_pos)
                         num_class = len(encoder.classes_)
@@ -172,13 +208,24 @@ class LotteryGenericModel:
                     current += 1
                     if progress_callback:
                         progress_callback(current, total_steps)
+            elif self._is_combination_group(g):
+                # 顺序生成：一个多分类器
+                X_seq, y_seq, encoder = self._build_sequence_training_data(X, y, g)
+                if len(X_seq) == 0:
+                    raise ValueError(f"组 {g.key} 顺序生成训练数据为空")
+                num_class = len(encoder.classes_)
+                model = self._create_classifier(positional=True, num_class=num_class)
+                model.fit(X_seq, y_seq)
+                models.append(("sequence", model, encoder, g.count))
+                current += 1
+                if progress_callback:
+                    progress_callback(current, total_steps)
             else:
                 # 每个号码一个二分类器
                 for i in range(g.size):
                     y_i = y[:, i]
                     unique = np.unique(y_i)
                     if len(unique) == 1:
-                        # 退化：该号码所有样本标签相同
                         val = float(unique[0])
                         if val not in (0.0, 1.0):
                             raise ValueError(f"二分类标签必须为 0/1， got {val}")
@@ -199,9 +246,24 @@ class LotteryGenericModel:
         self.is_trained = True
         logger.info("%s 通用模型训练完成", self.profile.name)
 
+    def _predict_sequence_initial(
+        self, model: Any, encoder: LabelEncoder, group: NumberGroup, X_pred: np.ndarray
+    ) -> np.ndarray:
+        """预测 step=0 时各号码概率，用于展示."""
+        mask = np.zeros(group.size, dtype=np.float32)
+        x = self._build_sequence_input(X_pred, group, mask, 0).reshape(1, -1)
+        pred = model.predict_proba(x)[0]
+        full = np.full(group.size, 0.05 / group.size, dtype=np.float32)
+        for idx, cls in enumerate(encoder.classes_):
+            full[int(cls)] = max(pred[idx], 0.0)
+        full = full / full.sum()
+        return full
+
     def predict_proba(self, X: np.ndarray) -> Dict[str, np.ndarray]:
         if not self.is_trained:
             raise RuntimeError("模型尚未训练")
+        if self._base_feature_dim is None:
+            raise RuntimeError("模型未记录基础特征维度")
 
         result: Dict[str, np.ndarray] = {}
         with warnings.catch_warnings():
@@ -219,15 +281,13 @@ class LotteryGenericModel:
                             proba = model
                         elif isinstance(model, tuple) and len(model) == 2:
                             clf, encoder = model
-                            pred = clf.predict_proba(X)[0]  # shape (num_class,)
-                            # 映射回完整号码空间，缺失类别给一个很小的基线概率
+                            pred = clf.predict_proba(X)[0]
                             full = np.full(g.size, 0.05 / g.size, dtype=np.float32)
                             for idx, cls in enumerate(encoder.classes_):
                                 full[int(cls) - g.lo] = max(pred[idx], 0.0)
                             full = full / full.sum()
                             proba = full
                         else:
-                            # 旧格式缓存：裸分类器，无 encoder；直接用 predict_proba
                             pred = model.predict_proba(X)[0]
                             full = np.full(g.size, 0.05 / g.size, dtype=np.float32)
                             for idx in range(len(pred)):
@@ -236,7 +296,11 @@ class LotteryGenericModel:
                             full = full / full.sum()
                             proba = full
                         probs.append(proba)
-                    result[g.key] = np.array(probs)  # shape (count, size)
+                    result[g.key] = np.array(probs)
+                elif self._is_combination_group(g):
+                    # 顺序生成模型：返回 step=0 的初始概率
+                    tag, model, encoder, _ = models[0]
+                    result[g.key] = self._predict_sequence_initial(model, encoder, g, X)
                 else:
                     probs = []
                     for model in models:
@@ -245,8 +309,49 @@ class LotteryGenericModel:
                         else:
                             proba = model.predict_proba(X)[0, 1]
                         probs.append(proba)
-                    result[g.key] = np.array(probs)  # shape (size,)
+                    result[g.key] = np.array(probs)
         return result
+
+    def sample_combination(
+        self,
+        X_pred: np.ndarray,
+        group: NumberGroup,
+        rng: np.random.RandomState,
+    ) -> List[int]:
+        """对组合组使用顺序生成模型采样一个合法组合."""
+        if not self.is_trained:
+            raise RuntimeError("模型尚未训练")
+        if not self._is_combination_group(group):
+            raise ValueError(f"组 {group.key} 不是组合组，不能使用顺序采样")
+        models = self.group_models[group.key]
+        tag, model, encoder, count = models[0]
+        if tag != "sequence":
+            raise RuntimeError(f"组 {group.key} 未使用顺序生成模型")
+
+        selected: List[int] = []
+        mask = np.zeros(group.size, dtype=np.float32)
+        for step in range(count):
+            x = self._build_sequence_input(X_pred, group, mask, step).reshape(1, -1)
+            pred = model.predict_proba(x)[0]
+            full = np.full(group.size, 0.05 / group.size, dtype=np.float32)
+            for idx, cls in enumerate(encoder.classes_):
+                full[int(cls)] = max(pred[idx], 0.0)
+            # 已选号码概率置 0
+            for idx in selected:
+                full[idx] = 0.0
+            s = full.sum()
+            if s <= 0:
+                # 退化：从剩余号码均匀采样
+                remaining = [i for i in range(group.size) if i not in selected]
+                full = np.zeros(group.size, dtype=np.float32)
+                for i in remaining:
+                    full[i] = 1.0 / max(len(remaining), 1)
+            else:
+                full = full / s
+            next_idx = int(rng.choice(group.size, p=full))
+            selected.append(next_idx)
+            mask[next_idx] = 1.0
+        return [group.lo + idx for idx in selected]
 
     def save(self, path: Path | str) -> None:
         path = Path(path)
@@ -259,6 +364,7 @@ class LotteryGenericModel:
                     "lookback": self.lookback,
                     "backend": self.backend,
                     "is_trained": self.is_trained,
+                    "base_feature_dim": self._base_feature_dim,
                 },
                 f,
             )
@@ -272,4 +378,5 @@ class LotteryGenericModel:
         self.lookback = data["lookback"]
         self.backend = data.get("backend", "xgboost")
         self.is_trained = data["is_trained"]
+        self._base_feature_dim = data.get("base_feature_dim")
         logger.info("通用模型已从 %s 加载", path)

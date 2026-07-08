@@ -72,7 +72,7 @@ class RandomForestStrategy(_AdvancedBase):
         X_pred = build_prediction_features(records, lookback)
         red_proba, blue_proba = model.predict_proba(X_pred)
 
-        basis = f"随机森林分析（SSQ）：基于 {len(records)} 期数据，特征回看 {lookback} 期。"
+        basis = f"随机森林分析（SSQ）：基于 {len(records)} 期数据，特征回看 {lookback} 期。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         # 返回红球概率，蓝球单独处理
         return red_proba, basis
 
@@ -110,7 +110,7 @@ class RandomForestStrategy(_AdvancedBase):
         if not X_list:
             # 数据不足，返回均匀概率
             proba = np.ones((pick, size)) / size
-            basis = f"随机森林分析（福彩3D）：数据不足，使用均匀概率。"
+            basis = f"随机森林分析（福彩3D）：数据不足，使用均匀概率。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
             return proba, basis
 
         X = np.array(X_list)
@@ -144,7 +144,7 @@ class RandomForestStrategy(_AdvancedBase):
         for pos in range(pick):
             proba[pos] = classifiers[pos].predict_proba(X_pred)[0]
 
-        basis = f"随机森林分析（福彩3D）：基于 {len(records)} 期数据，每位独立建模。"
+        basis = f"随机森林分析（福彩3D）：基于 {len(records)} 期数据，每位独立建模。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis
 
     def _compute_generic(self, records, n_estimators, max_depth):
@@ -177,7 +177,7 @@ class RandomForestStrategy(_AdvancedBase):
 
         if not X_list:
             proba = np.ones((pick, size)) / size
-            basis = f"随机森林分析：数据不足，使用均匀概率。"
+            basis = f"随机森林分析：数据不足，使用均匀概率。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
             return proba, basis
 
         X = np.array(X_list)
@@ -209,5 +209,5 @@ class RandomForestStrategy(_AdvancedBase):
         for pos in range(pick):
             proba[pos] = classifiers[pos].predict_proba(X_pred)[0]
 
-        basis = f"随机森林分析：基于 {len(records)} 期数据，每位独立建模。"
+        basis = f"随机森林分析：基于 {len(records)} 期数据，每位独立建模。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis

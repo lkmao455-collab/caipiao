@@ -166,7 +166,7 @@ class StatsStrategy(GenerationStrategy):
         blue_freq = analyzer.frequency("blue")
         blues_pool = sorted(range(1, 17), key=lambda n: blue_freq.get(n, 0), reverse=True)[:8]
 
-        basis = f"统计分析（{text}）：基于历史记录统计频率后选取候选池。"
+        basis = f"统计分析（{text}）：基于历史记录统计频率后选取候选池。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return pool, blues_pool, basis
 
     def _missing_mode(self, analyzer: DrawAnalyzer, options: Dict[str, Any]):
@@ -182,9 +182,10 @@ class StatsStrategy(GenerationStrategy):
         reds_pool = ranked[:pool_size]
 
         freq_blue = analyzer.frequency("blue")
-        blues_pool = sorted(range(1, 17), key=lambda n: freq_blue.get(n, 0), reverse=True)[:8]
+        missing_blue = dict(analyzer.missing("blue", lookback))
+        blues_pool = sorted(range(1, 17), key=lambda n: missing_blue.get(n, 0), reverse=True)[:8]
 
-        basis = f"统计分析（遗漏号优先）：回看 {lookback} 期，选取高遗漏值号码候选池。"
+        basis = f"统计分析（遗漏号优先）：回看 {lookback} 期，选取高遗漏值号码候选池。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return reds_pool, blues_pool, basis
 
     def _smart_mode(self, analyzer: DrawAnalyzer, options: Dict[str, Any]):

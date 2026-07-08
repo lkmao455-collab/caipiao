@@ -167,15 +167,17 @@ class _AdvancedBase(GenerationStrategy):
     ) -> List[Ticket]:
         options = options or {}
         records = self._get_history(options)
-        seed = options.get("seed", 42)
+        seed = options.get("seed")
 
         proba, basis = self._compute_probabilities(records, options)
+        if self._is_ssq():
+            basis += " 蓝球未单独建模，使用均匀随机采样。"
 
         tickets: List[Ticket] = []
         if count <= 0:
             return tickets
 
-        rng = np.random.RandomState(seed)
+        rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
         group = self._profile.primary_group
         pick = group.count
         size = group.hi - group.lo + 1

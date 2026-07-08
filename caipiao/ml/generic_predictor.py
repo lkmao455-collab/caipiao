@@ -158,18 +158,23 @@ class GenericMLPredictor:
             rng = np.random.RandomState()
 
         proba = self.predict()
+        X_pred = build_prediction_features(self.records, self.profile, self.lookback)
+        if X_pred.size == 0:
+            raise ValueError("历史数据不足，无法预测")
         result: Dict[str, List[int]] = {}
         for g in self.profile.pick_groups:
-            p = proba[g.key]
             pick = (
                 group_picks[g.key]
                 if group_picks and g.key in group_picks
                 else getattr(g, "effective_pick_max", g.count)
             )
             if g.positional:
-                result[g.key] = self._recommend_positional(g, p, rng)
+                result[g.key] = self._recommend_positional(g, proba[g.key], rng)
+            elif not g.positional and g.count > 1:
+                # 组合组使用顺序生成模型采样
+                result[g.key] = sorted(self.model.sample_combination(X_pred, g, rng))
             else:
-                result[g.key] = self._recommend_combination(g, p, pick, diversity_boost, rng)
+                result[g.key] = self._recommend_combination(g, proba[g.key], pick, diversity_boost, rng)
         return result
 
     def _recommend_combination(

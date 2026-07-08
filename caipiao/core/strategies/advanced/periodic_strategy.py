@@ -88,7 +88,7 @@ class PeriodicAnalysisStrategy(_AdvancedBase):
         if group.positional:
             proba = np.tile(proba, (pick, 1))
 
-        basis = f"周期性分析（{self._profile.name}）：周权重 {week_w}，月权重 {month_w}，季度权重 {quarter_w}。"
+        basis = f"周期性分析（{self._profile.name}）：周权重 {week_w}，月权重 {month_w}，季度权重 {quarter_w}。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis
 
     def _cycle_frequency(self, records, group_key, size, cycle_type, current_value, group):

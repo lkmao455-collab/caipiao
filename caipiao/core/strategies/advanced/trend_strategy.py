@@ -58,7 +58,7 @@ class TrendAnalysisStrategy(_AdvancedBase):
             proba = np.ones(size) / size
             if group.positional:
                 proba = np.tile(proba, (pick, 1))
-            basis = f"趋势分析（{self._profile.name}）：数据不足，使用均匀概率。"
+            basis = f"趋势分析（{self._profile.name}）：数据不足，使用均匀概率。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
             return proba, basis
 
         # 计算频率
@@ -98,5 +98,5 @@ class TrendAnalysisStrategy(_AdvancedBase):
         if group.positional:
             proba = np.tile(proba, (pick, 1))
 
-        basis = f"趋势分析（{self._profile.name}）：窗口 {window_size} 期，趋势权重 {int(trend_weight*100)}%。"
+        basis = f"趋势分析（{self._profile.name}）：窗口 {window_size} 期，趋势权重 {int(trend_weight*100)}%。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return proba, basis

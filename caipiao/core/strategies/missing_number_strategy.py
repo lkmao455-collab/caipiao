@@ -100,6 +100,7 @@ class MissingNumberStrategy(GenerationStrategy):
         basis = (
             f"遗漏号追踪策略：基于最近 {lookback} 期历史数据，"
             f"从高遗漏值红球候选池（前 {pool_size} 个）和蓝球候选池中随机抽取。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
         if seed is not None:
             basis += f" 随机种子：{seed}。"

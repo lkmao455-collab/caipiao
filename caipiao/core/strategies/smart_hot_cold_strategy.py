@@ -135,6 +135,7 @@ class SmartHotColdStrategy(GenerationStrategy):
         basis = (
             f"智能冷热号策略：综合最近 {lookback} 期热号频率（权重 {hot_weight}）"
             f"与冷号遗漏值（权重 {cold_weight}）加权评分后随机抽取。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
         if seed is not None:
             basis += f" 随机种子：{seed}。"

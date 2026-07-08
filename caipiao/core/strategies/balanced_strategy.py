@@ -114,6 +114,7 @@ class BalancedStrategy(GenerationStrategy):
         basis = (
             f"历史均衡策略：基于最近 {lookback} 期历史数据，"
             f"使奇偶比、大小比、和值接近历史平均水平（目标奇数 {target_odd} 个、大号约 {target_high} 个）。"
+            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
         if seed is not None:
             basis += f" 随机种子：{seed}。"
