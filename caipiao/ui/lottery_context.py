@@ -78,12 +78,12 @@ class LotteryContext(QObject):
                 GenericSmartHotColdStrategy,
                 GenericMissingNumberStrategy,
                 GenericXGBoostStrategy,
-                GenericSSQBalancedStrategy,
+                GenericBalancedStrategy,
             )
             self.engine.register(GenericSmartHotColdStrategy(self.profile))
             self.engine.register(GenericMissingNumberStrategy(self.profile))
             self.engine.register(GenericXGBoostStrategy(self.profile))
-            self.engine.register(GenericSSQBalancedStrategy(self.profile))
+            self.engine.register(GenericBalancedStrategy(self.profile))
         elif self.profile.key == "dlt":
             # 大乐透：仅保留XGBoost
             from ..core.strategies.generic import GenericXGBoostStrategy
@@ -93,12 +93,12 @@ class LotteryContext(QObject):
             from ..core.strategies.generic import (
                 GenericSmartHotColdStrategy,
                 GenericMissingNumberStrategy,
-                GenericSSQBalancedStrategy,
+                GenericBalancedStrategy,
                 GenericXGBoostStrategy,
             )
             self.engine.register(GenericSmartHotColdStrategy(self.profile))
             self.engine.register(GenericMissingNumberStrategy(self.profile))
-            self.engine.register(GenericSSQBalancedStrategy(self.profile))
+            self.engine.register(GenericBalancedStrategy(self.profile))
             self.engine.register(GenericXGBoostStrategy(self.profile))
         else:
             from ..core.strategies.generic import (
