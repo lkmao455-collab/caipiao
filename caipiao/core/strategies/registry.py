@@ -30,6 +30,62 @@ from .advanced.lotteries.ssq import periodic as ssq_periodic
 from .advanced.lotteries.ssq import random_forest as ssq_random_forest
 from .advanced.lotteries.ssq import transformer as ssq_transformer
 from .advanced.lotteries.ssq import trend as ssq_trend
+from .advanced.lotteries.fc3d import random_forest as fc3d_random_forest
+from .advanced.lotteries.fc3d import bayesian as fc3d_bayesian
+from .advanced.lotteries.fc3d import markov as fc3d_markov
+from .advanced.lotteries.fc3d import trend as fc3d_trend
+from .advanced.lotteries.fc3d import periodic as fc3d_periodic
+from .advanced.lotteries.fc3d import ensemble as fc3d_ensemble
+from .advanced.lotteries.fc3d import correlation as fc3d_correlation
+from .advanced.lotteries.fc3d import transformer as fc3d_transformer
+from .advanced.lotteries.qlc import random_forest as qlc_random_forest
+from .advanced.lotteries.qlc import bayesian as qlc_bayesian
+from .advanced.lotteries.qlc import markov as qlc_markov
+from .advanced.lotteries.qlc import trend as qlc_trend
+from .advanced.lotteries.qlc import periodic as qlc_periodic
+from .advanced.lotteries.qlc import ensemble as qlc_ensemble
+from .advanced.lotteries.qlc import correlation as qlc_correlation
+from .advanced.lotteries.qlc import transformer as qlc_transformer
+from .advanced.lotteries.kl8 import random_forest as kl8_random_forest
+from .advanced.lotteries.kl8 import bayesian as kl8_bayesian
+from .advanced.lotteries.kl8 import markov as kl8_markov
+from .advanced.lotteries.kl8 import trend as kl8_trend
+from .advanced.lotteries.kl8 import periodic as kl8_periodic
+from .advanced.lotteries.kl8 import ensemble as kl8_ensemble
+from .advanced.lotteries.kl8 import correlation as kl8_correlation
+from .advanced.lotteries.kl8 import transformer as kl8_transformer
+from .advanced.lotteries.dlt import random_forest as dlt_random_forest
+from .advanced.lotteries.dlt import bayesian as dlt_bayesian
+from .advanced.lotteries.dlt import markov as dlt_markov
+from .advanced.lotteries.dlt import trend as dlt_trend
+from .advanced.lotteries.dlt import periodic as dlt_periodic
+from .advanced.lotteries.dlt import ensemble as dlt_ensemble
+from .advanced.lotteries.dlt import correlation as dlt_correlation
+from .advanced.lotteries.dlt import transformer as dlt_transformer
+from .advanced.lotteries.pl3 import random_forest as pl3_random_forest
+from .advanced.lotteries.pl3 import bayesian as pl3_bayesian
+from .advanced.lotteries.pl3 import markov as pl3_markov
+from .advanced.lotteries.pl3 import trend as pl3_trend
+from .advanced.lotteries.pl3 import periodic as pl3_periodic
+from .advanced.lotteries.pl3 import ensemble as pl3_ensemble
+from .advanced.lotteries.pl3 import correlation as pl3_correlation
+from .advanced.lotteries.pl3 import transformer as pl3_transformer
+from .advanced.lotteries.pl5 import random_forest as pl5_random_forest
+from .advanced.lotteries.pl5 import bayesian as pl5_bayesian
+from .advanced.lotteries.pl5 import markov as pl5_markov
+from .advanced.lotteries.pl5 import trend as pl5_trend
+from .advanced.lotteries.pl5 import periodic as pl5_periodic
+from .advanced.lotteries.pl5 import ensemble as pl5_ensemble
+from .advanced.lotteries.pl5 import correlation as pl5_correlation
+from .advanced.lotteries.pl5 import transformer as pl5_transformer
+from .advanced.lotteries.qxc import random_forest as qxc_random_forest
+from .advanced.lotteries.qxc import bayesian as qxc_bayesian
+from .advanced.lotteries.qxc import markov as qxc_markov
+from .advanced.lotteries.qxc import trend as qxc_trend
+from .advanced.lotteries.qxc import periodic as qxc_periodic
+from .advanced.lotteries.qxc import ensemble as qxc_ensemble
+from .advanced.lotteries.qxc import correlation as qxc_correlation
+from .advanced.lotteries.qxc import transformer as qxc_transformer
 from .lotteries.ssq.ml import catboost as ssq_catboost
 from .lotteries.ssq.ml import hybrid as ssq_hybrid
 from .lotteries.ssq.ml import lightgbm as ssq_lightgbm
@@ -132,6 +188,14 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         fc3d_xgboost.FC3DXGBoostStrategy,
         fc3d_lightgbm.FC3DLightGBMStrategy,
         fc3d_catboost.FC3DCatBoostStrategy,
+        fc3d_random_forest.FC3DRandomForestStrategy,
+        fc3d_bayesian.FC3DBayesianStrategy,
+        fc3d_markov.FC3DMarkovStrategy,
+        fc3d_trend.FC3DTrendStrategy,
+        fc3d_periodic.FC3DPeriodicStrategy,
+        fc3d_ensemble.FC3DEnsembleStrategy,
+        fc3d_correlation.FC3DCorrelationStrategy,
+        fc3d_transformer.FC3DTransformerStrategy,
     ],
     "qlc": [
         qlc_random.QLCRandomStrategy,
@@ -144,6 +208,14 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         qlc_xgboost.QLCXGBoostStrategy,
         qlc_lightgbm.QLCLightGBMStrategy,
         qlc_catboost.QLCCatBoostStrategy,
+        qlc_random_forest.QLCRandomForestStrategy,
+        qlc_bayesian.QLCBayesianStrategy,
+        qlc_markov.QLCMarkovStrategy,
+        qlc_trend.QLCTrendStrategy,
+        qlc_periodic.QLCPeriodicStrategy,
+        qlc_ensemble.QLCEnsembleStrategy,
+        qlc_correlation.QLCCorrelationStrategy,
+        qlc_transformer.QLCTransformerStrategy,
     ],
     "kl8": [
         kl8_random.KL8RandomStrategy,
@@ -156,6 +228,14 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         kl8_xgboost.KL8XGBoostStrategy,
         kl8_lightgbm.KL8LightGBMStrategy,
         kl8_catboost.KL8CatBoostStrategy,
+        kl8_random_forest.KL8RandomForestStrategy,
+        kl8_bayesian.KL8BayesianStrategy,
+        kl8_markov.KL8MarkovStrategy,
+        kl8_trend.KL8TrendStrategy,
+        kl8_periodic.KL8PeriodicStrategy,
+        kl8_ensemble.KL8EnsembleStrategy,
+        kl8_correlation.KL8CorrelationStrategy,
+        kl8_transformer.KL8TransformerStrategy,
     ],
     "dlt": [
         dlt_random.DLTRandomStrategy,
@@ -168,6 +248,14 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         dlt_xgboost.DLTXGBoostStrategy,
         dlt_lightgbm.DLTLightGBMStrategy,
         dlt_catboost.DLTCatBoostStrategy,
+        dlt_random_forest.DLTRandomForestStrategy,
+        dlt_bayesian.DLTBayesianStrategy,
+        dlt_markov.DLTMarkovStrategy,
+        dlt_trend.DLTTrendStrategy,
+        dlt_periodic.DLTPeriodicStrategy,
+        dlt_ensemble.DLTEnsembleStrategy,
+        dlt_correlation.DLTCorrelationStrategy,
+        dlt_transformer.DLTTransformerStrategy,
     ],
     "pl3": [
         pl3_random.PL3RandomStrategy,
@@ -180,6 +268,14 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         pl3_xgboost.PL3XGBoostStrategy,
         pl3_lightgbm.PL3LightGBMStrategy,
         pl3_catboost.PL3CatBoostStrategy,
+        pl3_random_forest.PL3RandomForestStrategy,
+        pl3_bayesian.PL3BayesianStrategy,
+        pl3_markov.PL3MarkovStrategy,
+        pl3_trend.PL3TrendStrategy,
+        pl3_periodic.PL3PeriodicStrategy,
+        pl3_ensemble.PL3EnsembleStrategy,
+        pl3_correlation.PL3CorrelationStrategy,
+        pl3_transformer.PL3TransformerStrategy,
     ],
     "pl5": [
         pl5_random.PL5RandomStrategy,
@@ -192,6 +288,14 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         pl5_xgboost.PL5XGBoostStrategy,
         pl5_lightgbm.PL5LightGBMStrategy,
         pl5_catboost.PL5CatBoostStrategy,
+        pl5_random_forest.PL5RandomForestStrategy,
+        pl5_bayesian.PL5BayesianStrategy,
+        pl5_markov.PL5MarkovStrategy,
+        pl5_trend.PL5TrendStrategy,
+        pl5_periodic.PL5PeriodicStrategy,
+        pl5_ensemble.PL5EnsembleStrategy,
+        pl5_correlation.PL5CorrelationStrategy,
+        pl5_transformer.PL5TransformerStrategy,
     ],
     "qxc": [
         qxc_random.QXCRandomStrategy,
@@ -204,5 +308,13 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         qxc_xgboost.QXCXGBoostStrategy,
         qxc_lightgbm.QXCLightGBMStrategy,
         qxc_catboost.QXCCatBoostStrategy,
+        qxc_random_forest.QXCRandomForestStrategy,
+        qxc_bayesian.QXCBayesianStrategy,
+        qxc_markov.QXCMarkovStrategy,
+        qxc_trend.QXCTrendStrategy,
+        qxc_periodic.QXCPeriodicStrategy,
+        qxc_ensemble.QXCEnsembleStrategy,
+        qxc_correlation.QXCCorrelationStrategy,
+        qxc_transformer.QXCTransformerStrategy,
     ],
 }

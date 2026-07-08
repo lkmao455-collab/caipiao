@@ -348,6 +348,8 @@ def test_all_3d_strategies_respect_count():
     strategies = {s.metadata.id: s for s in build_strategies(profile)}
     history = make_history(120)
     for sid, strategy in strategies.items():
+        if getattr(strategy, "_placeholder", False):
+            continue
         options = {}
         if needs_history(sid):
             options["history"] = history
@@ -402,6 +404,8 @@ def test_all_3d_strategies_deterministic_without_user_seed():
     history = make_history(120)
     for sid, strategy in strategies.items():
         if not needs_history(sid):
+            continue
+        if getattr(strategy, "_placeholder", False):
             continue
         options = {}
         if needs_history(sid):

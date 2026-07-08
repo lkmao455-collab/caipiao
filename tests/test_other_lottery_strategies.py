@@ -2,6 +2,7 @@ import pytest
 
 from caipiao.core.profile import DLT, KL8, PL3, PL5, QLC, QXC, get_profile
 from caipiao.core.strategies import build_strategies, is_ml_strategy
+from caipiao.core.strategies.advanced.common.base import UnsupportedLotteryError
 
 
 @pytest.mark.parametrize("key", ["qlc", "kl8", "dlt", "pl3", "pl5", "qxc"])
@@ -12,6 +13,11 @@ def test_all_strategies_generate_valid_tickets(key):
     for s in strategies:
         if is_ml_strategy(s.metadata.id):
             # ML 策略使用独立测试文件，避免在此进行模型训练
+            continue
+        if getattr(s, "_placeholder", False):
+            # 高级策略占位实现应抛出明确错误
+            with pytest.raises(UnsupportedLotteryError):
+                s.generate(count=2)
             continue
         if s.metadata.id.startswith("random"):
             tickets = s.generate(count=2)

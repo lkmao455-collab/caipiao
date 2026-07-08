@@ -10,6 +10,10 @@ from .....data.models import DrawRecord
 from ....strategy import GenerationStrategy, StrategyMetadata
 
 
+class UnsupportedLotteryError(NotImplementedError):
+    """该彩种尚未实现此高级策略。"""
+
+
 class AdvancedStrategy(GenerationStrategy):
     """高级策略基类：只提供历史记录处理和 metadata 模板。"""
 
