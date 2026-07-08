@@ -16,6 +16,30 @@ EXPECTED_IDS = {
         "smart_hot_cold_3d", "missing_number_3d", "balanced_3d",
         "xgboost_3d", "lightgbm_3d", "catboost_3d",
     },
+    "qlc": {
+        "random_qlc", "odd_even_qlc", "hot_cold_qlc", "exclude_include_qlc",
+        "smart_hot_cold_qlc", "missing_number_qlc", "balanced_qlc",
+    },
+    "kl8": {
+        "random_kl8", "odd_even_kl8", "hot_cold_kl8", "exclude_include_kl8",
+        "smart_hot_cold_kl8", "missing_number_kl8", "balanced_kl8",
+    },
+    "dlt": {
+        "random_dlt", "odd_even_dlt", "hot_cold_dlt", "exclude_include_dlt",
+        "smart_hot_cold_dlt", "missing_number_dlt", "balanced_dlt",
+    },
+    "pl3": {
+        "random_pl3", "odd_even_pl3", "hot_cold_pl3", "exclude_include_pl3",
+        "smart_hot_cold_pl3", "missing_number_pl3", "balanced_pl3",
+    },
+    "pl5": {
+        "random_pl5", "odd_even_pl5", "hot_cold_pl5", "exclude_include_pl5",
+        "smart_hot_cold_pl5", "missing_number_pl5", "balanced_pl5",
+    },
+    "qxc": {
+        "random_qxc", "odd_even_qxc", "hot_cold_qxc", "exclude_include_qxc",
+        "smart_hot_cold_qxc", "missing_number_qxc", "balanced_qxc",
+    },
 }
 
 
