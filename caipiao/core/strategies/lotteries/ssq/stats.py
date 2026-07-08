@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import random
-from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from .....data.analyzer import DrawAnalyzer
@@ -156,14 +155,12 @@ class SSQStatsStrategy(GenerationStrategy):
         pool_size = int(options.get("pool_size", 12))
         lookback = int(options.get("lookback", 100))
 
-        freq_red = analyzer.frequency("red")
-        missing_raw = analyzer.missing("red")
+        missing_raw = analyzer.missing("red", lookback)
         missing_red = dict(missing_raw) if isinstance(missing_raw, list) else missing_raw
         all_reds = list(range(1, 34))
         ranked = sorted(all_reds, key=lambda n: missing_red.get(n, 0), reverse=True)
         reds_pool = ranked[:pool_size]
 
-        freq_blue = analyzer.frequency("blue")
         missing_blue = dict(analyzer.missing("blue", lookback))
         blues_pool = sorted(range(1, 17), key=lambda n: missing_blue.get(n, 0), reverse=True)[:8]
 
@@ -176,8 +173,8 @@ class SSQStatsStrategy(GenerationStrategy):
         cold_w = int(options.get("cold_weight", 40))
         lookback = int(options.get("lookback", 100))
 
-        freq_red = analyzer.frequency("red")
-        missing_raw = analyzer.missing("red")
+        freq_red = analyzer.frequency("red", lookback)
+        missing_raw = analyzer.missing("red", lookback)
         missing_red = dict(missing_raw) if isinstance(missing_raw, list) else missing_raw
         max_freq = max(freq_red.values()) if freq_red else 1
         max_miss = max(missing_red.values()) if missing_red else 1
