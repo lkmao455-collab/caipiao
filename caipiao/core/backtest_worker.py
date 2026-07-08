@@ -22,17 +22,15 @@ from caipiao.core.backtest_data import (
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
-from caipiao.core.strategies import (
-    BalancedStrategy,
-    BayesianStrategy,
-    HotColdStrategy,
-    MarkovChainStrategy,
-    MLStrategy,
-    OddEvenStrategy,
-    RandomStrategy,
-    SmartHotColdStrategy,
-)
+from caipiao.core.strategies.advanced.bayesian_strategy import BayesianStrategy
+from caipiao.core.strategies.advanced.markov_strategy import MarkovChainStrategy
+from caipiao.core.strategies.balanced_strategy import BalancedStrategy
 from caipiao.core.strategies.generic import build_strategies
+from caipiao.core.strategies.hot_cold_strategy import HotColdStrategy
+from caipiao.core.strategies.ml_strategy import MLStrategy
+from caipiao.core.strategies.odd_even_strategy import OddEvenStrategy
+from caipiao.core.strategies.random_strategy import RandomStrategy
+from caipiao.core.strategies.smart_hot_cold_strategy import SmartHotColdStrategy
 from caipiao.ml.catboost_model import LotteryCatBoostModel
 from caipiao.ml.generic_predictor import GenericMLPredictor
 from caipiao.ml.lgbm_model import LotteryLightGBMModel
@@ -90,9 +88,8 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
         engine.register(BayesianStrategy())
         engine.register(MarkovChainStrategy())
     elif profile_key == "3d":
-        # 福彩3D：使用独立的 3D 策略模块
-        from caipiao.core.strategies.fc3d import build_fc3d_strategies
-        for strategy in build_fc3d_strategies(get_profile(profile_key)):
+        # 福彩3D：使用新独立包中的策略
+        for strategy in build_strategies(get_profile(profile_key)):
             engine.register(strategy)
     elif profile_key == "dlt":
         # 大乐透：仅保留XGBoost

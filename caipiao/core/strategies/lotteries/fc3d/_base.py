@@ -72,29 +72,6 @@ def _sample_with_dedup(
     return results
 
 
-class BaseFC3DStrategy(GenerationStrategy):
-    """福彩3D占位策略基类，保持与 Task 3 兼容。"""
-
-    def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
-        options = options or {}
-        seed = options.get("seed")
-        rng = random.Random(seed) if seed is not None else random.Random()
-        tickets: List[Ticket] = []
-        for _ in range(count):
-            pos = [rng.randint(0, 9) for _ in range(3)]
-            tickets.append(
-                Ticket(
-                    profile=FC3D_PROFILE,
-                    groups={"pos": pos},
-                    strategy_name=self.metadata.name,
-                    basis=f"{self.metadata.name} 占位实现：随机生成合法3D号码。",
-                )
-            )
-        return tickets
-
-
 class _FC3DMLStrategy(GenerationStrategy):
     """福彩3D机器学习策略共享基类。"""
 

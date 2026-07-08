@@ -1,11 +1,11 @@
-"""Tests for caipiao.core.strategies.fc3d_stability."""
+"""Tests for caipiao.core.strategies.lotteries.fc3d.stability."""
 
 import random
 from datetime import datetime, timedelta
 
 import pytest
 
-from caipiao.core.strategies.fc3d_stability import (
+from caipiao.core.strategies.lotteries.fc3d.stability import (
     deterministic_seed,
     sample_weighted,
     stable_frequency,

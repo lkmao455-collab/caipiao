@@ -4,8 +4,12 @@ from datetime import datetime, timedelta
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.profile import SSQ
 from caipiao.core.profile import FC3D
-from caipiao.core.strategies import HotColdStrategy, RandomStrategy, SmartHotColdStrategy
-from caipiao.core.strategies.fc3d import FC3DSmartHotColdStrategy
+from caipiao.core.strategies.lotteries.ssq import (
+    SSQHotColdStrategy,
+    SSQRandomStrategy,
+    SSQSmartHotColdStrategy,
+)
+from caipiao.core.strategies.lotteries.fc3d import FC3DSmartHotColdStrategy
 from caipiao.data.models import DrawRecord
 from caipiao.persistence.optimal_param_store import OptimalParamStore
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
@@ -84,7 +88,7 @@ def test_single_param_fallback_respects_locked_value(monkeypatch, tmp_path):
 
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartSSQHotColdStrategy())
 
     captured = {}
 
@@ -121,8 +125,8 @@ def test_single_param_fallback_respects_locked_value(monkeypatch, tmp_path):
 def test_strategy_scan_finds_best(monkeypatch):
     records = _make_records(150)
     engine = GenerationEngine()
-    engine.register(HotColdStrategy())
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQHotColdStrategy())
+    engine.register(SSQSmartSSQHotColdStrategy())
 
     def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
         # 模拟两个策略的扫描结果，smart_hot_cold 更优
@@ -172,7 +176,7 @@ def test_strategy_scan_no_history_strategies():
     """引擎中无历史依赖策略时应返回明确错误."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = OptimalStrategyScanThread(
         engine=engine,
@@ -196,7 +200,7 @@ def test_strategy_scan_insufficient_history():
     """历史记录不足 100 期时应返回数据不足错误."""
     records = _make_records(50)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartSSQHotColdStrategy())
 
     thread = OptimalStrategyScanThread(
         engine=engine,
@@ -221,7 +225,7 @@ def test_strategy_scan_empty_date_range():
     """日期范围内没有记录时应返回明确错误."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartSSQHotColdStrategy())
 
     thread = OptimalStrategyScanThread(
         engine=engine,
@@ -269,7 +273,7 @@ def test_strategy_scan_parameterless_strategy_has_none_value(monkeypatch):
     """无独立参数的历史策略（如 hot_cold）扫描结果中 optimal_value 应为 None."""
     records = _make_records(150)
     engine = GenerationEngine()
-    engine.register(HotColdStrategy())
+    engine.register(SSQHotColdStrategy())
 
     def fake_scan_param_values(base_context, tasks, param_name, param_values, **kwargs):
         return [
@@ -314,7 +318,7 @@ def test_non_3d_strategy_uses_single_param_scan(monkeypatch):
     """无多参数网格但有 resolve_optimal_param 的非 3D 策略应扫描参数范围."""
     records = _make_records(150)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartSSQHotColdStrategy())
 
     captured = {}
 
@@ -399,7 +403,7 @@ def test_scan_respects_locked_params(monkeypatch, tmp_path):
 
     records = _make_3d_records(120)
     engine = GenerationEngine()
-    engine.register(FC3DSmartHotColdStrategy())
+    engine.register(FC3DSSQSmartSSQHotColdStrategy())
 
     captured = {}
 
@@ -468,7 +472,7 @@ def test_scan_downgrades_n_folds_for_large_grid(monkeypatch, tmp_path):
     store = OptimalParamStore(data_dir=tmp_path)
     records = _make_3d_records(120)
     engine = GenerationEngine()
-    engine.register(FC3DSmartHotColdStrategy())
+    engine.register(FC3DSSQSmartSSQHotColdStrategy())
 
     captured = {}
     statuses = []
