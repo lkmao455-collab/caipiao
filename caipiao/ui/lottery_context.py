@@ -17,8 +17,8 @@ from PySide6.QtCore import QObject, Signal
 from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
 from ..core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
-from ..core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
-from ..core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
+from ..core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
+from ..core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
 from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
 from ..core.strategies.ml_strategy import MLStrategy
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer

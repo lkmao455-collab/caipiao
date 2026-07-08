@@ -1,29 +1,23 @@
-"""周期性分析策略 - 支持双色球和福彩3D."""
+"""双色球周期性分析策略。"""
 
 from __future__ import annotations
 
-import logging
-from datetime import timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from ....data.models import DrawRecord
-from ...profile import LotteryProfile, SSQ
-from .base import _AdvancedBase
+from caipiao.data.models import DrawRecord
 
-logger = logging.getLogger(__name__)
+from ._base import SSQAdvancedStrategy
 
 
-class PeriodicAnalysisStrategy(_AdvancedBase):
-    """基于周期性分析的号码生成策略."""
+class SSQPeriodicStrategy(SSQAdvancedStrategy):
+    """基于周期性分析的号码生成策略。"""
 
-    _id_base = "periodic"
-    _name_base = "周期性分析"
+    _id = "periodic"
+    _name = "周期性分析"
     _description = "分析号码出现的周/月/季度周期性规律，多周期融合推荐。"
-
-    def __init__(self, profile: LotteryProfile | None = None) -> None:
-        super().__init__(profile)
 
     def get_config_schema(self) -> Dict[str, Any]:
         schema = super().get_config_schema()
@@ -59,24 +53,21 @@ class PeriodicAnalysisStrategy(_AdvancedBase):
         month_w = int(options.get("month_weight", 35))
         quarter_w = int(options.get("quarter_weight", 25))
 
-        group = self._profile.primary_group
-        size = group.hi - group.lo + 1
-        pick = group.count
+        size = 33
 
         if records:
             current_date = records[-1].draw_date + timedelta(days=1)
         else:
-            from datetime import datetime
             current_date = datetime.now()
 
         total_w = week_w + month_w + quarter_w
         if total_w == 0:
             total_w = 1
 
-        week_proba = self._cycle_frequency(records, group.key, size, "weekday", current_date.weekday(), group)
-        month_proba = self._cycle_frequency(records, group.key, size, "month", current_date.month, group)
+        week_proba = self._cycle_frequency(records, size, "weekday", current_date.weekday())
+        month_proba = self._cycle_frequency(records, size, "month", current_date.month)
         quarter = (current_date.month - 1) // 3
-        quarter_proba = self._cycle_frequency(records, group.key, size, "quarter", quarter, group)
+        quarter_proba = self._cycle_frequency(records, size, "quarter", quarter)
 
         proba = (week_w * week_proba + month_w * month_proba + quarter_w * quarter_proba) / total_w
         s = proba.sum()
@@ -85,13 +76,19 @@ class PeriodicAnalysisStrategy(_AdvancedBase):
         else:
             proba = np.ones(size) / size
 
-        if group.positional:
-            proba = np.tile(proba, (pick, 1))
-
-        basis = f"周期性分析（{self._profile.name}）：周权重 {week_w}，月权重 {month_w}，季度权重 {quarter_w}。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        basis = (
+            f"周期性分析（双色球）：周权重 {week_w}，月权重 {month_w}，季度权重 {quarter_w}。"
+            "注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        )
         return proba, basis
 
-    def _cycle_frequency(self, records, group_key, size, cycle_type, current_value, group):
+    def _cycle_frequency(
+        self,
+        records: List[DrawRecord],
+        size: int,
+        cycle_type: str,
+        current_value: int,
+    ) -> np.ndarray:
         freq = np.zeros(size)
         count = 0
         for r in records:
@@ -106,9 +103,9 @@ class PeriodicAnalysisStrategy(_AdvancedBase):
                 match = False
             if match:
                 count += 1
-                for n in r.groups.get(group_key, []):
-                    if group.lo <= n <= group.hi:
-                        freq[n - group.lo] += 1
+                for n in r.red_balls:
+                    if 1 <= n <= 33:
+                        freq[n - 1] += 1
         if count > 0:
             freq /= count
         s = freq.sum()

@@ -1,29 +1,23 @@
-"""相关性挖掘策略 - 支持双色球和福彩3D."""
+"""双色球相关性挖掘策略。"""
 
 from __future__ import annotations
 
-import logging
 from itertools import combinations
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from ....data.models import DrawRecord
-from ...profile import LotteryProfile, SSQ
-from .base import _AdvancedBase
+from caipiao.data.models import DrawRecord
 
-logger = logging.getLogger(__name__)
+from ._base import SSQAdvancedStrategy
 
 
-class CorrelationMiningStrategy(_AdvancedBase):
-    """基于相关性挖掘的号码生成策略."""
+class SSQCorrelationStrategy(SSQAdvancedStrategy):
+    """基于相关性挖掘的号码生成策略。"""
 
-    _id_base = "correlation"
-    _name_base = "相关性挖掘"
+    _id = "correlation"
+    _name = "相关性挖掘"
     _description = "挖掘号码间的共现相关性和条件概率，发现隐藏的关联模式。"
-
-    def __init__(self, profile: LotteryProfile | None = None) -> None:
-        super().__init__(profile)
 
     def get_config_schema(self) -> Dict[str, Any]:
         schema = super().get_config_schema()
@@ -51,24 +45,19 @@ class CorrelationMiningStrategy(_AdvancedBase):
         min_support = int(options.get("min_support", 5)) / 100.0
         corr_weight = int(options.get("correlation_weight", 60)) / 100.0
 
-        group = self._profile.primary_group
-        size = group.hi - group.lo + 1
-        pick = group.count
+        size = 33
 
-        # 基础频率
         freq = np.zeros(size)
         for r in records:
-            for n in r.groups.get(group.key, []):
-                if group.lo <= n <= group.hi:
-                    freq[n - group.lo] += 1
+            for n in r.red_balls:
+                if 1 <= n <= 33:
+                    freq[n - 1] += 1
         total = len(records) or 1
         freq /= total
 
-        # 共现矩阵
         cooccur = np.zeros((size, size))
         for r in records:
-            nums = [n - group.lo for n in r.groups.get(group.key, [])
-                    if group.lo <= n <= group.hi]
+            nums = [n - 1 for n in r.red_balls if 1 <= n <= 33]
             for a, b in combinations(nums, 2):
                 if 0 <= a < size and 0 <= b < size:
                     cooccur[a][b] += 1
@@ -77,7 +66,6 @@ class CorrelationMiningStrategy(_AdvancedBase):
         max_cooccur = cooccur.max() if cooccur.max() > 0 else 1
         cooccur /= max_cooccur
 
-        # 相关性得分
         corr_scores = np.zeros(size)
         for i in range(size):
             support_count = sum(1 for j in range(size) if j != i and cooccur[i][j] >= min_support)
@@ -95,8 +83,8 @@ class CorrelationMiningStrategy(_AdvancedBase):
         else:
             proba = np.ones(size) / size
 
-        if group.positional:
-            proba = np.tile(proba, (pick, 1))
-
-        basis = f"相关性挖掘（{self._profile.name}）：最小支持度 {int(min_support*100)}%，相关性权重 {int(corr_weight*100)}%。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        basis = (
+            f"相关性挖掘（双色球）：最小支持度 {int(min_support * 100)}%，相关性权重 {int(corr_weight * 100)}%。"
+            "注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        )
         return proba, basis

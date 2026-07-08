@@ -1,20 +1,15 @@
-"""Transformer 时序预测策略 - 支持双色球和福彩3D.
-
-使用可训练的 Transformer Encoder 模型学习历史 one-hot 序列到下一期号码
-概率的映射。与原来的随机权重实现不同，本实现会在每次生成时基于传入的
-历史数据训练一个轻量 Transformer，然后输出概率供上层做不放回加权采样。
-"""
+"""双色球 Transformer 时序预测策略。"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from ....data.models import DrawRecord
-from ...profile import LotteryProfile, SSQ
-from .base import _AdvancedBase
+from caipiao.data.models import DrawRecord
+
+from ._base import SSQAdvancedStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +29,19 @@ def _ensure_torch():
 
 
 class _SimpleTransformer:
-    """轻量 Transformer 模型封装，训练与预测一体化."""
+    """轻量 Transformer 模型封装，训练与预测一体化。"""
 
-    def __init__(self, size: int, d_model: int, seq_len: int,
-                 nhead: int = 4, num_layers: int = 2, epochs: int = 20,
-                 lr: float = 0.001, batch_size: int = 32) -> None:
+    def __init__(
+        self,
+        size: int,
+        d_model: int,
+        seq_len: int,
+        nhead: int = 4,
+        num_layers: int = 2,
+        epochs: int = 20,
+        lr: float = 0.001,
+        batch_size: int = 32,
+    ) -> None:
         _ensure_torch()
         import torch
         import torch.nn as nn
@@ -73,10 +76,6 @@ class _SimpleTransformer:
         self._is_trained = False
 
     def fit(self, sequences: List[np.ndarray]) -> None:
-        """训练模型.
-
-        sequences: 按时间排序的每期 one-hot 向量列表。
-        """
         import torch
         import torch.nn as nn
         from torch.utils.data import DataLoader, TensorDataset
@@ -111,12 +110,14 @@ class _SimpleTransformer:
                 optimizer.step()
                 total_loss += loss.item()
             if (epoch + 1) % 5 == 0:
-                logger.info("Transformer epoch %d/%d, loss=%.4f", epoch + 1, self.epochs, total_loss / max(len(loader), 1))
+                logger.info(
+                    "Transformer epoch %d/%d, loss=%.4f",
+                    epoch + 1, self.epochs, total_loss / max(len(loader), 1),
+                )
 
         self._is_trained = True
 
     def predict(self, recent_sequences: List[np.ndarray]) -> np.ndarray:
-        """预测下一期各号码出现概率."""
         import torch
 
         if not self._is_trained:
@@ -132,15 +133,13 @@ class _SimpleTransformer:
         return proba
 
 
-class TransformerStrategy(_AdvancedBase):
-    """基于 Transformer 自注意力机制的时序预测策略."""
+class SSQTransformerStrategy(SSQAdvancedStrategy):
+    """基于 Transformer 自注意力机制的时序预测策略。"""
 
-    _id_base = "transformer"
-    _name_base = "Transformer 时序预测"
+    _id = "transformer"
+    _name = "Transformer 时序预测"
     _description = "基于可训练 Transformer Encoder 学习历史 one-hot 序列规律，输出下一期号码概率。"
-
-    def __init__(self, profile: LotteryProfile | None = None) -> None:
-        super().__init__(profile)
+    is_ml = True
 
     def get_config_schema(self) -> Dict[str, Any]:
         schema = super().get_config_schema()
@@ -176,27 +175,22 @@ class TransformerStrategy(_AdvancedBase):
         d_model = int(options.get("d_model", 64))
         epochs = int(options.get("epochs", 20))
 
-        group = self._profile.primary_group
-        size = group.hi - group.lo + 1
-        pick = group.count
+        size = 33
 
         sequences = []
         for r in records:
             vec = np.zeros(size, dtype=np.float64)
-            for n in r.groups.get(group.key, []):
-                if group.lo <= n <= group.hi:
-                    vec[n - group.lo] = 1.0
+            for n in r.red_balls:
+                if 1 <= n <= 33:
+                    vec[n - 1] = 1.0
             sequences.append(vec)
 
         if len(sequences) < seq_len:
             proba = np.ones(size) / size
-            if group.positional:
-                proba = np.tile(proba, (pick, 1))
-            basis = f"Transformer（{self._profile.name}）：数据不足，使用均匀概率。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+            basis = "Transformer（双色球）：数据不足，使用均匀概率。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
             return proba, basis
 
         nhead = 4
-        # d_model 必须能被 nhead 整除
         d_model = (d_model // nhead) * nhead
         if d_model < nhead:
             d_model = nhead
@@ -219,8 +213,8 @@ class TransformerStrategy(_AdvancedBase):
         else:
             proba = np.ones(size) / size
 
-        if group.positional:
-            proba = np.tile(proba, (pick, 1))
-
-        basis = f"Transformer（{self._profile.name}）：序列长度 {seq_len}，模型维度 {d_model}，训练 {epochs} 轮。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        basis = (
+            f"Transformer（双色球）：序列长度 {seq_len}，模型维度 {d_model}，训练 {epochs} 轮。"
+            "注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        )
         return proba, basis

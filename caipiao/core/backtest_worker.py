@@ -77,8 +77,8 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
         from caipiao.core.strategies.lotteries.ssq.smart_hot_cold import SSQSmartHotColdStrategy
         from caipiao.core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
         from caipiao.core.strategies.lotteries.ssq.ml.xgboost import SSQXGBoostStrategy
-        from caipiao.core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
-        from caipiao.core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
+        from caipiao.core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
+        from caipiao.core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
         engine.register(SSQRandomStrategy())
         engine.register(SSQOddEvenStrategy())
         engine.register(SSQHotColdStrategy())
