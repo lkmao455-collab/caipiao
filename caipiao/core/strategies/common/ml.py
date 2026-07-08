@@ -41,8 +41,18 @@ def _deterministic_seed(
     return int(raw, 16) % (2**31)
 
 
-def make_generic_ml_base(profile: LotteryProfile) -> Type[GenerationStrategy]:
-    """为指定彩种创建基于 GenericMLPredictor 的 ML 策略私有基类."""
+def make_generic_ml_base(
+    profile: LotteryProfile,
+    predictor_class: Optional[Type[GenericMLPredictor]] = None,
+) -> Type[GenerationStrategy]:
+    """为指定彩种创建基于 GenericMLPredictor 的 ML 策略私有基类.
+
+    Args:
+        profile: 彩种档案。
+        predictor_class: 可选的专属预测器类；默认使用 ``GenericMLPredictor``。
+            传入的类应接受 ``(records, lookback, model_path, backend, temp_dir)``
+            参数并在内部固定彩种。
+    """
 
     class _GenericLotteryMLStrategyBase(GenerationStrategy):
         _backend: str = "xgboost"
@@ -95,13 +105,22 @@ def make_generic_ml_base(profile: LotteryProfile) -> Type[GenerationStrategy]:
                 or new_model_path(records, lookback, prefix=prefix, options=options)
             )
 
-            predictor = GenericMLPredictor(
-                records,
-                profile=profile,
-                lookback=lookback,
-                model_path=model_path,
-                backend=self._backend,
-            )
+            predictor_cls = predictor_class or GenericMLPredictor
+            if predictor_class is None:
+                predictor = predictor_cls(
+                    records,
+                    profile=profile,
+                    lookback=lookback,
+                    model_path=model_path,
+                    backend=self._backend,
+                )
+            else:
+                predictor = predictor_cls(
+                    records,
+                    lookback=lookback,
+                    model_path=model_path,
+                    backend=self._backend,
+                )
             if not predictor.is_ready():
                 predictor.train()
 

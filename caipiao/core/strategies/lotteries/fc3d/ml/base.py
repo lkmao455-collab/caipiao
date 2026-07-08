@@ -13,7 +13,7 @@ from .....strategy import GenerationStrategy
 from .....ticket import Ticket
 from ......data.models import DrawRecord
 from ......ml.common.model_store import compute_lookback, find_current_model, new_model_path
-from ......ml.generic_predictor import GenericMLPredictor
+from ......ml.lotteries.fc3d.predictor import FC3DPredictor
 from ..stability import deterministic_seed
 
 logger = logging.getLogger(__name__)
@@ -78,8 +78,8 @@ class _FC3DMLStrategyBase(GenerationStrategy):
             or new_model_path(records, lookback, prefix=prefix, options=options)
         )
 
-        predictor = GenericMLPredictor(
-            records, profile=FC3D_PROFILE, lookback=lookback, model_path=model_path, backend=self._backend
+        predictor = FC3DPredictor(
+            records, lookback=lookback, model_path=model_path, backend=self._backend
         )
         if not predictor.is_ready():
             predictor.train()

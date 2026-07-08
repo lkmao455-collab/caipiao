@@ -1,0 +1,13 @@
+"""QLC XGBoost 模型（当前复用通用顺序生成模型）."""
+
+from __future__ import annotations
+
+from .....core.profile import QLC
+from ....generic_model import LotteryGenericModel
+
+
+class QLCXGBoostModel(LotteryGenericModel):
+    """QLC 专用的 XGBoost 顺序生成模型."""
+
+    def __init__(self, lookback: int = 50, temp_dir: str | None = None) -> None:
+        super().__init__(profile=QLC, lookback=lookback, backend="xgboost", temp_dir=temp_dir)

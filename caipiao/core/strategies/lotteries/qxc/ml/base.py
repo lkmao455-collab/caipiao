@@ -4,5 +4,6 @@ from __future__ import annotations
 
 from ....common.ml import make_generic_ml_base
 from .....profile import QXC
+from ......ml.lotteries.qxc.predictor import QXCPredictor
 
-_QXCMLStrategyBase = make_generic_ml_base(QXC)
+_QXCMLStrategyBase = make_generic_ml_base(QXC, predictor_class=QXCPredictor)
