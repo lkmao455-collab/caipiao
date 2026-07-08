@@ -946,8 +946,11 @@ _GENERIC_STRATEGY_CLASSES: List[Type[_GenericBase]] = [
 def build_strategies(profile: LotteryProfile) -> List[GenerationStrategy]:
     """为指定彩种生成全部通用策略实例。"""
     if profile.key == "3d":
-        from .fc3d import build_fc3d_strategies
-        return build_fc3d_strategies(profile)
+        from .registry import STRATEGY_REGISTRY
+        classes = STRATEGY_REGISTRY.get(profile.key)
+        if classes is None:
+            raise ValueError(f"未注册彩种 {profile.key} 的策略")
+        return [cls() for cls in classes]
 
     from .advanced.random_forest_strategy import RandomForestStrategy
     from .advanced.bayesian_strategy import BayesianStrategy

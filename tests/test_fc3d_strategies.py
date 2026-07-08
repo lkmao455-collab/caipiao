@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from caipiao.core.profile import get_profile
-from caipiao.core.strategies.fc3d import (
+from caipiao.core.strategies.lotteries.fc3d import (
     FC3DRandomStrategy,
     FC3DOddEvenStrategy,
     FC3DHotColdStrategy,
@@ -328,7 +328,7 @@ def test_build_strategies_3d_uses_fc3d_classes():
     assert "balanced_3d" in strategies
     assert "xgboost_3d" in strategies
     # 确认是3D专属类，不是通用类
-    from caipiao.core.strategies.fc3d import FC3DBalancedStrategy
+    from caipiao.core.strategies.lotteries.fc3d import FC3DBalancedStrategy
     assert isinstance(strategies["balanced_3d"], FC3DBalancedStrategy)
 
 

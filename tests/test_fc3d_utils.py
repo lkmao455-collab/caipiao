@@ -5,7 +5,7 @@ import pytest
 
 from caipiao.core.profile import get_profile
 from caipiao.data.models import DrawRecord
-from caipiao.core.strategies.fc3d_utils import (
+from caipiao.core.strategies.lotteries.fc3d.utils import (
     positional_frequency,
     positional_weights,
     sum_tail_statistics,

@@ -1,21 +1,19 @@
-"""福彩3D XGBoost 策略占位。"""
+"""福彩3D XGBoost 策略."""
 
 from __future__ import annotations
 
 from .....strategy import StrategyMetadata
-from .._base import BaseFC3DStrategy
+from .._base import _FC3DMLStrategy
 
 
-class FC3DXGBoostStrategy(BaseFC3DStrategy):
-    """XGBoost 智能分析。"""
-
-    is_ml = True
+class FC3DXGBoostStrategy(_FC3DMLStrategy):
+    _backend = "xgboost"
 
     @property
     def metadata(self) -> StrategyMetadata:
         return StrategyMetadata(
             id="xgboost_3d",
             name="XGBoost 智能分析",
-            description="基于 XGBoost 模型分析历史数据并生成号码。",
+            description="基于 XGBoost 模型分析历史数据，生成概率优先的号码组合。",
             configurable=True,
         )
