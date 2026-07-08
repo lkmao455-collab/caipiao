@@ -61,7 +61,12 @@ def stable_missing(
     lookback: Optional[int] = None,
     cap: Optional[int] = None,
 ) -> Dict[int, Dict[int, float]]:
-    """返回截断并归一化到 [0,1] 的按位遗漏值 {pos: {digit: normalized_missing}}."""
+    """返回截断并归一化到 [0,1] 的按位遗漏值 {pos: {digit: normalized_missing}}.
+
+    归一化使用绝对基准（除以 effective_cap = lookback），
+    而非当前数据中的 max，确保不同数据窗口下遗漏值可比：
+    0.0 = 最近一期出现过；1.0 = 整个窗口内从未出现。
+    """
     sliced = _slice_records(records, lookback)
     result: Dict[int, Dict[int, float]] = {}
     effective_cap = cap if cap is not None else (len(sliced) if sliced else 1)
@@ -77,9 +82,7 @@ def stable_missing(
             if missing[n] == effective_cap:
                 missing[n] = idx
         capped = {d: min(v, effective_cap) for d, v in missing.items()}
-        max_val = max(capped.values()) if capped else 1
-        max_val = max(max_val, 1)
-        result[pos] = {d: capped[d] / max_val for d in DIGIT_POOL}
+        result[pos] = {d: capped[d] / effective_cap for d in DIGIT_POOL}
     return result
 
 
@@ -100,24 +103,22 @@ def stable_scores(
     cold_weight: float,
     temperature: float = 1.0,
 ) -> List[float]:
-    """合并热分和冷分，输出 0-9 的 softmax 概率分布."""
-    # 分别 min-max 归一化到 [0, 1]
-    hot_vals = [hot_scores[d] for d in DIGIT_POOL]
-    cold_vals = [cold_scores[d] for d in DIGIT_POOL]
+    """合并热分和冷分，输出 0-9 的 softmax 概率分布.
 
-    def _normalize(vals: List[float]) -> List[float]:
-        min_v = min(vals)
-        max_v = max(vals)
-        span = max_v - min_v
-        if span <= 0:
-            return [1.0] * len(vals)
-        return [(v - min_v) / span for v in vals]
-
-    hot_norm = _normalize(hot_vals)
-    cold_norm = _normalize(cold_vals)
-
+    两路输入分别按各自最大值归一化到 [0,1] 后再加权平均，
+    消除频率（~0.01-0.25）与遗漏（0-1）之间的量级差异，
+    确保 hot_weight/cold_weight 反映用户真实意图。
+    """
+    weight_sum = hot_weight + cold_weight
+    if weight_sum <= 0:
+        weight_sum = 1.0
+    max_hot = max((hot_scores[d] for d in DIGIT_POOL), default=0.0)
+    max_cold = max((cold_scores[d] for d in DIGIT_POOL), default=0.0)
+    max_hot = max(max_hot, 1e-10)
+    max_cold = max(max_cold, 1e-10)
     combined = [
-        hot_weight * hot_norm[d] + cold_weight * cold_norm[d]
+        (hot_weight * (hot_scores[d] / max_hot)
+         + cold_weight * (cold_scores[d] / max_cold)) / weight_sum
         for d in DIGIT_POOL
     ]
     return softmax_scores(combined, temperature)

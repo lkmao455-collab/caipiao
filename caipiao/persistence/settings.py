@@ -128,42 +128,6 @@ class AppSettings:
         self.set("draw_analysis_max_gap", max(0, min(50, value)))
 
     # ------------------------------------------------------------------ #
-    # 福彩3D 过滤参数
-    # ------------------------------------------------------------------ #
-
-    @property
-    def fc3d_filter_compare_periods(self) -> int:
-        """3D过滤：对比的历史期数，默认 7。"""
-        try:
-            return int(self.get("fc3d_filter_compare_periods", 7))
-        except (ValueError, TypeError):
-            return 7
-
-    @fc3d_filter_compare_periods.setter
-    def fc3d_filter_compare_periods(self, value: int) -> None:
-        try:
-            value = int(value)
-        except (ValueError, TypeError):
-            value = 7
-        self.set("fc3d_filter_compare_periods", max(0, min(50, value)))
-
-    @property
-    def fc3d_filter_max_matches(self) -> int:
-        """3D过滤：允许的最大相同位数，默认 1（即只允许1位相同）。"""
-        try:
-            return int(self.get("fc3d_filter_max_matches", 1))
-        except (ValueError, TypeError):
-            return 1
-
-    @fc3d_filter_max_matches.setter
-    def fc3d_filter_max_matches(self, value: int) -> None:
-        try:
-            value = int(value)
-        except (ValueError, TypeError):
-            value = 1
-        self.set("fc3d_filter_max_matches", max(0, min(3, value)))
-
-    # ------------------------------------------------------------------ #
     # 双色球过滤参数
     # ------------------------------------------------------------------ #
 

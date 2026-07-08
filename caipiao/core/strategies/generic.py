@@ -466,6 +466,12 @@ class GenericSmartHotColdStrategy(_GenericBase):
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
             "cold_weight": {"type": "int", "label": "冷号权重", "default": 40, "min": 0, "max": 100},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同，112和121视为相同。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -511,18 +517,37 @@ class GenericSmartHotColdStrategy(_GenericBase):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
+        dedup = bool(options.get("dedup", True))
+
+        seen: set = set()
         tickets: List[Ticket] = []
+        max_attempts = count * 50 if dedup else 1
         for _ in range(count):
-            groups: Dict[str, List[int]] = {}
-            if primary.positional:
-                groups[primary.key] = [rng.choices(primary.values, weights=weights, k=1)[0] for _ in range(primary.count)]
-            else:
-                selected = sorted(rng.choices(primary.values, weights=weights, k=pick))
-                # 去重重抽
-                while len(set(selected)) < pick and not primary.allow_repeat:
+            for attempt in range(max_attempts):
+                groups: Dict[str, List[int]] = {}
+                if primary.positional:
+                    groups[primary.key] = [rng.choices(primary.values, weights=weights, k=1)[0] for _ in range(primary.count)]
+                else:
                     selected = sorted(rng.choices(primary.values, weights=weights, k=pick))
-                groups[primary.key] = selected
-            self._fill_random_other(groups, rng)
+                    while len(set(selected)) < pick and not primary.allow_repeat:
+                        selected = sorted(rng.choices(primary.values, weights=weights, k=pick))
+                    groups[primary.key] = selected
+                self._fill_random_other(groups, rng)
+                if primary.positional:
+                    key = tuple(sorted(groups[primary.key]))
+                else:
+                    key = tuple(groups[primary.key])
+                if not dedup or key not in seen:
+                    if dedup:
+                        seen.add(key)
+                    break
+            else:
+                groups = {}
+                if primary.positional:
+                    groups[primary.key] = [rng.randint(primary.lo, primary.hi) for _ in range(primary.count)]
+                else:
+                    groups[primary.key] = sorted(rng.sample(primary.values, pick))
+                self._fill_random_other(groups, rng)
             tickets.append(_make_ticket(self.profile, groups, strategy_name=self.metadata.name, basis=basis))
         return tickets
 

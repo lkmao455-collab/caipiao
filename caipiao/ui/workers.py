@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QThread, Signal
 
-from ..core.engine import GenerationEngine, filter_3d_by_history, filter_ssq_by_history
+from ..core.engine import GenerationEngine, filter_ssq_by_history
 from ..core.profile import LotteryProfile, SSQ
 from ..data.fetcher import LotteryDataFetcher
 from ..utils import app_data_dir
@@ -111,7 +111,7 @@ class GenerateTicketsThread(QThread):
         try:
             profile_key = self.options.get("_profile_key")
             has_records = bool(self.options.get("_draw_records"))
-            need_filter = has_records and profile_key in ("3d", "ssq")
+            need_filter = has_records and profile_key == "ssq"
             gen_count = self.count * 3 if need_filter else self.count
 
             # 传递进度回调给策略
@@ -121,16 +121,9 @@ class GenerateTicketsThread(QThread):
                 self.strategy_id, count=gen_count, options=self.options
             )
 
-            # 最后一层过滤
-            if need_filter and tickets:
-                if profile_key == "3d":
-                    tickets = filter_3d_by_history(
-                        tickets,
-                        self.options["_draw_records"],
-                        compare_periods=self.options.get("_3d_compare_periods", 7),
-                        max_allowed_matches=self.options.get("_3d_max_matches", 1),
-                    )
-                elif profile_key == "ssq":
+            # 最后一层过滤（仅双色球）
+            if need_filter and profile_key == "ssq":
+                if tickets:
                     tickets = filter_ssq_by_history(
                         tickets,
                         self.options["_draw_records"],

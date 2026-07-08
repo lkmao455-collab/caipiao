@@ -69,6 +69,28 @@ def _make_rng(
     return random.Random(seed)
 
 
+def _sample_with_dedup(
+    sample_fn: Any,
+    count: int,
+    dedup: bool,
+) -> List[List[int]]:
+    """生成 count 组3位号码，可选按 sorted tuple 去重。"""
+    seen: set = set()
+    results: List[List[int]] = []
+    max_attempts = count * 50 if dedup else 1
+    for _ in range(count):
+        result = sample_fn()
+        if dedup:
+            for _ in range(max_attempts):
+                key = tuple(sorted(result))
+                if key not in seen:
+                    seen.add(key)
+                    break
+                result = sample_fn()
+        results.append(result)
+    return results
+
+
 class FC3DRandomStrategy(GenerationStrategy):
     """3D完全随机：每位独立0-9。"""
 
@@ -83,6 +105,12 @@ class FC3DRandomStrategy(GenerationStrategy):
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -98,15 +126,20 @@ class FC3DRandomStrategy(GenerationStrategy):
         options = options or {}
         self.validate_options(options)
         rng = _make_rng(options, [], None, self.metadata.id)
+        dedup = bool(options.get("dedup", True))
         basis = "完全随机策略：百、十、个位分别独立随机生成0-9数字。"
         seed = options.get("seed")
         if seed is not None:
             basis += f" 随机种子：{seed}。"
+
+        results = _sample_with_dedup(
+            lambda: [rng.randint(0, 9) for _ in range(3)],
+            count, dedup,
+        )
         tickets: List[Ticket] = []
-        for _ in range(count):
-            groups = {"pos": [rng.randint(0, 9) for _ in range(3)]}
+        for result in results:
             tickets.append(
-                Ticket(profile=FC3D_PROFILE, groups=groups, strategy_name=self.metadata.name, basis=basis)
+                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
         return tickets
 
@@ -140,6 +173,12 @@ class FC3DOddEvenStrategy(GenerationStrategy):
                 "max": 1,
                 "tooltip": "长度为3的列表，1表示奇数，0表示偶数，空则使用整体奇数个数。",
             },
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -164,6 +203,7 @@ class FC3DOddEvenStrategy(GenerationStrategy):
         rng = _make_rng(options, [], None, self.metadata.id)
         positional = options.get("positional", [])
         odd_count = int(options.get("odd_count", 1))
+        dedup = bool(options.get("dedup", True))
 
         odd_pool = [1, 3, 5, 7, 9]
         even_pool = [0, 2, 4, 6, 8]
@@ -176,16 +216,17 @@ class FC3DOddEvenStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        tickets: List[Ticket] = []
-        for _ in range(count):
+        def sample_one() -> List[int]:
             if positional:
-                result = [
-                    rng.choice(odd_pool if p == 1 else even_pool)
-                    for p in positional
-                ]
+                return [rng.choice(odd_pool if p == 1 else even_pool) for p in positional]
             else:
-                result = rng.sample(odd_pool, odd_count) + rng.sample(even_pool, 3 - odd_count)
+                result = [rng.choice(odd_pool) for _ in range(odd_count)] + [rng.choice(even_pool) for _ in range(3 - odd_count)]
                 rng.shuffle(result)
+                return result
+
+        results = _sample_with_dedup(sample_one, count, dedup)
+        tickets: List[Ticket] = []
+        for result in results:
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
@@ -218,6 +259,12 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
                 "default": [[], [], []],
                 "tooltip": "每位可指定一组排除数字，空列表表示不约束。",
             },
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -248,6 +295,7 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
         rng = _make_rng(options)
         include_pos = options.get("include_pos", [[], [], []])
         exclude_pos = options.get("exclude_pos", [[], [], []])
+        dedup = bool(options.get("dedup", True))
 
         basis_parts = ["排除/必含策略："]
         for idx in range(3):
@@ -262,8 +310,7 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        tickets: List[Ticket] = []
-        for _ in range(count):
+        def sample_one() -> List[int]:
             result = []
             for idx in range(3):
                 include = set(include_pos[idx])
@@ -274,6 +321,11 @@ class FC3DExcludeIncludeStrategy(GenerationStrategy):
                     available = set(range(10)) - exclude
                     chosen = rng.choice(list(available))
                 result.append(chosen)
+            return result
+
+        results = _sample_with_dedup(sample_one, count, dedup)
+        tickets: List[Ticket] = []
+        for result in results:
             tickets.append(
                 Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
             )
@@ -303,8 +355,14 @@ class FC3DHotColdStrategy(GenerationStrategy):
                 "default": "mixed",
             },
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
-            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50, "tooltip": "温度越低概率越集中，10=1.0"},
+            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50, "tooltip": "控制号码集中程度。10=标准平衡，1=高度集中，50=接近随机均匀分布"},
             "history": {"type": "history", "label": "历史记录", "default": []},
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -328,6 +386,7 @@ class FC3DHotColdStrategy(GenerationStrategy):
         rng = _make_rng(options, records, lookback, self.metadata.id)
         mode = options.get("mode", "mixed")
         temperature = int(options.get("temperature", 10)) / 10.0
+        dedup = bool(options.get("dedup", True))
 
         freq = stable_frequency(records, lookback)
         basis = f"冷热号分析策略：{mode} 模式，lookback={lookback}，temperature={temperature}。"
@@ -335,31 +394,35 @@ class FC3DHotColdStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
+        # 用实际频率归一化作为分数（替代等差排名），保留频率差异信息
+        pos_probs: List[List[float]] = []
+        for pos in range(3):
+            pos_freq = freq[pos]
+            max_f = max(pos_freq[d] for d in range(10))
+            max_f = max(max_f, 1e-10)
+            norm = {d: pos_freq[d] / max_f for d in range(10)}
+            if mode == "hot":
+                scores = {d: norm[d] for d in range(10)}
+            elif mode == "cold":
+                scores = {d: 1.0 - norm[d] for d in range(10)}
+            else:  # mixed: V形，两端都得高分
+                scores = {d: max(norm[d], 1.0 - norm[d]) for d in range(10)}
+            pos_probs.append(softmax_scores([scores[d] for d in range(10)], temperature))
+
+        details: Dict[str, Any] = {"pos_probabilities": pos_probs}
+
+        def sample_one() -> List[int]:
+            return [sample_weighted(rng, list(range(10)), pos_probs[pos]) for pos in range(3)]
+
+        results = _sample_with_dedup(sample_one, count, dedup)
         tickets: List[Ticket] = []
-        for _ in range(count):
-            result = []
-            for pos in range(3):
-                pos_freq = freq[pos]
-                ranked = sorted(range(10), key=lambda d: pos_freq[d], reverse=True)
-                if mode == "hot":
-                    order = ranked
-                elif mode == "cold":
-                    order = list(reversed(ranked))
-                else:  # mixed
-                    order = []
-                    for i in range(5):
-                        if 2 * i < len(ranked):
-                            order.append(ranked[2 * i])
-                        if 2 * i + 1 < len(ranked):
-                            order.append(ranked[-(2 * i + 1)])
-                # 将 order 中的排名转换为分数：排名越高分数越高
-                scores = {d: 0.0 for d in range(10)}
-                for rank_idx, d in enumerate(order):
-                    scores[d] = len(order) - rank_idx
-                probs = softmax_scores([scores[d] for d in range(10)], temperature)
-                result.append(sample_weighted(rng, list(range(10)), probs))
+        for result in results:
             tickets.append(
-                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
+                Ticket(
+                    profile=FC3D_PROFILE, groups={"pos": result},
+                    strategy_name=self.metadata.name, basis=basis,
+                    details=details.copy(),
+                )
             )
         return tickets
 
@@ -382,7 +445,13 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
             "cold_weight": {"type": "int", "label": "冷号权重", "default": 40, "min": 0, "max": 100},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
-            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50},
+            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50, "tooltip": "控制号码集中程度。10=标准平衡，1=高度集中（强烈偏向热/冷号），50=接近随机均匀分布"},
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码，112和121视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -419,16 +488,45 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
+        # 计算按位概率分布（每位的 0-9 softmax 概率），存到 details 供概率计算
+        pos_probs: List[List[float]] = []
+        for pos in range(3):
+            pos_probs.append(stable_scores(
+                freq[pos], missing[pos], hot_weight, cold_weight, temperature
+            ))
+        details: Dict[str, Any] = {"pos_probabilities": pos_probs}
+
+        dedup = bool(options.get("dedup", True))
+
+        seen: set = set()
         tickets: List[Ticket] = []
+        max_attempts = count * 50 if dedup else 1
         for _ in range(count):
-            result = []
-            for pos in range(3):
-                probs = stable_scores(
-                    freq[pos], missing[pos], hot_weight, cold_weight, temperature
-                )
-                result.append(sample_weighted(rng, list(range(10)), probs))
+            for attempt in range(max_attempts):
+                result = []
+                for pos in range(3):
+                    result.append(sample_weighted(rng, list(range(10)), pos_probs[pos]))
+                key = tuple(sorted(result))
+                if not dedup or key not in seen:
+                    if dedup:
+                        seen.add(key)
+                    break
+            else:
+                for _ in range(200):
+                    result = [
+                        sample_weighted(rng, list(range(10)), pos_probs[pos])
+                        for pos in range(3)
+                    ]
+                    if not dedup or tuple(sorted(result)) not in seen:
+                        if dedup:
+                            seen.add(tuple(sorted(result)))
+                        break
             tickets.append(
-                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
+                Ticket(
+                    profile=FC3D_PROFILE, groups={"pos": result},
+                    strategy_name=self.metadata.name, basis=basis,
+                    details=details.copy(),
+                )
             )
         return tickets
 
@@ -456,7 +554,13 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
                 "min": 1,
                 "max": 10,
             },
-            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50},
+            "temperature": {"type": "int", "label": "温度(x0.1)", "default": 10, "min": 1, "max": 50, "tooltip": "控制号码集中程度。10=标准平衡，1=高度集中，50=接近随机均匀分布"},
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -479,6 +583,7 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
         lookback = int(options.get("lookback", 50))
         pool_size = int(options.get("pool_size", 5))
         temperature = int(options.get("temperature", 10)) / 10.0
+        dedup = bool(options.get("dedup", True))
         rng = _make_rng(options, records, lookback, self.metadata.id)
 
         missing = stable_missing(records, lookback, cap=lookback)
@@ -488,18 +593,31 @@ class FC3DMissingNumberStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
+        # 只在候选池内做 softmax，池外概率强制为 0
+        pos_probs: List[List[float]] = []
+        for pos in range(3):
+            ranked = sorted(range(10), key=lambda d: missing[pos][d], reverse=True)
+            pool = ranked[:pool_size]
+            pool_scores = [missing[pos][d] for d in pool]
+            pool_probs = softmax_scores(pool_scores, temperature)
+            probs = [0.0] * 10
+            for d, p in zip(pool, pool_probs):
+                probs[d] = p
+            pos_probs.append(probs)
+        details: Dict[str, Any] = {"pos_probabilities": pos_probs}
+
+        def sample_one() -> List[int]:
+            return [sample_weighted(rng, list(range(10)), pos_probs[pos]) for pos in range(3)]
+
+        results = _sample_with_dedup(sample_one, count, dedup)
         tickets: List[Ticket] = []
-        for _ in range(count):
-            result = []
-            for pos in range(3):
-                ranked = sorted(range(10), key=lambda d: missing[pos][d], reverse=True)
-                pool = ranked[:pool_size]
-                # 在候选池内按遗漏值 softmax 采样
-                scores = {d: missing[pos][d] if d in pool else 0.0 for d in range(10)}
-                probs = softmax_scores([scores[d] for d in range(10)], temperature)
-                result.append(sample_weighted(rng, list(range(10)), probs))
+        for result in results:
             tickets.append(
-                Ticket(profile=FC3D_PROFILE, groups={"pos": result}, strategy_name=self.metadata.name, basis=basis)
+                Ticket(
+                    profile=FC3D_PROFILE, groups={"pos": result},
+                    strategy_name=self.metadata.name, basis=basis,
+                    details=details.copy(),
+                )
             )
         return tickets
 
@@ -527,6 +645,12 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 "default": True,
                 "tooltip": "3D仅1000种组合，枚举可找到评分最高且确定性的结果。",
             },
+            "dedup": {
+                "type": "bool",
+                "label": "号码去重",
+                "default": True,
+                "tooltip": "开启后去除号码集合重复，例如123和132视为相同号码。",
+            },
             "seed": {
                 "type": "int",
                 "label": "随机种子（可选）",
@@ -549,6 +673,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
         lookback = int(options.get("lookback", 100))
         max_attempts = int(options.get("max_attempts", 1000))
         use_enumeration = bool(options.get("use_enumeration", True))
+        dedup = bool(options.get("dedup", True))
 
         det_seed = deterministic_seed(options, records, lookback, self.metadata.id)
         rng = random.Random(det_seed)
@@ -573,6 +698,8 @@ class FC3DBalancedStrategy(GenerationStrategy):
         if user_seed is not None:
             basis += f" 随机种子：{user_seed}。"
 
+        max_weight = lookback * len(DIGIT_POOL)
+
         def score(candidate: List[int]) -> float:
             odd_count = sum(1 for n in candidate if n % 2 == 1)
             high_count = sum(1 for n in candidate if n >= 5)
@@ -588,11 +715,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
             else:
                 shape_score = 1 - shape["group6"]
 
-            # 按位权重作为轻量级 tie-breaker，保留历史中的位置顺序
-            # 权重归一化到 [-1, 1] 区间，降低对历史长度的敏感度
-            weight_score = -sum(
-                weights[pos][candidate[pos]] * len(DIGIT_POOL) for pos in range(3)
-            ) / (lookback or 1)
+            weight_score = -sum(weights[pos][candidate[pos]] for pos in range(3)) / (max_weight or 1)
             road_score = sum(
                 1.0 - road[pos][candidate[pos] % 3] for pos in range(3)
             )
@@ -611,6 +734,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
         def sample_one() -> List[int]:
             return [rng.choices(range(10), weights=weights[pos], k=1)[0] for pos in range(3)]
 
+        seen: set = set()
         tickets: List[Ticket] = []
         for _ in range(count):
             best_candidate: Optional[List[int]] = None
@@ -621,6 +745,9 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 if user_seed is not None:
                     rng.shuffle(candidates)
                 for candidate in candidates:
+                    key = tuple(sorted(candidate))
+                    if dedup and key in seen:
+                        continue
                     s = score(candidate)
                     if s < best_score:
                         best_score = s
@@ -628,6 +755,9 @@ class FC3DBalancedStrategy(GenerationStrategy):
             else:
                 for _ in range(max_attempts):
                     candidate = sample_one()
+                    key = tuple(sorted(candidate))
+                    if dedup and key in seen:
+                        continue
                     s = score(candidate)
                     if s < best_score:
                         best_score = s
@@ -638,6 +768,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
             if best_candidate is None:
                 best_candidate = sample_one()
 
+            seen.add(tuple(sorted(best_candidate)))
             tickets.append(
                 Ticket(
                     profile=FC3D_PROFILE,
@@ -734,11 +865,14 @@ class _FC3DMLStrategy(GenerationStrategy):
                         )
                     )
 
+        # 从 group_probabilities 提取按位概率分布用于概率计算
+        pos_probs = [gp[1] for gp in group_probabilities] if group_probabilities else []
         details = {
             "lookback": lookback,
             "diversity_boost": int(diversity * 10),
             "probabilities": proba_lists,
             "group_probabilities": group_probabilities,
+            "pos_probabilities": pos_probs,
             "model_name": self._backend.upper(),
         }
         basis = (
@@ -748,9 +882,9 @@ class _FC3DMLStrategy(GenerationStrategy):
 
         group_picks = {"pos": 3}
         tickets: List[Ticket] = []
-        seed = 42
+        det_seed = deterministic_seed(options, records, lookback, self.metadata.id)
         for i in range(count):
-            np_rng = np.random.RandomState(seed + i)
+            np_rng = np.random.RandomState(det_seed + i)
             rec_groups = predictor.recommend(group_picks=group_picks, diversity_boost=diversity, rng=np_rng)
             tickets.append(
                 Ticket(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import permutations
 from pathlib import Path
 import logging
 
@@ -360,6 +361,12 @@ class MainWindow(QMainWindow):
         self.target_label.setVisible(False)
         right_layout.addWidget(self.target_label)
 
+        self.probability_label = QLabel("")
+        self.probability_label.setWordWrap(True)
+        self.probability_label.setStyleSheet("color:#D32F2F;font-weight:bold;font-size:14px;")
+        self.probability_label.setVisible(False)
+        right_layout.addWidget(self.probability_label)
+
         self.result_text = QTextEdit()
         self.result_text.setReadOnly(True)
         self.result_text.setPlaceholderText("点击“立即生成”获取号码...")
@@ -661,6 +668,7 @@ class MainWindow(QMainWindow):
         # 清空生成结果（避免旧彩种结果残留）
         self.result_text.clear()
         self.target_label.setVisible(False)
+        self.probability_label.setVisible(False)
         self.chart_btn.setVisible(False)
         while self.result_container_layout.count() > 1:
             item = self.result_container_layout.takeAt(0)
@@ -1308,19 +1316,15 @@ class MainWindow(QMainWindow):
 
         # 注入 draw records 和过滤参数供最后一层过滤使用
         profile_key = self.current.profile.key
-        if profile_key in ("3d", "ssq"):
+        if profile_key == "ssq":
             draw_records = self.current.data_repository.get_all()
             if draw_records:
                 options["_profile_key"] = profile_key
                 options["_draw_records"] = draw_records
-                if profile_key == "3d":
-                    options["_3d_compare_periods"] = self.settings.fc3d_filter_compare_periods
-                    options["_3d_max_matches"] = self.settings.fc3d_filter_max_matches
-                elif profile_key == "ssq":
-                    options["_ssq_compare_periods"] = self.settings.ssq_filter_compare_periods
-                    options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
-                    options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
-                    options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
+                options["_ssq_compare_periods"] = self.settings.ssq_filter_compare_periods
+                options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
+                options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
+                options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
 
         self._generate_single_strategy(strategy_id, count, options)
 
@@ -1526,19 +1530,15 @@ class MainWindow(QMainWindow):
 
         # 注入 draw records 和过滤参数供最后一层过滤使用
         profile_key = self.current.profile.key
-        if profile_key in ("3d", "ssq"):
+        if profile_key == "ssq":
             draw_records = self.current.data_repository.get_all()
             if draw_records:
                 options["_profile_key"] = profile_key
                 options["_draw_records"] = draw_records
-                if profile_key == "3d":
-                    options["_3d_compare_periods"] = self.settings.fc3d_filter_compare_periods
-                    options["_3d_max_matches"] = self.settings.fc3d_filter_max_matches
-                elif profile_key == "ssq":
-                    options["_ssq_compare_periods"] = self.settings.ssq_filter_compare_periods
-                    options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
-                    options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
-                    options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
+                options["_ssq_compare_periods"] = self.settings.ssq_filter_compare_periods
+                options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
+                options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
+                options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
 
         # 使用新的生成接口，指定回调以继续队列
         self._generate_single_strategy(
@@ -1661,6 +1661,27 @@ class MainWindow(QMainWindow):
             self.target_label.clear()
             self.target_label.setVisible(False)
 
+        # 计算概率信息（仅福彩3D），一次计算供标签和文本共用
+        fc3d_prob = None
+        if tickets and tickets[0].profile.key == "3d":
+            fc3d_prob = self._calc_fc3d_probability(tickets)
+            label_lines = [
+                f"🎯 覆盖概率：{fc3d_prob['total_coverage']}/1000 = {fc3d_prob['abs_p']:.2f}%"
+                f"（{fc3d_prob['breakdown']}）"
+            ]
+            if fc3d_prob["confidence"] is not None:
+                label_lines.append(
+                    f"策略置信度（仅供参考，非实际中奖概率）：{fc3d_prob['confidence']:.4f}%"
+                )
+            label_lines.append(
+                f"期望收益：≈{fc3d_prob['expected_return']:.2f}元"
+                f"（投入{fc3d_prob['total_cost']}元，返奖率≈{fc3d_prob['return_rate']:.0f}%）"
+            )
+            self.probability_label.setText("\n".join(label_lines))
+            self.probability_label.setVisible(True)
+        else:
+            self.probability_label.setVisible(False)
+
         text_lines = []
         for idx, ticket in enumerate(tickets, start=1):
             line = f"{idx:02d}. {ticket.format_compact()}"
@@ -1676,7 +1697,121 @@ class MainWindow(QMainWindow):
         self.chart_btn.setVisible(bool(self._last_chart_details))
 
         header = target_lines + ["-" * 30] if target_lines else []
+        if fc3d_prob:
+            header.append(
+                f"覆盖概率：{fc3d_prob['total_coverage']}/1000 = {fc3d_prob['abs_p']:.2f}%"
+                f"（{fc3d_prob['breakdown']}）"
+            )
+            if fc3d_prob["confidence"] is not None:
+                header.append(f"策略置信度（仅供参考）：{fc3d_prob['confidence']:.4f}%")
+            header.append(
+                f"期望收益：≈{fc3d_prob['expected_return']:.2f}元"
+                f"（投入{fc3d_prob['total_cost']}元，返奖率≈{fc3d_prob['return_rate']:.0f}%）"
+            )
         self.result_text.setText("\n".join(header + text_lines))
+
+    # ------------------------------------------------------------------ #
+    # 福彩3D 概率计算
+    # ------------------------------------------------------------------ #
+
+    # FC3D 奖金（元）
+    _FC3D_PRIZE_ZHI = 1040    # 直选
+    _FC3D_PRIZE_Z3 = 346      # 组选3
+    _FC3D_PRIZE_Z6 = 173      # 组选6
+    _FC3D_TICKET_COST = 2     # 每注成本
+
+    @staticmethod
+    def _calc_fc3d_probability(tickets: list) -> dict:
+        """计算福彩3D概率信息（公平、去重、含期望收益）。
+
+        - 覆盖概率按组选计算：组选6 覆盖 6 个号码，组选3 覆盖 3 个，豹子覆盖 1 个。
+        - 对排序后相同的号码集合自动去重，避免 coverage 重叠虚高。
+        - 策略置信度仅在策略提供 pos_probabilities 时计算，本质是策略的自评，
+          非实际中奖概率。
+
+        Returns:
+            dict:
+            - total_coverage: 去重后总覆盖号码数
+            - abs_p: 覆盖概率（%）
+            - breakdown: 注数分布描述（如 "组选6×18 组选3×1 豹子×1"）
+            - confidence: 策略置信度（%），无 pos_probabilities 时为 None
+            - expected_return: 期望收益（元）
+            - total_cost: 总投入（元）
+            - return_rate: 返奖率（%）
+            - unique_count: 去重后不重复注数
+            - ticket_count: 原始注数
+        """
+        seen_sets: set = set()
+        total_coverage = 0
+        confidence = 0.0
+        count_z6 = count_z3 = count_bz = 0
+
+        pos_probs = tickets[0].details.get("pos_probabilities") if tickets else None
+        has_valid_probs = (
+            bool(pos_probs)
+            and len(pos_probs) == 3
+            and all(len(p) == 10 for p in pos_probs)
+        )
+
+        for t in tickets:
+            digits = t.groups.get("pos", [])
+            if len(digits) != 3:
+                continue
+            key = tuple(sorted(digits))
+            if key in seen_sets:
+                continue
+            seen_sets.add(key)
+
+            unique = len(set(digits))
+            if unique == 3:
+                total_coverage += 6
+                count_z6 += 1
+            elif unique == 2:
+                total_coverage += 3
+                count_z3 += 1
+            else:
+                total_coverage += 1
+                count_bz += 1
+
+            if has_valid_probs:
+                confidence += sum(
+                    pos_probs[0][p[0]] * pos_probs[1][p[1]] * pos_probs[2][p[2]]
+                    for p in set(permutations(digits))
+                )
+
+        abs_p = total_coverage / 1000 * 100
+
+        # 期望收益 = Σ(每种注数 × 中奖概率 × 奖金)
+        expected_return = (
+            count_z6 * (6 / 1000 * MainWindow._FC3D_PRIZE_Z6)
+            + count_z3 * (3 / 1000 * MainWindow._FC3D_PRIZE_Z3)
+            + count_bz * (1 / 1000 * MainWindow._FC3D_PRIZE_ZHI)
+        )
+        total_cost = len(tickets) * MainWindow._FC3D_TICKET_COST
+        return_rate = (expected_return / total_cost * 100) if total_cost > 0 else 0.0
+
+        parts = []
+        if count_z6:
+            parts.append(f"组选6×{count_z6}")
+        if count_z3:
+            parts.append(f"组选3×{count_z3}")
+        if count_bz:
+            parts.append(f"豹子×{count_bz}")
+        breakdown = " ".join(parts) if parts else "无"
+
+        confidence_pct = round(confidence * 100, 4) if has_valid_probs else None
+
+        return {
+            "total_coverage": total_coverage,
+            "abs_p": abs_p,
+            "breakdown": breakdown,
+            "confidence": confidence_pct,
+            "expected_return": round(expected_return, 2),
+            "total_cost": total_cost,
+            "return_rate": round(return_rate, 1),
+            "unique_count": len(seen_sets),
+            "ticket_count": len(tickets),
+        }
 
     @staticmethod
     def _build_chart_details(details: dict) -> dict | None:

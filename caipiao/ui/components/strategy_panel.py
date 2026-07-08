@@ -75,29 +75,7 @@ class StrategyPanel(QWidget):
         )
         self.layout.addWidget(self.description_label)
 
-        # 福彩3D 过滤参数
-        self.filter_3d_group = QGroupBox("福彩3D 过滤")
-        filter_3d_layout = QFormLayout(self.filter_3d_group)
-        filter_3d_layout.setSpacing(8)
-
-        self.compare_periods_spin = QSpinBox()
-        self.compare_periods_spin.setRange(0, 50)
-        self.compare_periods_spin.setMinimumWidth(60)
-        self.compare_periods_spin.setValue(self._settings.fc3d_filter_compare_periods)
-        self.compare_periods_spin.setToolTip("向前比较的历史开奖期数（0=不过滤）")
-        self.compare_periods_spin.valueChanged.connect(self._on_filter_3d_changed)
-        filter_3d_layout.addRow("对比期数:", self.compare_periods_spin)
-
-        self.max_matches_spin = QSpinBox()
-        self.max_matches_spin.setRange(0, 3)
-        self.max_matches_spin.setMinimumWidth(60)
-        self.max_matches_spin.setValue(self._settings.fc3d_filter_max_matches)
-        self.max_matches_spin.setToolTip("允许与历史开奖号码相同的数字个数（含重复，如717与677有两个7相同则为2）")
-        self.max_matches_spin.valueChanged.connect(self._on_filter_3d_changed)
-        filter_3d_layout.addRow("允许相同位数:", self.max_matches_spin)
-
-        self.layout.addWidget(self.filter_3d_group)
-        self.filter_3d_group.setVisible(False)
+        # 福彩3D 无过滤（开奖独立事件，过滤只会降低覆盖）
 
         # 双色球过滤参数
         self.filter_ssq_group = QGroupBox("双色球 过滤")
@@ -187,20 +165,11 @@ class StrategyPanel(QWidget):
             )
         else:
             self.description_label.setText("请选择生成策略")
-        # 仅3D策略显示过滤设置
-        is_3d = bool(strategy_id and strategy_id.endswith("_3d"))
-        self.filter_3d_group.setVisible(is_3d)
         # 仅SSQ策略显示过滤设置
         is_ssq = bool(strategy_id and not strategy_id.endswith("_3d")
                        and not any(strategy_id.endswith(f"_{s}") for s in ["qlc", "kl8", "dlt", "pl3", "pl5", "qxc", "gd36x7"]))
         self.filter_ssq_group.setVisible(is_ssq)
         self.options_changed.emit()
-
-    def _on_filter_3d_changed(self, _=None) -> None:
-        """3D过滤参数变化时保存到 QSettings."""
-        self._settings.fc3d_filter_compare_periods = self.compare_periods_spin.value()
-        self._settings.fc3d_filter_max_matches = self.max_matches_spin.value()
-        self._settings.sync()
 
     def _on_filter_ssq_changed(self, _=None) -> None:
         """SSQ过滤参数变化时保存到 QSettings."""
