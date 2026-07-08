@@ -31,19 +31,17 @@ def _register_all_strategies(engine: GenerationEngine, profile) -> None:
 
     # 双色球/大乐透在 generic.build_strategies 之外还有 legacy 策略
     if profile.key == "ssq":
-        from caipiao.core.strategies import (
-            BalancedStrategy,
-            BayesianStrategy,
-            MarkovChainStrategy,
-            MLStrategy,
-            OddEvenStrategy,
-            RandomStrategy,
-        )
-        engine.register(RandomStrategy())
-        engine.register(OddEvenStrategy())
-        engine.register(BalancedStrategy())
-        engine.register(BayesianStrategy())
-        engine.register(MarkovChainStrategy())
+        from caipiao.core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
+        from caipiao.core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
+        from caipiao.core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
+        from caipiao.core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
+        from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
+        from caipiao.core.strategies.ml_strategy import MLStrategy
+        engine.register(SSQRandomStrategy())
+        engine.register(SSQOddEvenStrategy())
+        engine.register(SSQBalancedStrategy())
+        engine.register(SSQBayesianStrategy())
+        engine.register(SSQMarkovStrategy())
         engine.register(MLStrategy("xgboost"))
 
 

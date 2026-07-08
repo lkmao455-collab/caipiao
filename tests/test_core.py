@@ -5,12 +5,10 @@ import pytest
 from caipiao.core.ball import Ball, BallColor
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.prize import calculate_prize, fc3d_bet_type
-from caipiao.core.strategies import (
-    ExcludeIncludeStrategy,
-    HotColdStrategy,
-    OddEvenStrategy,
-    RandomStrategy,
-)
+from caipiao.core.strategies.lotteries.ssq.exclude_include import SSQExcludeIncludeStrategy
+from caipiao.core.strategies.lotteries.ssq.hot_cold import SSQHotColdStrategy
+from caipiao.core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
+from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
 from caipiao.core.ticket import Ticket
 
 
@@ -40,7 +38,7 @@ def test_ticket_validation():
 
 
 def test_random_strategy():
-    strategy = RandomStrategy()
+    strategy = SSQRandomStrategy()
     tickets = strategy.generate(count=10)
     assert len(tickets) == 10
     for t in tickets:
@@ -49,7 +47,7 @@ def test_random_strategy():
 
 
 def test_odd_even_strategy():
-    strategy = OddEvenStrategy()
+    strategy = SSQOddEvenStrategy()
     tickets = strategy.generate(count=5, options={"odd_count": 4})
     for t in tickets:
         odd_count = sum(1 for b in t.red_balls if b.number % 2 == 1)
@@ -57,7 +55,7 @@ def test_odd_even_strategy():
 
 
 def test_exclude_include_strategy():
-    strategy = ExcludeIncludeStrategy()
+    strategy = SSQExcludeIncludeStrategy()
     tickets = strategy.generate(
         count=3,
         options={"include_red": [1, 2], "exclude_red": [33], "exclude_blue": [16]},
@@ -72,13 +70,13 @@ def test_exclude_include_strategy():
 
 def test_engine():
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
     tickets = engine.generate("random", count=2)
     assert len(tickets) == 2
 
 
 def test_hot_cold_strategy_with_history():
-    strategy = HotColdStrategy()
+    strategy = SSQHotColdStrategy()
     history = [Ticket([1, 2, 3, 4, 5, 6], 1) for _ in range(5)]
     tickets = strategy.generate(count=2, options={"mode": "hot", "history": history})
     assert len(tickets) == 2
@@ -90,7 +88,7 @@ def test_hot_cold_strategy_with_draw_records():
 
     from caipiao.data.models import DrawRecord
 
-    strategy = HotColdStrategy()
+    strategy = SSQHotColdStrategy()
     history = [
         DrawRecord(
             issue=f"2024{i:03d}",

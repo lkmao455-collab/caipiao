@@ -125,7 +125,7 @@ from datetime import datetime, timedelta
 
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.profile import SSQ
-from caipiao.core.strategies import SmartHotColdStrategy
+from caipiao.core.strategies.lotteries.ssq.smart_hot_cold import SSQSmartHotColdStrategy
 from caipiao.data.models import DrawRecord
 from caipiao.ui.optimal_period_scan_thread import OptimalPeriodScanThread, ScanResult
 
@@ -162,7 +162,7 @@ def _make_records(n=120):
 def test_scan_thread_finds_optimal_lookback():
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     thread = OptimalPeriodScanThread(
         engine=engine,
@@ -197,9 +197,9 @@ def test_scan_thread_finds_optimal_lookback():
 def test_scan_thread_unsupported_strategy():
     records = _make_records(10)
     engine = GenerationEngine()
-    from caipiao.core.strategies import RandomStrategy
+    from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
 
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = OptimalPeriodScanThread(
         engine=engine,
@@ -282,7 +282,7 @@ def test_scan_thread_skips_failed_values(monkeypatch):
     """单个参数值失败时不应导致整体扫描失败."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     monkeypatch.setattr(
         "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor",
@@ -328,7 +328,7 @@ def test_scan_thread_failed_value_not_optimal(monkeypatch):
     """失败的最小参数值不应被选为最优，即使成功结果奖金均为零."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     monkeypatch.setattr(
         "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor",
@@ -376,7 +376,7 @@ def test_scan_thread_insufficient_history():
     """需要历史数据的策略在记录不足 100 期时应返回数据不足错误."""
     records = _make_records(50)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     thread = OptimalPeriodScanThread(
         engine=engine,
@@ -402,7 +402,7 @@ def test_scan_thread_empty_date_range():
     """日期范围内没有记录时应返回明确错误."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     thread = OptimalPeriodScanThread(
         engine=engine,
@@ -427,7 +427,7 @@ def test_scan_thread_interruption(monkeypatch):
     """请求中断后，ScanResult 应标记为 interrupted."""
     records = _make_records(120)
     engine = GenerationEngine()
-    engine.register(SmartHotColdStrategy())
+    engine.register(SSQSmartHotColdStrategy())
 
     monkeypatch.setattr(
         "caipiao.ui.optimal_period_scan_thread.ProcessPoolExecutor",

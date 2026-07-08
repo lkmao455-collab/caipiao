@@ -16,13 +16,11 @@ from PySide6.QtCore import QObject, Signal
 
 from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
-from ..core.strategies import (
-    BalancedStrategy,
-    BayesianStrategy,
-    MarkovChainStrategy,
-    MLStrategy,
-    OddEvenStrategy,
-)
+from ..core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
+from ..core.strategies.lotteries.ssq.bayesian import SSQBayesianStrategy
+from ..core.strategies.lotteries.ssq.markov import SSQMarkovStrategy
+from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
+from ..core.strategies.ml_strategy import MLStrategy
 from ..core.strategies.generic import build_strategies as build_generic_strategies
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
@@ -69,23 +67,23 @@ class LotteryContext(QObject):
 
     def register_builtin_strategies(self) -> None:
         if self.profile.key == "ssq":
-            self.engine.register(BalancedStrategy())
-            self.engine.register(OddEvenStrategy())
+            self.engine.register(SSQBalancedStrategy())
+            self.engine.register(SSQOddEvenStrategy())
             self.engine.register(MLStrategy("xgboost"))
-            self.engine.register(BayesianStrategy())
-            self.engine.register(MarkovChainStrategy())
+            self.engine.register(SSQBayesianStrategy())
+            self.engine.register(SSQMarkovStrategy())
         elif self.profile.key == "3d":
             # 福彩3D：仅保留核心策略
             from ..core.strategies.generic import (
                 GenericSmartHotColdStrategy,
                 GenericMissingNumberStrategy,
                 GenericXGBoostStrategy,
-                GenericBalancedStrategy,
+                GenericSSQBalancedStrategy,
             )
             self.engine.register(GenericSmartHotColdStrategy(self.profile))
             self.engine.register(GenericMissingNumberStrategy(self.profile))
             self.engine.register(GenericXGBoostStrategy(self.profile))
-            self.engine.register(GenericBalancedStrategy(self.profile))
+            self.engine.register(GenericSSQBalancedStrategy(self.profile))
         elif self.profile.key == "dlt":
             # 大乐透：仅保留XGBoost
             from ..core.strategies.generic import GenericXGBoostStrategy
@@ -95,12 +93,12 @@ class LotteryContext(QObject):
             from ..core.strategies.generic import (
                 GenericSmartHotColdStrategy,
                 GenericMissingNumberStrategy,
-                GenericBalancedStrategy,
+                GenericSSQBalancedStrategy,
                 GenericXGBoostStrategy,
             )
             self.engine.register(GenericSmartHotColdStrategy(self.profile))
             self.engine.register(GenericMissingNumberStrategy(self.profile))
-            self.engine.register(GenericBalancedStrategy(self.profile))
+            self.engine.register(GenericSSQBalancedStrategy(self.profile))
             self.engine.register(GenericXGBoostStrategy(self.profile))
         else:
             from ..core.strategies.generic import (

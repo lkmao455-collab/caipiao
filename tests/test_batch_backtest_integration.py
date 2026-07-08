@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.profile import SSQ
-from caipiao.core.strategies import RandomStrategy
+from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
 from caipiao.data.models import DrawRecord
 from caipiao.ui.batch_backtest_thread import BatchBacktestThread
 
@@ -40,7 +40,7 @@ def _make_records(n=10):
 def test_batch_thread_runs_in_parallel():
     records = _make_records(5)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,
@@ -74,7 +74,7 @@ def test_batch_thread_runs_in_parallel():
 def test_batch_thread_progress_and_round_ready():
     records = _make_records(3)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,
@@ -111,7 +111,7 @@ def test_batch_thread_progress_and_round_ready():
 def test_batch_thread_empty_date_range():
     records = _make_records(5)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,
@@ -144,7 +144,7 @@ def test_batch_thread_error_threshold_terminates_early():
     """当错误期数超过 30% 时，线程应提前终止并返回已收集的部分结果."""
     records = _make_records(5)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,
@@ -189,7 +189,7 @@ def test_batch_thread_cancellation():
     """
     records = _make_records(50)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,
@@ -229,7 +229,7 @@ def test_batch_thread_ml_strategy():
 
     records = _make_ml_records(120)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,
@@ -281,7 +281,7 @@ def test_batch_thread_invalid_max_workers_uses_default():
     """非法的 batch_backtest_workers 应被归一化为有效值，不影响回测执行。"""
     records = _make_records(5)
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
 
     thread = BatchBacktestThread(
         engine=engine,

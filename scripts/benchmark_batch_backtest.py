@@ -17,7 +17,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.profile import SSQ
-from caipiao.core.strategies import RandomStrategy
+from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
 from caipiao.data.models import DrawRecord
 from caipiao.ui.batch_backtest_thread import BatchBacktestThread
 
@@ -56,7 +56,7 @@ def _make_ssq_records(n: int) -> list[DrawRecord]:
 
 def _make_engine() -> GenerationEngine:
     engine = GenerationEngine()
-    engine.register(RandomStrategy())
+    engine.register(SSQRandomStrategy())
     return engine
 
 
