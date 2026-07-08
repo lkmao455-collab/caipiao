@@ -105,7 +105,7 @@ class SSQStatsStrategy(GenerationStrategy):
         analyzer = DrawAnalyzer(records)
 
         if mode in ("hot", "cold", "mixed"):
-            reds_pool, blues_pool, basis = self._freq_mode(analyzer, mode)
+            reds_pool, blues_pool, basis = self._freq_mode(analyzer, mode, options)
         elif mode == "missing":
             reds_pool, blues_pool, basis = self._missing_mode(analyzer, options)
         else:  # smart
@@ -128,9 +128,10 @@ class SSQStatsStrategy(GenerationStrategy):
             )
         return tickets
 
-    def _freq_mode(self, analyzer: DrawAnalyzer, mode: str):
+    def _freq_mode(self, analyzer: DrawAnalyzer, mode: str, options: Dict[str, Any]):
         """频率模式：热号/冷号/混合。"""
-        freq = analyzer.frequency("red")
+        lookback = int(options.get("lookback", 100))
+        freq = analyzer.frequency("red", lookback)
         all_reds = list(range(1, 34))
         ranked = sorted(all_reds, key=lambda n: freq.get(n, 0), reverse=True)
 
@@ -144,10 +145,10 @@ class SSQStatsStrategy(GenerationStrategy):
             pool = ranked[:8] + ranked[-8:]
             text = "热号与冷号混合"
 
-        blue_freq = analyzer.frequency("blue")
+        blue_freq = analyzer.frequency("blue", lookback)
         blues_pool = sorted(range(1, 17), key=lambda n: blue_freq.get(n, 0), reverse=True)[:8]
 
-        basis = f"统计分析（{text}）：基于历史记录统计频率后选取候选池。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        basis = f"统计分析（{text}）：回看 {lookback} 期，基于历史记录统计频率后选取候选池。注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         return pool, blues_pool, basis
 
     def _missing_mode(self, analyzer: DrawAnalyzer, options: Dict[str, Any]):
@@ -189,7 +190,7 @@ class SSQStatsStrategy(GenerationStrategy):
         ranked = sorted(all_reds, key=lambda n: scores[n], reverse=True)
         reds_pool = ranked[:12]
 
-        freq_blue = analyzer.frequency("blue")
+        freq_blue = analyzer.frequency("blue", lookback)
         blues_pool = sorted(range(1, 17), key=lambda n: freq_blue.get(n, 0), reverse=True)[:8]
 
         basis = (
