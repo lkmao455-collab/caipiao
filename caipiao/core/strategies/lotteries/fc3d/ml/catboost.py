@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from .....strategy import StrategyMetadata
-from .._base import _FC3DMLStrategy
+from .base import _FC3DMLStrategyBase
 
 
-class FC3DCatBoostStrategy(_FC3DMLStrategy):
+class FC3DCatBoostStrategy(_FC3DMLStrategyBase):
     _backend = "catboost"
 
     @property
