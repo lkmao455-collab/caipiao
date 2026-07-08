@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from ......data.models import DrawRecord
-from ......ml.model_store import compute_lookback, find_current_model, new_model_path
+from ......ml.common.model_store import compute_lookback, find_current_model, new_model_path
 from ......ml.predictor import MLPredictor
 from .....profile import SSQ
 from .....strategy import GenerationStrategy

@@ -26,8 +26,8 @@ from caipiao.core.strategies import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
 from caipiao.ml.generic_predictor import GenericMLPredictor
 from caipiao.ml.lgbm_model import LotteryLightGBMModel
+from caipiao.ml.common.model_store import compute_lookback, new_model_path
 from caipiao.ml.model import LotteryXGBoostModel
-from caipiao.ml.model_store import compute_lookback, new_model_path
 from caipiao.ml.predictor import MLPredictor
 
 

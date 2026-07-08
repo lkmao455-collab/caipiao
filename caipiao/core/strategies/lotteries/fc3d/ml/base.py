@@ -12,8 +12,8 @@ from .....profile import get_profile
 from .....strategy import GenerationStrategy
 from .....ticket import Ticket
 from ......data.models import DrawRecord
+from ......ml.common.model_store import compute_lookback, find_current_model, new_model_path
 from ......ml.generic_predictor import GenericMLPredictor
-from ......ml.model_store import compute_lookback, find_current_model, new_model_path
 from ..stability import deterministic_seed
 
 logger = logging.getLogger(__name__)

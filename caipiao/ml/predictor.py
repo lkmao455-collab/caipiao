@@ -10,9 +10,9 @@ from typing import Callable, List, Optional, Tuple
 import numpy as np
 
 from ..data.models import DrawRecord
+from .common.model_store import data_fingerprint
 from .features import build_features, build_prediction_features
 from .model import LotteryXGBoostModel
-from .model_store import data_fingerprint
 
 logger = logging.getLogger(__name__)
 

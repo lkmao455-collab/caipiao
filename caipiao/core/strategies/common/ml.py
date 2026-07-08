@@ -16,8 +16,8 @@ from ....core.profile import LotteryProfile
 from ....core.strategy import GenerationStrategy
 from ....core.ticket import Ticket
 from ....data.models import DrawRecord
+from ....ml.common.model_store import compute_lookback, find_current_model, new_model_path
 from ....ml.generic_predictor import GenericMLPredictor
-from ....ml.model_store import compute_lookback, find_current_model, new_model_path
 from .records import records_from_options
 
 logger = logging.getLogger(__name__)

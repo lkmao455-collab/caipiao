@@ -45,9 +45,9 @@ from ..core.strategies import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
 from ..data.repository import DrawRepository
 from ..ml.catboost_model import LotteryCatBoostModel
+from ..ml.common.model_store import compute_lookback, is_model_current, new_model_path
 from ..ml.lgbm_model import LotteryLightGBMModel
 from ..ml.model import LotteryXGBoostModel
-from ..ml.model_store import compute_lookback, is_model_current, new_model_path
 from ..persistence.history import HistoryManager
 from ..persistence.optimal_param_store import OptimalParamStore
 from ..persistence.parameter_group_store import ParameterGroupStore

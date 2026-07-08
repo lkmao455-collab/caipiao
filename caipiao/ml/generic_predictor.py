@@ -15,7 +15,7 @@ import numpy as np
 
 from ..core.profile import LotteryProfile, NumberGroup
 from ..data.models import DrawRecord
-from . import model_store
+from .common import model_store
 from .generic_features import build_features, build_prediction_features
 from .generic_model import LotteryGenericModel
 

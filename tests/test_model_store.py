@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from caipiao.data.models import DrawRecord
 from caipiao.ml import model_store
+from caipiao.ml.common import model_store as common_model_store
 
 
 def make_records(count: int = 120):
@@ -137,3 +138,18 @@ def test_find_current_model_prefers_newest(tmp_path):
 
     found = model_store.find_current_model(records, lookback, directory=tmp_path)
     assert found == newer
+
+
+def test_common_model_store_alias_has_same_api():
+    """caipiao.ml.common.model_store 应包含与旧入口一致的公开函数。"""
+    for name in (
+        "model_dir",
+        "compute_lookback",
+        "data_fingerprint",
+        "new_model_path",
+        "find_current_model",
+        "is_model_current",
+        "model_info",
+    ):
+        assert hasattr(common_model_store, name)
+        assert getattr(common_model_store, name) is getattr(model_store, name)
