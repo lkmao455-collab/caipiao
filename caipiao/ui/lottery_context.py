@@ -20,7 +20,7 @@ from ..core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
 from ..core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
 from ..core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
 from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
-from ..core.strategies.ml_strategy import MLStrategy
+from ..core.strategies.lotteries.ssq.ml.xgboost import SSQXGBoostStrategy
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
 from ..data.models import DrawRecord
@@ -68,7 +68,7 @@ class LotteryContext(QObject):
         if self.profile.key == "ssq":
             self.engine.register(SSQBalancedStrategy())
             self.engine.register(SSQOddEvenStrategy())
-            self.engine.register(MLStrategy("xgboost"))
+            self.engine.register(SSQXGBoostStrategy())
             self.engine.register(SSQBayesianStrategy())
             self.engine.register(SSQMarkovStrategy())
         elif self.profile.key == "3d":
