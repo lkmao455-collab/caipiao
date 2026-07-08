@@ -9,7 +9,7 @@ from ._base import BaseSSQStrategy
 class SSQBayesianStrategy(BaseSSQStrategy):
     """贝叶斯分析。"""
 
-    is_ml = True
+    is_ml = False
 
     @property
     def metadata(self) -> StrategyMetadata:

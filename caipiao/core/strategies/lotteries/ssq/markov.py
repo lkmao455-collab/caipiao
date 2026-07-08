@@ -9,7 +9,7 @@ from ._base import BaseSSQStrategy
 class SSQMarkovStrategy(BaseSSQStrategy):
     """马尔可夫链。"""
 
-    is_ml = True
+    is_ml = False
 
     @property
     def metadata(self) -> StrategyMetadata:
