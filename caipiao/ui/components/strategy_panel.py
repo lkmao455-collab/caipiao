@@ -215,6 +215,11 @@ class StrategyPanel(QWidget):
         return locked
 
     def _rebuild_options(self, strategy: GenerationStrategy | None) -> None:
+        # 移除旧推荐按钮（如果存在）
+        if hasattr(self, "_recommend_btn"):
+            self._recommend_btn.deleteLater()
+            delattr(self, "_recommend_btn")
+
         # 清空旧控件
         while self.options_layout.rowCount() > 0:
             self.options_layout.removeRow(0)
@@ -234,11 +239,6 @@ class StrategyPanel(QWidget):
         locked = self._get_locked_for_strategy(strategy.metadata.id)
         self.options_group.setVisible(True)
         self.reset_defaults_btn.setVisible(True)
-
-        # 移除旧推荐按钮（如果存在）
-        if hasattr(self, "_recommend_btn"):
-            self._recommend_btn.deleteLater()
-            delattr(self, "_recommend_btn")
 
         if hasattr(strategy, "recommend_parameters"):
             self._recommend_btn = QPushButton("一键推荐参数")
