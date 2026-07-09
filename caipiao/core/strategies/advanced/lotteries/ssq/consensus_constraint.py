@@ -52,30 +52,6 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
                 "max": 300000,
                 "tooltip": "初始生成的候选组合数量",
             },
-            "red_pool_size": {
-                "type": "int",
-                "label": "红球号池大小",
-                "default": SSQ.group("red").size,
-                "min": 1,
-                "max": 100,
-                "tooltip": "红球号池大小，默认取自 SSQ 档案",
-            },
-            "blue_pool_size": {
-                "type": "int",
-                "label": "蓝球号池大小",
-                "default": SSQ.group("blue").size,
-                "min": 1,
-                "max": 100,
-                "tooltip": "蓝球号池大小，默认取自 SSQ 档案",
-            },
-            "red_pick_count": {
-                "type": "int",
-                "label": "红球选取个数",
-                "default": SSQ.group("red").count,
-                "min": 1,
-                "max": 20,
-                "tooltip": "每期选取的红球个数，默认取自 SSQ 档案",
-            },
             "candidate_attempt_multiplier": {
                 "type": "int",
                 "label": "候选生成尝试倍数",
@@ -188,21 +164,109 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             "stats_hot_weight": {"type": "int", "label": "统计热号权重", "default": 60, "min": 0, "max": 100},
             "stats_cold_weight": {"type": "int", "label": "统计冷号权重", "default": 40, "min": 0, "max": 100},
             "stats_pool_size": {"type": "int", "label": "统计候选池大小", "default": 12, "min": 6, "max": 20},
+            "stats_red_pool_size_hot_cold": {
+                "type": "int",
+                "label": "统计热/冷红球池大小",
+                "default": 16,
+                "min": 1,
+                "max": 33,
+                "tooltip": "stats 模式为 hot/cold 时，红球候选池大小",
+            },
+            "stats_red_pool_size_mixed_half": {
+                "type": "int",
+                "label": "统计混合红球半池大小",
+                "default": 8,
+                "min": 1,
+                "max": 16,
+                "tooltip": "stats 模式为 mixed 时，热号半池 + 冷号半池各取该值",
+            },
+            "stats_blue_pool_size": {
+                "type": "int",
+                "label": "统计蓝球池大小",
+                "default": 8,
+                "min": 1,
+                "max": 16,
+                "tooltip": "stats 各模式蓝球候选池大小",
+            },
             "stats_weight": {"type": "int", "label": "统计模型融合权重", "default": 25, "min": 0, "max": 100},
             # smart hot cold
             "smart_hot_cold_enabled": {"type": "bool", "label": "启用智能冷热", "default": True},
             "smart_hot_cold_lookback": {"type": "int", "label": "智能冷热统计期数", "default": 100, "min": 10, "max": 10000},
             "smart_hot_cold_hot_weight": {"type": "int", "label": "智能冷热热号权重", "default": 60, "min": 0, "max": 100},
             "smart_hot_cold_cold_weight": {"type": "int", "label": "智能冷热冷号权重", "default": 40, "min": 0, "max": 100},
+            "smart_hot_cold_smoothing_floor": {
+                "type": "float",
+                "label": "智能冷热平滑下限",
+                "default": 0.1,
+                "min": 0.0,
+                "max": 10.0,
+                "tooltip": "权重计算时保证每个号码的平滑下限值",
+            },
+            "smart_hot_cold_smoothing_offset": {
+                "type": "float",
+                "label": "智能冷热平滑偏移量",
+                "default": 1.0,
+                "min": 0.0,
+                "max": 10.0,
+                "tooltip": "得分平移量：weight = max(floor, score - min_score + offset)",
+            },
             "smart_hot_cold_weight": {"type": "int", "label": "智能冷热融合权重", "default": 25, "min": 0, "max": 100},
             # hot cold
             "hot_cold_enabled": {"type": "bool", "label": "启用冷热号", "default": True},
             "hot_cold_mode": {"type": "choice", "label": "冷热号模式", "choices": ["hot", "cold", "mixed"], "default": "mixed"},
+            "hot_cold_red_pool_size": {
+                "type": "int",
+                "label": "冷热号红球池大小",
+                "default": 16,
+                "min": 1,
+                "max": 33,
+                "tooltip": "hot/cold 模式红球候选池大小",
+            },
+            "hot_cold_red_pool_size_mixed_half": {
+                "type": "int",
+                "label": "冷热号混合半池大小",
+                "default": 8,
+                "min": 1,
+                "max": 16,
+                "tooltip": "mixed 模式热号半池 + 冷号半池各取该值",
+            },
+            "hot_cold_blue_pool_size": {
+                "type": "int",
+                "label": "冷热号蓝球池大小",
+                "default": 8,
+                "min": 1,
+                "max": 16,
+                "tooltip": "hot/cold/mixed 模式蓝球候选池大小",
+            },
             "hot_cold_weight": {"type": "int", "label": "冷热号融合权重", "default": 25, "min": 0, "max": 100},
             # missing number
             "missing_number_enabled": {"type": "bool", "label": "启用遗漏号", "default": True},
             "missing_number_lookback": {"type": "int", "label": "遗漏号统计期数", "default": 50, "min": 10, "max": 10000},
             "missing_number_pool_size": {"type": "int", "label": "遗漏号候选池大小", "default": 12, "min": 6, "max": 20},
+            "missing_blue_pool_cap": {
+                "type": "int",
+                "label": "遗漏号蓝球池上限",
+                "default": 8,
+                "min": 1,
+                "max": 16,
+                "tooltip": "蓝球候选池上限，与公式值取 min",
+            },
+            "missing_blue_pool_formula_offset": {
+                "type": "int",
+                "label": "遗漏号蓝球公式偏移",
+                "default": 2,
+                "min": 0,
+                "max": 10,
+                "tooltip": "蓝球池大小公式中的加法偏移：pool_size // divisor + offset",
+            },
+            "missing_blue_pool_formula_divisor": {
+                "type": "int",
+                "label": "遗漏号蓝球公式除数",
+                "default": 2,
+                "min": 1,
+                "max": 10,
+                "tooltip": "蓝球池大小公式中的除数：pool_size // divisor + offset",
+            },
             "missing_number_weight": {"type": "int", "label": "遗漏号融合权重", "default": 25, "min": 0, "max": 100},
             # odd even
             "odd_even_enabled": {"type": "bool", "label": "启用奇偶约束", "default": True},
@@ -301,8 +365,10 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             basis_parts.append(text)
 
         if not red_probs_list:
-            red_prior = np.ones(33) / 33.0
-            blue_prior = np.ones(16) / 16.0
+            red_size = SSQ.group("red").size
+            blue_size = SSQ.group("blue").size
+            red_prior = np.ones(red_size) / red_size
+            blue_prior = np.ones(blue_size) / blue_size
             basis = "未启用任何统计模型，使用均匀先验。"
             return red_prior, blue_prior, basis
 
@@ -327,32 +393,42 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
     def _stats_prior(
         self, analyzer: DrawAnalyzer, options: Dict[str, Any]
     ) -> Tuple[np.ndarray, np.ndarray, str]:
+        red_group = SSQ.group("red")
+        blue_group = SSQ.group("blue")
+        red_size = red_group.size
+        blue_size = blue_group.size
+        all_reds = red_group.values
+        all_blues = blue_group.values
+
         mode = options.get("stats_mode", "smart")
         lookback = int(options.get("stats_lookback", 100))
-        all_reds = list(range(1, 34))
+        red_hot_cold_size = int(options.get("stats_red_pool_size_hot_cold", 16))
+        red_mixed_half = int(options.get("stats_red_pool_size_mixed_half", 8))
+        blue_pool_size = int(options.get("stats_blue_pool_size", 8))
 
         if mode in ("hot", "cold", "mixed"):
             freq = analyzer.frequency("red", lookback)
             ranked = sorted(all_reds, key=lambda n: freq.get(n, 0), reverse=True)
             if mode == "hot":
-                pool = ranked[:16]
+                pool = ranked[:red_hot_cold_size]
             elif mode == "cold":
-                pool = ranked[-16:]
+                pool = ranked[-red_hot_cold_size:]
             else:
-                pool = ranked[:8] + ranked[-8:]
+                pool = ranked[:red_mixed_half] + ranked[-red_mixed_half:]
             blue_freq = analyzer.frequency("blue", lookback)
-            blue_pool = sorted(range(1, 17), key=lambda n: blue_freq.get(n, 0), reverse=True)[:8]
+            blue_pool = sorted(all_blues, key=lambda n: blue_freq.get(n, 0), reverse=True)[:blue_pool_size]
             text = f"stats({mode}, {lookback})"
         elif mode == "missing":
             pool_size = int(options.get("stats_pool_size", 12))
             missing_red = dict(analyzer.missing("red", lookback))
             pool = sorted(all_reds, key=lambda n: missing_red.get(n, 0), reverse=True)[:pool_size]
             missing_blue = dict(analyzer.missing("blue", lookback))
-            blue_pool = sorted(range(1, 17), key=lambda n: missing_blue.get(n, 0), reverse=True)[:8]
+            blue_pool = sorted(all_blues, key=lambda n: missing_blue.get(n, 0), reverse=True)[:blue_pool_size]
             text = f"stats(missing, {lookback}, pool={pool_size})"
         else:  # smart
             hot_w = int(options.get("stats_hot_weight", 60))
             cold_w = int(options.get("stats_cold_weight", 40))
+            pool_size = int(options.get("stats_pool_size", 12))
             freq_red = analyzer.frequency("red", lookback)
             missing_red = dict(analyzer.missing("red", lookback))
             max_freq = max(freq_red.values()) if freq_red else 1
@@ -362,24 +438,35 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
                 f_score = freq_red.get(n, 0) / max_freq if max_freq else 0
                 m_score = missing_red.get(n, 0) / max_miss if max_miss else 0
                 scores[n] = hot_w * f_score + cold_w * m_score
-            pool = sorted(all_reds, key=lambda n: scores[n], reverse=True)[:12]
+            pool = sorted(all_reds, key=lambda n: scores[n], reverse=True)[:pool_size]
             freq_blue = analyzer.frequency("blue", lookback)
-            blue_pool = sorted(range(1, 17), key=lambda n: freq_blue.get(n, 0), reverse=True)[:8]
+            blue_pool = sorted(all_blues, key=lambda n: freq_blue.get(n, 0), reverse=True)[:blue_pool_size]
             text = f"stats(smart, {lookback}, hot={hot_w}, cold={cold_w})"
 
-        return self._pool_to_probability(pool, 33), self._pool_to_probability(blue_pool, 16), text
+        return (
+            self._pool_to_probability(pool, red_size),
+            self._pool_to_probability(blue_pool, blue_size),
+            text,
+        )
 
     def _smart_hot_cold_prior(
         self, analyzer: DrawAnalyzer, options: Dict[str, Any]
     ) -> Tuple[np.ndarray, np.ndarray, str]:
         from ......data.analyzer import LotteryAnalyzer
 
+        red_group = SSQ.group("red")
+        blue_group = SSQ.group("blue")
+        red_values = red_group.values
+        blue_values = blue_group.values
+
         hot_w = int(options.get("smart_hot_cold_hot_weight", 60))
         cold_w = int(options.get("smart_hot_cold_cold_weight", 40))
         lookback = int(options.get("smart_hot_cold_lookback", 100))
+        smoothing_floor = float(options.get("smart_hot_cold_smoothing_floor", 0.1))
+        smoothing_offset = float(options.get("smart_hot_cold_smoothing_offset", 1.0))
 
         la = LotteryAnalyzer(analyzer.records)
-        red_scores: Dict[int, float] = {n: 0.0 for n in range(1, 34)}
+        red_scores: Dict[int, float] = {n: 0.0 for n in red_values}
         freq = la.red_frequency(lookback)
         max_freq = max(freq.values()) if freq else 1
         for n, f in freq.items():
@@ -389,11 +476,14 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         for n, m in missing.items():
             red_scores[n] += cold_w * (m / max_missing)
         min_score = min(red_scores.values())
-        red_weights = [max(0.1, red_scores[n] - min_score + 1.0) for n in range(1, 34)]
+        red_weights = [
+            max(smoothing_floor, red_scores[n] - min_score + smoothing_offset)
+            for n in red_values
+        ]
         red_probs = np.array(red_weights, dtype=np.float64)
         red_probs /= red_probs.sum()
 
-        blue_scores: Dict[int, float] = {n: 0.0 for n in range(1, 17)}
+        blue_scores: Dict[int, float] = {n: 0.0 for n in blue_values}
         blue_freq = la.blue_frequency(lookback)
         max_blue_freq = max(blue_freq.values()) if blue_freq else 1
         for n, f in blue_freq.items():
@@ -403,7 +493,10 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         for n, m in blue_missing.items():
             blue_scores[n] += cold_w * (m / max_blue_missing)
         min_blue_score = min(blue_scores.values())
-        blue_weights = [max(0.1, blue_scores[n] - min_blue_score + 1.0) for n in range(1, 17)]
+        blue_weights = [
+            max(smoothing_floor, blue_scores[n] - min_blue_score + smoothing_offset)
+            for n in blue_values
+        ]
         blue_probs = np.array(blue_weights, dtype=np.float64)
         blue_probs /= blue_probs.sum()
 
@@ -413,34 +506,60 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
     def _hot_cold_prior(
         self, analyzer: DrawAnalyzer, options: Dict[str, Any]
     ) -> Tuple[np.ndarray, np.ndarray, str]:
+        red_group = SSQ.group("red")
+        blue_group = SSQ.group("blue")
+        red_size = red_group.size
+        blue_size = blue_group.size
+        all_reds = red_group.values
+        all_blues = blue_group.values
+
         mode = options.get("hot_cold_mode", "mixed")
+        red_pool_size = int(options.get("hot_cold_red_pool_size", 16))
+        red_mixed_half = int(options.get("hot_cold_red_pool_size_mixed_half", 8))
+        blue_pool_size = int(options.get("hot_cold_blue_pool_size", 8))
+
         freq = analyzer.frequency("red", None)
-        all_reds = list(range(1, 34))
         ranked = sorted(all_reds, key=lambda n: freq.get(n, 0), reverse=True)
         if mode == "hot":
-            pool = ranked[:16]
+            pool = ranked[:red_pool_size]
         elif mode == "cold":
-            pool = ranked[-16:]
+            pool = ranked[-red_pool_size:]
         else:
-            pool = ranked[:8] + ranked[-8:]
-        blue_pool = sorted(range(1, 17), key=lambda n: freq.get(n, 0), reverse=True)[:8]
+            pool = ranked[:red_mixed_half] + ranked[-red_mixed_half:]
+        blue_pool = sorted(all_blues, key=lambda n: freq.get(n, 0), reverse=True)[:blue_pool_size]
         text = f"hot_cold({mode})"
-        return self._pool_to_probability(pool, 33), self._pool_to_probability(blue_pool, 16), text
+        return (
+            self._pool_to_probability(pool, red_size),
+            self._pool_to_probability(blue_pool, blue_size),
+            text,
+        )
 
     def _missing_number_prior(
         self, analyzer: DrawAnalyzer, options: Dict[str, Any]
     ) -> Tuple[np.ndarray, np.ndarray, str]:
         from ......data.analyzer import LotteryAnalyzer
 
+        red_group = SSQ.group("red")
+        blue_group = SSQ.group("blue")
+        red_size = red_group.size
+        blue_size = blue_group.size
+
         lookback = int(options.get("missing_number_lookback", 50))
         pool_size = int(options.get("missing_number_pool_size", 12))
+        blue_cap = int(options.get("missing_blue_pool_cap", 8))
+        blue_offset = int(options.get("missing_blue_pool_formula_offset", 2))
+        blue_divisor = int(options.get("missing_blue_pool_formula_divisor", 2))
         la = LotteryAnalyzer(analyzer.records)
         missing_reds = la.missing_reds(lookback)
         red_pool = [n for n, _ in missing_reds[:pool_size]]
         missing_blues = la.missing_blues(lookback)
-        blue_pool = [n for n, _ in missing_blues[: min(8, pool_size // 2 + 2)]]
+        blue_pool = [n for n, _ in missing_blues[: min(blue_cap, pool_size // blue_divisor + blue_offset)]]
         text = f"missing_number({lookback}, pool={pool_size})"
-        return self._pool_to_probability(red_pool, 33), self._pool_to_probability(blue_pool, 16), text
+        return (
+            self._pool_to_probability(red_pool, red_size),
+            self._pool_to_probability(blue_pool, blue_size),
+            text,
+        )
 
     def _generate_candidates(
         self,
@@ -452,14 +571,16 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         """阶段2：按概率生成候选组合。"""
         schema = self.get_config_schema()
         candidate_count = int(options.get("candidate_count", schema["candidate_count"]["default"]))
-        red_size = int(options.get("red_pool_size", schema["red_pool_size"]["default"]))
-        blue_size = int(options.get("blue_pool_size", schema["blue_pool_size"]["default"]))
-        red_pick_count = int(options.get("red_pick_count", schema["red_pick_count"]["default"]))
+        red_group = SSQ.group("red")
+        blue_group = SSQ.group("blue")
+        red_size = red_group.size
+        blue_size = blue_group.size
+        red_pick_count = red_group.count
         attempt_multiplier = int(
             options.get("candidate_attempt_multiplier", schema["candidate_attempt_multiplier"]["default"])
         )
-        reds = list(range(1, red_size + 1))
-        blues = list(range(1, blue_size + 1))
+        reds = red_group.values
+        blues = blue_group.values
 
         blue_sampling_mode = options.get("blue_sampling_mode", "weighted")
         if blue_sampling_mode == "uniform":
@@ -580,7 +701,7 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         weights = np.array([w for _, _, w in models], dtype=np.float64)
 
         schema = self.get_config_schema()
-        red_pick_count = int(options.get("red_pick_count", schema["red_pick_count"]["default"]))
+        red_pick_count = SSQ.group("red").count
         epsilon = 10.0 ** int(options.get("score_log_epsilon", schema["score_log_epsilon"]["default"]))
 
         scored: List[Tuple[float, Tuple[int, ...], int]] = []
@@ -629,7 +750,11 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
     def _periodic_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
         if not records:
             raise ValueError("周期分析需要历史数据")
-        return self._model_probability(SSQPeriodicStrategy, records, options, "periodic")
+        model_options = dict(options)
+        predict_date = options.get("predict_date")
+        if predict_date:
+            model_options["predict_date"] = predict_date
+        return self._model_probability(SSQPeriodicStrategy, records, model_options, "periodic")
 
     def _correlation_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
         return self._model_probability(SSQCorrelationStrategy, records, options, "correlation")

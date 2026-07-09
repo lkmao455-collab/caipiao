@@ -250,9 +250,6 @@ def test_new_schema_parameters_exposed():
     strategy = SSQConsensusConstraintStrategy()
     schema = strategy.get_config_schema()
     for key in (
-        "red_pool_size",
-        "blue_pool_size",
-        "red_pick_count",
         "candidate_attempt_multiplier",
         "high_number_threshold",
         "score_log_epsilon",
@@ -263,9 +260,34 @@ def test_new_schema_parameters_exposed():
         "relaxation_sum_expand_max",
         "relaxation_odd_deltas",
         "sample_top_pool_fraction",
+        "stats_red_pool_size_hot_cold",
+        "stats_red_pool_size_mixed_half",
+        "stats_blue_pool_size",
+        "smart_hot_cold_smoothing_floor",
+        "smart_hot_cold_smoothing_offset",
+        "hot_cold_red_pool_size",
+        "hot_cold_red_pool_size_mixed_half",
+        "hot_cold_blue_pool_size",
+        "missing_blue_pool_cap",
+        "missing_blue_pool_formula_offset",
+        "missing_blue_pool_formula_divisor",
     ):
         assert key in schema, f"{key} 未在 schema 中暴露"
         assert "default" in schema[key]
+
+    # SSQ 规则固定值不应暴露为用户可调参数
+    assert "red_pool_size" not in schema
+    assert "blue_pool_size" not in schema
+    assert "red_pick_count" not in schema
+
+
+def test_predict_date_wired_to_periodic(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    records = [r for r in sample_history]
+    # 明确指定 predict_date 不应报错，且概率向量维度正确
+    prob = strategy._periodic_probability(records, {"predict_date": "2025-06-15"})
+    assert len(prob) == SSQ.group("red").size
+    assert abs(prob.sum() - 1.0) < 1e-10
 
 
 def test_hard_constraints_use_high_number_threshold(sample_history):
