@@ -355,7 +355,90 @@ def test_recommend_parameters(sample_history):
     assert "stats_lookback" in reasons
 
 
+def test_recommend_parameters_balanced_lookback_affects_values(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    records = [r for r in sample_history]
+    params_short, _ = strategy.recommend_parameters(records, {"balanced_lookback": 10})
+    params_long, _ = strategy.recommend_parameters(records, {"balanced_lookback": 100})
+    # 使用不同的 balanced_lookback 应当影响基于统计的推荐值
+    assert (
+        params_short["sum_min"],
+        params_short["sum_max"],
+        params_short["target_odd"],
+        params_short["target_high"],
+    ) != (
+        params_long["sum_min"],
+        params_long["sum_max"],
+        params_long["target_odd"],
+        params_long["target_high"],
+    )
+
+
+def test_generate_with_stats(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    records = [r for r in sample_history]
+    options = {
+        "history": records,
+        "seed": 42,
+        "candidate_count": 1000,
+        "odd_even_enabled": True,
+        "odd_count": 3,
+        "balanced_enabled": True,
+        "sum_min": 80,
+        "sum_max": 150,
+        "target_high": 3,
+        "exclude_include_enabled": False,
+    }
+    tickets, stats = strategy._generate_with_stats(5, options)
+    assert len(tickets) == 5
+    assert stats["initial_candidates"] > 0
+    assert 0 <= stats["after_odd_even"] <= stats["initial_candidates"]
+    assert 0 <= stats["after_balanced"] <= stats["after_odd_even"]
+    assert 0 <= stats["after_exclude_include"] <= stats["after_balanced"]
+    assert stats["final_candidates"] > 0
+    assert len(stats["selected_tickets"]) == 5
+    assert stats["relaxed_constraints"] == []
+
+
+def test_generate_with_stats_includes_relaxation(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 5000,
+        "odd_even_enabled": True,
+        "odd_count": 0,
+        "balanced_enabled": True,
+        "sum_min": 21,
+        "sum_max": 30,
+        "target_odd": 0,
+        "target_high": 0,
+        "relaxation_order": "reverse",
+    }
+    tickets, stats = strategy._generate_with_stats(1, options)
+    assert len(tickets) == 1
+    assert len(stats["relaxed_constraints"]) > 0
+    assert "放宽" in stats["relaxed_constraints"][0]
+
+
 def test_generate_report(sample_history, tmp_path):
+    strategy = SSQConsensusConstraintStrategy()
+    records = [r for r in sample_history]
+    output = tmp_path / "report.html"
+    params, reasons = strategy.recommend_parameters(records)
+    options = {**params, "history": records, "candidate_count": 1000}
+    tickets, stats = strategy._generate_with_stats(3, options)
+    report_path = strategy.generate_report(records, params, reasons, str(output), stats=stats)
+    assert Path(report_path).exists()
+    content = Path(report_path).read_text(encoding="utf-8")
+    assert "共识约束策略" in content
+    assert "数学原理" in content
+    assert "生成详情" in content
+    assert str(stats["initial_candidates"]) in content
+    assert "最终抽样的号码组合" in content
+
+
+def test_generate_report_without_stats(sample_history, tmp_path):
     strategy = SSQConsensusConstraintStrategy()
     records = [r for r in sample_history]
     output = tmp_path / "report.html"
@@ -363,8 +446,7 @@ def test_generate_report(sample_history, tmp_path):
     report_path = strategy.generate_report(records, params, reasons, str(output))
     assert Path(report_path).exists()
     content = Path(report_path).read_text(encoding="utf-8")
-    assert "共识约束策略" in content
-    assert "数学原理" in content
+    assert "生成详情" not in content
 
 
 def test_isolation_from_other_strategies(sample_history):

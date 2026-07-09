@@ -65,17 +65,18 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         reasons["stats_lookback"] = f"使用历史期数的 {int(history_ratio * 100)}%（{params['stats_lookback']} 期），兼顾稳定性与近期性。"
 
         # odd / balanced
-        odd_ratio, _ = analyzer.odd_even_ratio(params["stats_lookback"])
+        balanced_lookback = int(options.get("balanced_lookback", schema["balanced_lookback"]["default"]))
+        odd_ratio, _ = analyzer.odd_even_ratio(balanced_lookback)
         params["odd_count"] = round(6 * odd_ratio)
-        reasons["odd_count"] = f"基于最近 {params['stats_lookback']} 期奇偶比 {odd_ratio:.2f} 的期望。"
+        reasons["odd_count"] = f"基于最近 {balanced_lookback} 期奇偶比 {odd_ratio:.2f} 的期望。"
         params["target_odd"] = params["odd_count"]
         reasons["target_odd"] = "与奇偶约束保持一致。"
 
-        high_ratio, _ = analyzer.high_low_ratio(params["stats_lookback"])
+        high_ratio, _ = analyzer.high_low_ratio(balanced_lookback)
         params["target_high"] = round(6 * high_ratio)
-        reasons["target_high"] = f"基于最近 {params['stats_lookback']} 期大小比 {high_ratio:.2f} 的期望。"
+        reasons["target_high"] = f"基于最近 {balanced_lookback} 期大小比 {high_ratio:.2f} 的期望。"
 
-        sum_stats = analyzer.sum_statistics(params["stats_lookback"])
+        sum_stats = analyzer.sum_statistics(balanced_lookback)
         avg = sum_stats["avg"]
         sum_std_divisor = int(options.get("recommend_sum_std_divisor", schema["recommend_sum_std_divisor"]["default"]))
         sum_std_multiplier = int(options.get("recommend_sum_std_multiplier", schema["recommend_sum_std_multiplier"]["default"])) / 100.0
@@ -109,6 +110,7 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         params: Dict[str, Any],
         reasons: Dict[str, str],
         output_path: str,
+        stats: Optional[Dict[str, Any]] = None,
     ) -> str:
         """生成 HTML 报告并返回文件路径。"""
         first_date = records[0].draw_date.strftime("%Y-%m-%d") if records else "N/A"
@@ -121,6 +123,39 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             reason = reasons.get(key, "")
             param_rows += f"<tr><td>{html.escape(str(key))}</td><td>{html.escape(str(value))}</td><td>{html.escape(str(reason))}</td></tr>\n"
 
+        stats_section = ""
+        if stats:
+            stat_rows = [
+                f"<tr><td>初始候选池大小</td><td>{stats['initial_candidates']}</td></tr>",
+                f"<tr><td>奇偶约束过滤后剩余</td><td>{stats['after_odd_even']}</td></tr>",
+                f"<tr><td>历史均衡约束过滤后剩余</td><td>{stats['after_balanced']}</td></tr>",
+                f"<tr><td>排除/必含约束过滤后剩余</td><td>{stats['after_exclude_include']}</td></tr>",
+                f"<tr><td>最终候选池大小</td><td>{stats['final_candidates']}</td></tr>",
+            ]
+            relaxed = stats.get("relaxed_constraints", [])
+            if relaxed:
+                relaxed_text = "；".join(html.escape(str(r)) for r in relaxed)
+            else:
+                relaxed_text = "无"
+            stat_rows.append(f"<tr><td>自动放宽的约束</td><td>{relaxed_text}</td></tr>")
+
+            ticket_rows = ""
+            for i, (reds, blue) in enumerate(stats.get("selected_tickets", []), start=1):
+                red_text = " ".join(f"{int(n):02d}" for n in reds)
+                ticket_rows += f"<tr><td>{i}</td><td>{html.escape(red_text)}</td><td>{int(blue):02d}</td></tr>\n"
+
+            stats_section = f"""<h2>生成详情</h2>
+<table>
+<tr><th>项目</th><th>数值</th></tr>
+{''.join(stat_rows)}
+</table>
+<h3>最终抽样的号码组合</h3>
+<table>
+<tr><th>序号</th><th>红球</th><th>蓝球</th></tr>
+{ticket_rows}
+</table>
+"""
+
         report_html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -129,7 +164,9 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 <style>
 body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
 h1 {{ color: #1976D2; }}
-table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+h2 {{ color: #333; margin-top: 30px; }}
+h3 {{ color: #555; margin-top: 20px; }}
+table {{ border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 10px; }}
 th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
 th {{ background: #f2f2f2; }}
 .disclaimer {{ color: #d32f2f; background: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 20px; }}
@@ -143,6 +180,7 @@ th {{ background: #f2f2f2; }}
 <tr><th>参数名</th><th>推荐值</th><th>推荐依据</th></tr>
 {param_rows}
 </table>
+{stats_section}
 <div class="disclaimer">
 <strong>数学声明：</strong>彩票开奖是独立随机事件，历史统计规律不能预测未来开奖。本策略所有计算仅为基于历史数据的号码筛选参考，不提供中奖保证。
 </div>
@@ -259,7 +297,7 @@ th {{ background: #f2f2f2; }}
                 "type": "int",
                 "label": "和值放宽下限",
                 "default": 21,
-                "min": 0,
+                "min": 21,
                 "max": 183,
                 "tooltip": "和值下限自动放宽的最低值",
             },
@@ -267,8 +305,8 @@ th {{ background: #f2f2f2; }}
                 "type": "int",
                 "label": "和值放宽上限",
                 "default": 183,
-                "min": 0,
-                "max": 1000,
+                "min": 21,
+                "max": 183,
                 "tooltip": "和值上限自动放宽的最高值",
             },
             "relaxation_sum_expand_min": {
@@ -772,6 +810,72 @@ th {{ background: #f2f2f2; }}
 
         return sorted(candidates)
 
+    def _apply_odd_even_filter(
+        self,
+        candidates: List[Tuple[Tuple[int, ...], int]],
+        options: Dict[str, Any],
+    ) -> List[Tuple[Tuple[int, ...], int]]:
+        """奇偶约束过滤。"""
+        if not options.get("odd_even_enabled", True):
+            return candidates
+        schema = self.get_config_schema()
+        odd_count = int(options.get("odd_count", schema["odd_count"]["default"]))
+        return [
+            (reds, blue)
+            for reds, blue in candidates
+            if sum(1 for n in reds if n % 2 == 1) == odd_count
+        ]
+
+    def _apply_balanced_filter(
+        self,
+        candidates: List[Tuple[Tuple[int, ...], int]],
+        options: Dict[str, Any],
+    ) -> List[Tuple[Tuple[int, ...], int]]:
+        """历史均衡约束过滤。"""
+        if not options.get("balanced_enabled", True) or not candidates:
+            return candidates
+        schema = self.get_config_schema()
+        sum_min = int(options.get("sum_min", schema["sum_min"]["default"]))
+        sum_max = int(options.get("sum_max", schema["sum_max"]["default"]))
+        target_high = int(options.get("target_high", schema["target_high"]["default"]))
+        high_threshold = int(
+            options.get("high_number_threshold", schema["high_number_threshold"]["default"])
+        )
+        if options.get("odd_even_enabled", True):
+            return [
+                (reds, blue)
+                for reds, blue in candidates
+                if sum_min <= sum(reds) <= sum_max
+                and abs(sum(1 for n in reds if n >= high_threshold) - target_high) <= 0
+            ]
+        target_odd = int(options.get("target_odd", schema["target_odd"]["default"]))
+        return [
+            (reds, blue)
+            for reds, blue in candidates
+            if sum_min <= sum(reds) <= sum_max
+            and abs(sum(1 for n in reds if n % 2 == 1) - target_odd) <= 0
+            and abs(sum(1 for n in reds if n >= high_threshold) - target_high) <= 0
+        ]
+
+    def _apply_exclude_include_filter(
+        self,
+        candidates: List[Tuple[Tuple[int, ...], int]],
+        options: Dict[str, Any],
+    ) -> List[Tuple[Tuple[int, ...], int]]:
+        """排除/必含约束过滤。"""
+        if not options.get("exclude_include_enabled", False) or not candidates:
+            return candidates
+        include_red: Set[int] = set(options.get("include_red", []))
+        exclude_red: Set[int] = set(options.get("exclude_red", []))
+        exclude_blue: Set[int] = set(options.get("exclude_blue", []))
+        return [
+            (reds, blue)
+            for reds, blue in candidates
+            if include_red <= set(reds)
+            and not (set(reds) & exclude_red)
+            and blue not in exclude_blue
+        ]
+
     def _apply_hard_constraints(
         self,
         candidates: List[Tuple[Tuple[int, ...], int]],
@@ -779,54 +883,9 @@ th {{ background: #f2f2f2; }}
         options: Dict[str, Any],
     ) -> List[Tuple[Tuple[int, ...], int]]:
         """阶段3：硬约束过滤。"""
-        schema = self.get_config_schema()
-        result = candidates
-
-        if options.get("odd_even_enabled", True):
-            odd_count = int(options.get("odd_count", schema["odd_count"]["default"]))
-            result = [
-                (reds, blue)
-                for reds, blue in result
-                if sum(1 for n in reds if n % 2 == 1) == odd_count
-            ]
-
-        if options.get("balanced_enabled", True) and result:
-            sum_min = int(options.get("sum_min", schema["sum_min"]["default"]))
-            sum_max = int(options.get("sum_max", schema["sum_max"]["default"]))
-            target_high = int(options.get("target_high", schema["target_high"]["default"]))
-            high_threshold = int(
-                options.get("high_number_threshold", schema["high_number_threshold"]["default"])
-            )
-            # 奇数个数约束：若已启用 odd_even，则不再用 target_odd 重复过滤。
-            if options.get("odd_even_enabled", True):
-                result = [
-                    (reds, blue)
-                    for reds, blue in result
-                    if sum_min <= sum(reds) <= sum_max
-                    and abs(sum(1 for n in reds if n >= high_threshold) - target_high) <= 0
-                ]
-            else:
-                target_odd = int(options.get("target_odd", schema["target_odd"]["default"]))
-                result = [
-                    (reds, blue)
-                    for reds, blue in result
-                    if sum_min <= sum(reds) <= sum_max
-                    and abs(sum(1 for n in reds if n % 2 == 1) - target_odd) <= 0
-                    and abs(sum(1 for n in reds if n >= high_threshold) - target_high) <= 0
-                ]
-
-        if options.get("exclude_include_enabled", False) and result:
-            include_red: Set[int] = set(options.get("include_red", []))
-            exclude_red: Set[int] = set(options.get("exclude_red", []))
-            exclude_blue: Set[int] = set(options.get("exclude_blue", []))
-            result = [
-                (reds, blue)
-                for reds, blue in result
-                if include_red <= set(reds)
-                and not (set(reds) & exclude_red)
-                and blue not in exclude_blue
-            ]
-
+        result = self._apply_odd_even_filter(candidates, options)
+        result = self._apply_balanced_filter(result, options)
+        result = self._apply_exclude_include_filter(result, options)
         return result
 
     def _score_candidates(
@@ -984,9 +1043,10 @@ th {{ background: #f2f2f2; }}
     def _correlation_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
         return self._model_probability(SSQCorrelationStrategy, records, options, "correlation")
 
-    def generate(
+    def _generate_with_stats(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+    ) -> Tuple[List[Ticket], Dict[str, Any]]:
+        """生成号码并返回（彩票列表，生成统计信息）。"""
         options = dict(options or {})
         self.validate_options(options)
         records = self._records_from_options(options)
@@ -995,9 +1055,19 @@ th {{ background: #f2f2f2; }}
 
         red_probs, blue_probs, basis_prior = self._compute_statistical_prior(records, options)
         candidates = self._generate_candidates(rng, red_probs, blue_probs, options)
-        filtered, relaxed_parts = self._apply_hard_constraints_with_relaxation(
-            candidates, records, options
-        )
+
+        after_odd_even = self._apply_odd_even_filter(candidates, options)
+        after_balanced = self._apply_balanced_filter(after_odd_even, options)
+        after_exclude_include = self._apply_exclude_include_filter(after_balanced, options)
+
+        if after_exclude_include:
+            filtered = after_exclude_include
+            relaxed_parts: List[str] = []
+        else:
+            filtered, relaxed_parts = self._apply_hard_constraints_with_relaxation(
+                candidates, records, options
+            )
+
         scored = self._score_candidates(filtered, records, options)
         final = self._sample_deterministically(rng, scored, count, options)
 
@@ -1006,7 +1076,7 @@ th {{ background: #f2f2f2; }}
             basis += " 约束冲突，已自动放宽：" + "；".join(relaxed_parts) + "。"
         basis += f" 随机种子：{seed}。"
 
-        return [
+        tickets = [
             Ticket(
                 profile=SSQ,
                 groups={"red": list(reds), "blue": [blue]},
@@ -1015,6 +1085,22 @@ th {{ background: #f2f2f2; }}
             )
             for reds, blue in final
         ]
+        stats = {
+            "initial_candidates": len(candidates),
+            "after_odd_even": len(after_odd_even),
+            "after_balanced": len(after_balanced),
+            "after_exclude_include": len(after_exclude_include),
+            "final_candidates": len(scored),
+            "relaxed_constraints": relaxed_parts,
+            "selected_tickets": [(list(reds), blue) for reds, blue in final],
+        }
+        return tickets, stats
+
+    def generate(
+        self, count: int = 1, options: Optional[Dict[str, Any]] = None
+    ) -> List[Ticket]:
+        tickets, _ = self._generate_with_stats(count, options)
+        return tickets
 
     def _records_from_options(self, options: Dict[str, Any]) -> List[DrawRecord]:
         from ....common.records import records_from_options

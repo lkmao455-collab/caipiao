@@ -429,7 +429,11 @@ class MainWindow(QMainWindow):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = Path("docs/reports") / f"consensus_constraint_{timestamp}.html"
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        strategy.generate_report(records, params, reasons, str(report_path))
+
+        count = self.count_spin.value()
+        generate_options = {**params, "history": records}
+        _, stats = strategy._generate_with_stats(count, generate_options)
+        strategy.generate_report(records, params, reasons, str(report_path), stats=stats)
         dialog = QDialog(self)
         dialog.setWindowTitle("参数推荐报告")
         dialog.resize(800, 600)
