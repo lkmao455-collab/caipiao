@@ -1,5 +1,6 @@
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -326,3 +327,25 @@ def test_blue_sampling_mode_weighted(sample_history):
     candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
     assert len(candidates) <= 100
     assert all(1 <= c[1] <= 16 for c in candidates)
+
+
+def test_recommend_parameters(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    records = [r for r in sample_history]
+    params, reasons = strategy.recommend_parameters(records)
+    strategy.validate_options(params)
+    assert len(reasons) > 0
+    assert "stats_lookback" in reasons
+
+
+def test_generate_report(sample_history, tmp_path):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {"history": sample_history, "seed": 42, "candidate_count": 1000}
+    records = [r for r in sample_history]
+    output = tmp_path / "report.html"
+    params, reasons = strategy.recommend_parameters(records)
+    report_path = strategy.generate_report(options, records, params, reasons, str(output))
+    assert Path(report_path).exists()
+    content = Path(report_path).read_text(encoding="utf-8")
+    assert "共识约束策略" in content
+    assert "数学原理" in content

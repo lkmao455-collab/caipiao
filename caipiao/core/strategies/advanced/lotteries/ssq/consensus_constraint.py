@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -33,6 +34,110 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             ),
             configurable=True,
         )
+
+    @classmethod
+    def recommend_parameters(
+        cls, records: List[DrawRecord]
+    ) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """基于历史数据统计特征推荐参数。"""
+        analyzer = DrawAnalyzer(records, SSQ)
+        reasons: Dict[str, str] = {}
+        params: Dict[str, Any] = {}
+
+        total = len(records)
+
+        # stats
+        stats_lookback = min(int(total * 0.8), 5000)
+        params["stats_lookback"] = max(20, stats_lookback)
+        reasons["stats_lookback"] = f"使用历史期数的 80%（{params['stats_lookback']} 期），兼顾稳定性与近期性。"
+
+        # odd / balanced
+        odd_ratio, _ = analyzer.odd_even_ratio(params["stats_lookback"])
+        params["odd_count"] = round(6 * odd_ratio)
+        reasons["odd_count"] = f"基于最近 {params['stats_lookback']} 期奇偶比 {odd_ratio:.2f} 的期望。"
+        params["target_odd"] = params["odd_count"]
+        reasons["target_odd"] = "与奇偶约束保持一致。"
+
+        high_ratio, _ = analyzer.high_low_ratio(params["stats_lookback"])
+        params["target_high"] = round(6 * high_ratio)
+        reasons["target_high"] = f"基于最近 {params['stats_lookback']} 期大小比 {high_ratio:.2f} 的期望。"
+
+        sum_stats = analyzer.sum_statistics(params["stats_lookback"])
+        avg = sum_stats["avg"]
+        std = (sum_stats["max"] - sum_stats["min"]) / 6.0 if sum_stats["max"] > sum_stats["min"] else 10
+        params["sum_min"] = int(max(21, avg - 1.5 * std))
+        params["sum_max"] = int(min(183, avg + 1.5 * std))
+        reasons["sum_min"] = f"历史平均和值 {avg:.1f} 减 1.5 倍标准差。"
+        reasons["sum_max"] = f"历史平均和值 {avg:.1f} 加 1.5 倍标准差。"
+
+        # trend
+        params["trend_window_size"] = max(5, min(30, total // 10))
+        reasons["trend_window_size"] = f"max(5, min(30, {total} // 10))。"
+
+        # correlation
+        params["correlation_min_support"] = max(1, min(10, total // 100))
+        reasons["correlation_min_support"] = f"随数据量动态调整：max(1, min(10, {total} // 100))。"
+
+        # 其余参数使用 schema 默认值
+        schema = cls().get_config_schema()
+        for key, meta in schema.items():
+            if key not in params:
+                params[key] = meta.get("default")
+                reasons[key] = "使用默认值。"
+
+        # 保留历史数据以便 validate_options 校验
+        params["history"] = records
+
+        return params, reasons
+
+    def generate_report(
+        self,
+        options: Dict[str, Any],
+        records: List[DrawRecord],
+        params: Dict[str, Any],
+        reasons: Dict[str, str],
+        output_path: str,
+    ) -> str:
+        """生成 HTML 报告并返回文件路径。"""
+        first_date = records[0].draw_date.strftime("%Y-%m-%d") if records else "N/A"
+        last_date = records[-1].draw_date.strftime("%Y-%m-%d") if records else "N/A"
+
+        param_rows = ""
+        for key, value in params.items():
+            reason = reasons.get(key, "")
+            param_rows += f"<tr><td>{key}</td><td>{value}</td><td>{reason}</td></tr>\n"
+
+        html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>共识约束策略 - 参数推荐报告</title>
+<style>
+body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+h1 {{ color: #1976D2; }}
+table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+th {{ background: #f2f2f2; }}
+.disclaimer {{ color: #d32f2f; background: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 20px; }}
+</style>
+</head>
+<body>
+<h1>共识约束策略 - 参数推荐报告</h1>
+<p>历史数据范围：{first_date} ~ {last_date}，共 {len(records)} 期。</p>
+<h2>推荐参数与数学原理</h2>
+<table>
+<tr><th>参数名</th><th>推荐值</th><th>推荐依据</th></tr>
+{param_rows}
+</table>
+<div class="disclaimer">
+<strong>数学声明：</strong>彩票开奖是独立随机事件，历史统计规律不能预测未来开奖。本策略所有计算仅为基于历史数据的号码筛选参考，不提供中奖保证。
+</div>
+</body>
+</html>"""
+
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text(html, encoding="utf-8")
+        return str(output_path)
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
