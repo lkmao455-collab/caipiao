@@ -31,6 +31,15 @@ def sample_history():
     return records
 
 
+def test_strategy_registered():
+    from caipiao.core.strategies import build_strategies
+    from caipiao.core.profile import SSQ
+
+    strategies = build_strategies(SSQ)
+    ids = {s.metadata.id for s in strategies}
+    assert "consensus_constraint" in ids
+
+
 def test_metadata_and_schema():
     strategy = SSQConsensusConstraintStrategy()
     assert strategy.metadata.id == "consensus_constraint"

@@ -18,6 +18,7 @@ from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
 from ..core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
 from ..core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
+from ..core.strategies.advanced.lotteries.ssq.consensus_constraint import SSQConsensusConstraintStrategy
 from ..core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
 from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
 from ..core.strategies.lotteries.ssq.ml.xgboost import SSQXGBoostStrategy
@@ -71,6 +72,7 @@ class LotteryContext(QObject):
             self.engine.register(SSQXGBoostStrategy())
             self.engine.register(SSQBayesianStrategy())
             self.engine.register(SSQMarkovStrategy())
+            self.engine.register(SSQConsensusConstraintStrategy())
         elif self.profile.key == "3d":
             # 福彩3D：仅保留核心策略
             from ..core.strategies.lotteries.fc3d.smart_hot_cold import FC3DSmartHotColdStrategy

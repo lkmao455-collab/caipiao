@@ -23,6 +23,7 @@ from .lotteries.ssq import random as ssq_random
 from .lotteries.ssq import smart_hot_cold as ssq_smart_hot_cold
 from .lotteries.ssq import stats as ssq_stats
 from .advanced.lotteries.ssq import bayesian as ssq_bayesian
+from .advanced.lotteries.ssq import consensus_constraint as ssq_consensus_constraint
 from .advanced.lotteries.ssq import correlation as ssq_correlation
 from .advanced.lotteries.ssq import ensemble as ssq_ensemble
 from .advanced.lotteries.ssq import markov as ssq_markov
@@ -176,6 +177,7 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         ssq_ensemble.SSQEnsembleStrategy,
         ssq_correlation.SSQCorrelationStrategy,
         ssq_transformer.SSQTransformerStrategy,
+        ssq_consensus_constraint.SSQConsensusConstraintStrategy,
     ],
     "3d": [
         fc3d_random.FC3DRandomStrategy,
