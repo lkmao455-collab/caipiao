@@ -365,3 +365,75 @@ def test_generate_report(sample_history, tmp_path):
     content = Path(report_path).read_text(encoding="utf-8")
     assert "共识约束策略" in content
     assert "数学原理" in content
+
+
+def test_isolation_from_other_strategies(sample_history):
+    from caipiao.core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
+
+    other = SSQBalancedStrategy()
+    new_strategy = SSQConsensusConstraintStrategy()
+
+    other_result = other.generate(1, {"history": sample_history, "seed": 42})
+    new_result1 = new_strategy.generate(1, {"history": sample_history, "seed": 42})
+    other_result2 = other.generate(1, {"history": sample_history, "seed": 42})
+    new_result2 = new_strategy.generate(1, {"history": sample_history, "seed": 42})
+
+    assert other_result == other_result2
+    assert new_result1 == new_result2
+
+
+def test_no_literal_constants_for_schema_params():
+    """简单静态检查：schema 中所有 key 都应被 options.get 使用。
+
+    这不能 100% 保证无隐藏常量，但可作为代码审查辅助。
+    """
+    import inspect
+
+    source = inspect.getsource(SSQConsensusConstraintStrategy)
+    schema = SSQConsensusConstraintStrategy().get_config_schema()
+    for key in schema:
+        assert f'"{key}"' in source or f"'{key}'" in source, f"参数 {key} 未在代码中使用"
+
+
+def test_strict_relaxation_raises_when_impossible(sample_history):
+    """严格模式下若约束无法满足，应直接报错而非自动放宽。"""
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 100,
+        "odd_even_enabled": True,
+        "odd_count": 0,
+        "balanced_enabled": True,
+        "sum_min": 21,
+        "sum_max": 30,
+        "target_odd": 0,
+        "target_high": 0,
+        "relaxation_order": "strict",
+    }
+    with pytest.raises(ValueError, match="没有可用候选组合"):
+        strategy.generate(1, options)
+
+
+def test_generate_with_all_models_disabled(sample_history):
+    """所有概率模型与统计先验均关闭时，仍应能输出合法结果。"""
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 100,
+        "stats_enabled": False,
+        "smart_hot_cold_enabled": False,
+        "hot_cold_enabled": False,
+        "missing_number_enabled": False,
+        "bayesian_enabled": False,
+        "markov_enabled": False,
+        "trend_enabled": False,
+        "periodic_enabled": False,
+        "correlation_enabled": False,
+    }
+    result = strategy.generate(3, options)
+    assert len(result) == 3
+    for t in result:
+        assert len(t.groups["red"]) == 6
+        assert len(t.groups["blue"]) == 1

@@ -9,7 +9,7 @@ EXPECTED_IDS = {
         "random", "odd_even", "hot_cold", "exclude_include", "smart_hot_cold",
         "missing_number", "balanced", "stats", "ml_xgboost", "ml_lightgbm", "ml_catboost",
         "ml_lstm", "ml_hybrid", "random_forest", "bayesian", "markov", "trend",
-        "periodic", "ensemble", "correlation", "transformer",
+        "periodic", "ensemble", "correlation", "transformer", "consensus_constraint",
     },
     "3d": {
         "random_3d", "odd_even_3d", "hot_cold_3d", "exclude_include_3d",
