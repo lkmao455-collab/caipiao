@@ -8,7 +8,7 @@ from itertools import permutations
 from pathlib import Path
 import logging
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QClipboard, QKeySequence
 from PySide6.QtGui import QIcon, QPageSize, QPdfWriter
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QTabWidget,
+    QTextBrowser,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -343,6 +344,9 @@ class MainWindow(QMainWindow):
             locked_params=self._locked_params,
             parent=self,
         )
+        self.strategy_panel.recommend_requested.connect(
+            self._on_recommend_parameters
+        )
         self._restore_last_strategy()
         left_layout.addWidget(self.strategy_panel)
 
@@ -403,6 +407,37 @@ class MainWindow(QMainWindow):
             saved_history_count = self.settings.last_history_count
             if saved_history_count != -1:
                 self.strategy_panel.set_options({"history_count": saved_history_count})
+
+    def _on_recommend_parameters(self, strategy_id: str) -> None:
+        """响应策略面板的一键推荐参数请求。"""
+        if strategy_id != "consensus_constraint":
+            return
+        context = self.context_manager.current(self.current_key)
+        records = context.data_repository.get_all()
+        if not records:
+            QMessageBox.warning(
+                self,
+                "数据不足",
+                "当前彩种暂无历史开奖数据，无法推荐参数。",
+            )
+            return
+        strategy = context.engine.get(strategy_id)
+        if strategy is None:
+            return
+        params, reasons = strategy.recommend_parameters(records)
+        self.strategy_panel.set_options(params)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = Path("docs/reports") / f"consensus_constraint_{timestamp}.html"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        strategy.generate_report(records, params, reasons, str(report_path))
+        dialog = QDialog(self)
+        dialog.setWindowTitle("参数推荐报告")
+        dialog.resize(800, 600)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser()
+        browser.setSource(QUrl.fromLocalFile(str(report_path.resolve())))
+        layout.addWidget(browser)
+        dialog.exec()
 
     def _build_plugins_tab(self) -> QWidget:
         tab = QWidget()
