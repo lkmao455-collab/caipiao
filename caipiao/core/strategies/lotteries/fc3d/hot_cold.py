@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
-from ._base import FC3D_PROFILE, _make_rng, _records_from_options, _sample_with_dedup
+from ._base import FC3D_PROFILE, _make_rng, _records_from_options, _weighted_sample_without_replacement
 from .stability import sample_weighted, softmax_scores, stable_frequency
 
 
@@ -88,10 +88,13 @@ class FC3DHotColdStrategy(GenerationStrategy):
 
         details: Dict[str, Any] = {"pos_probabilities": pos_probs}
 
-        def sample_one() -> List[int]:
-            return [sample_weighted(rng, list(range(10)), pos_probs[pos]) for pos in range(3)]
-
-        results = _sample_with_dedup(sample_one, count, dedup)
+        if dedup:
+            results = _weighted_sample_without_replacement(pos_probs, count, rng)
+        else:
+            results = [
+                [sample_weighted(rng, list(range(10)), pos_probs[pos]) for pos in range(3)]
+                for _ in range(count)
+            ]
         tickets: List[Ticket] = []
         for result in results:
             tickets.append(
