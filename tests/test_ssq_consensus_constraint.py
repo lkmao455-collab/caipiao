@@ -150,3 +150,89 @@ def test_refinement_scores_candidates(sample_history):
     scored = strategy._score_candidates(candidates, records, options)
     assert len(scored) == len(candidates)
     assert all(isinstance(s, float) for s, _, _ in scored)
+
+
+def test_generate_is_deterministic(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {"history": sample_history, "seed": 42, "candidate_count": 1000}
+    result1 = strategy.generate(5, options)
+    result2 = strategy.generate(5, options)
+    assert result1 == result2
+    assert len(result1) == 5
+    for t in result1:
+        assert len(t.groups["red"]) == 6
+        assert len(t.groups["blue"]) == 1
+
+
+def test_conflict_relaxation(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 5000,
+        "odd_even_enabled": True,
+        "odd_count": 0,
+        "balanced_enabled": True,
+        "sum_min": 21,
+        "sum_max": 30,
+        "target_odd": 0,
+        "target_high": 0,
+        "relaxation_order": "reverse",
+    }
+    result = strategy.generate(1, options)
+    assert len(result) == 1
+    assert "放宽" in result[0].basis or "relax" in result[0].basis.lower()
+
+
+def test_score_candidates_no_zero_division_when_all_weights_zero(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 50,
+        "bayesian_enabled": True,
+        "bayesian_weight": 0,
+        "markov_enabled": False,
+        "trend_enabled": False,
+        "periodic_enabled": False,
+        "correlation_enabled": False,
+    }
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    scored = strategy._score_candidates(candidates, records, options)
+    assert len(scored) == len(candidates)
+    assert all(isinstance(s, float) for s, _, _ in scored)
+
+
+def test_blue_sampling_mode_uniform(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 100,
+        "blue_sampling_mode": "uniform",
+    }
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    assert len(candidates) <= 100
+    assert all(1 <= c[1] <= 16 for c in candidates)
+
+
+def test_blue_sampling_mode_weighted(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 100,
+        "blue_sampling_mode": "weighted",
+    }
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    assert len(candidates) <= 100
+    assert all(1 <= c[1] <= 16 for c in candidates)

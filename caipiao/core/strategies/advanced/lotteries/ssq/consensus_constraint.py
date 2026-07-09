@@ -353,6 +353,12 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         reds = list(range(1, red_size + 1))
         blues = list(range(1, blue_size + 1))
 
+        blue_sampling_mode = options.get("blue_sampling_mode", "weighted")
+        if blue_sampling_mode == "uniform":
+            effective_blue_probs = None
+        else:
+            effective_blue_probs = blue_probs
+
         candidates: Set[Tuple[Tuple[int, ...], int]] = set()
         attempts = 0
         max_attempts = candidate_count * 20
@@ -361,7 +367,7 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             selected = tuple(sorted(rng.choices(reds, weights=red_probs, k=6)))
             if len(set(selected)) < 6:
                 continue
-            blue = rng.choices(blues, weights=blue_probs, k=1)[0]
+            blue = rng.choices(blues, weights=effective_blue_probs, k=1)[0]
             candidates.add((selected, blue))
 
         return sorted(candidates)
@@ -444,6 +450,8 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             return [(0.0, reds, blue) for reds, blue in candidates]
 
         total_weight = sum(w for _, _, w in models)
+        if total_weight == 0:
+            return [(0.0, reds, blue) for reds, blue in candidates]
         weights = np.array([w for _, _, w in models], dtype=np.float64)
 
         scored: List[Tuple[float, Tuple[int, ...], int]] = []
@@ -500,7 +508,120 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
-        options = options or {}
+        options = dict(options or {})
         self.validate_options(options)
-        # TODO: implemented in later tasks
-        return []
+        records = self._records_from_options(options)
+        seed = int(options.get("seed", 42))
+        rng = random.Random(seed)
+
+        red_probs, blue_probs, basis_prior = self._compute_statistical_prior(records, options)
+        candidates = self._generate_candidates(rng, red_probs, blue_probs, options)
+        filtered, relaxed_parts = self._apply_hard_constraints_with_relaxation(
+            candidates, records, options
+        )
+        scored = self._score_candidates(filtered, records, options)
+        final = self._sample_deterministically(rng, scored, count, options)
+
+        basis = basis_prior
+        if relaxed_parts:
+            basis += " 约束冲突，已自动放宽：" + "；".join(relaxed_parts) + "。"
+        basis += f" 随机种子：{seed}。"
+
+        return [
+            Ticket(
+                profile=SSQ,
+                groups={"red": list(reds), "blue": [blue]},
+                strategy_name=self.metadata.name,
+                basis=basis,
+            )
+            for reds, blue in final
+        ]
+
+    def _records_from_options(self, options: Dict[str, Any]) -> List[DrawRecord]:
+        from ....common.records import records_from_options
+        return records_from_options(options)
+
+    def _apply_hard_constraints_with_relaxation(
+        self,
+        candidates: List[Tuple[Tuple[int, ...], int]],
+        records: List[DrawRecord],
+        options: Dict[str, Any],
+    ) -> Tuple[List[Tuple[Tuple[int, ...], int]], List[str]]:
+        """阶段3+5：硬约束过滤，若为空则自动放宽。"""
+        if options.get("relaxation_order", "reverse") == "strict":
+            return self._apply_hard_constraints(candidates, records, options), []
+
+        working_options = dict(options)
+        relaxed: List[str] = []
+
+        result = self._apply_hard_constraints(candidates, records, working_options)
+        if result:
+            return result, relaxed
+
+        # 放宽 balanced 和值范围
+        if working_options.get("balanced_enabled", True):
+            for _ in range(10):
+                sum_min = int(working_options.get("sum_min", 60))
+                sum_max = int(working_options.get("sum_max", 160))
+                new_min = max(21, int(sum_min * 0.9))
+                new_max = min(183, int(sum_max * 1.1))
+                if new_min == sum_min and new_max == sum_max:
+                    break
+                working_options["sum_min"] = new_min
+                working_options["sum_max"] = new_max
+                result = self._apply_hard_constraints(candidates, records, working_options)
+                if result:
+                    relaxed.append(f"放宽和值范围至 {new_min}-{new_max}")
+                    return result, relaxed
+
+        # 放宽 odd_even
+        if working_options.get("odd_even_enabled", True):
+            odd_count = int(working_options.get("odd_count", 3))
+            for delta in [1, 2, 3]:
+                for target in {max(0, odd_count - delta), min(6, odd_count + delta)}:
+                    working_options["odd_count"] = target
+                    result = self._apply_hard_constraints(candidates, records, working_options)
+                    if result:
+                        relaxed.append(f"放宽奇数个数至 {target}")
+                        return result, relaxed
+
+        # 放宽 exclude_include：减少排除
+        if working_options.get("exclude_include_enabled", False):
+            excludes = list(working_options.get("exclude_red", []))
+            while excludes:
+                excludes.pop()
+                working_options["exclude_red"] = excludes
+                result = self._apply_hard_constraints(candidates, records, working_options)
+                if result:
+                    relaxed.append("减少排除红球")
+                    return result, relaxed
+
+        # 最后防线：关闭所有硬约束
+        if not result:
+            working_options["odd_even_enabled"] = False
+            working_options["balanced_enabled"] = False
+            working_options["exclude_include_enabled"] = False
+            result = self._apply_hard_constraints(candidates, records, working_options)
+            if result:
+                relaxed.append("关闭所有硬约束")
+                return result, relaxed
+
+        raise ValueError("无法生成任何候选组合，请检查参数设置")
+
+    def _sample_deterministically(
+        self,
+        rng: random.Random,
+        scored: List[Tuple[float, Tuple[int, ...], int]],
+        count: int,
+        options: Dict[str, Any],
+    ) -> List[Tuple[Tuple[int, ...], int]]:
+        """阶段6：确定性抽样。"""
+        if not scored:
+            raise ValueError("没有可用候选组合")
+        # 取前 50% 作为高质量池，再随机抽样增加多样性
+        top_n = max(count, len(scored) // 2)
+        pool = scored[:top_n]
+        if len(pool) <= count:
+            return [(reds, blue) for _, reds, blue in pool]
+        selected_indices = sorted(rng.sample(range(len(pool)), count))
+        return [(pool[i][1], pool[i][2]) for i in selected_indices]
