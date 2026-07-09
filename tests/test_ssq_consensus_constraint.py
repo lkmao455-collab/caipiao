@@ -222,6 +222,74 @@ def test_blue_sampling_mode_uniform(sample_history):
     assert all(1 <= c[1] <= 16 for c in candidates)
 
 
+def test_candidate_attempt_multiplier_changes_behavior(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, {"history": sample_history})
+
+    options_low = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 200000,
+        "candidate_attempt_multiplier": 1,
+    }
+    rng = random.Random(42)
+    candidates_low = strategy._generate_candidates(rng, red_probs, blue_probs, options_low)
+
+    options_high = dict(options_low, candidate_attempt_multiplier=20)
+    rng = random.Random(42)
+    candidates_high = strategy._generate_candidates(rng, red_probs, blue_probs, options_high)
+
+    # 低倍数下尝试次数不足，无法填满候选池；高倍数可以填满。
+    assert len(candidates_low) < options_low["candidate_count"]
+    assert len(candidates_high) == options_high["candidate_count"]
+    assert len(candidates_high) > len(candidates_low)
+
+
+def test_new_schema_parameters_exposed():
+    strategy = SSQConsensusConstraintStrategy()
+    schema = strategy.get_config_schema()
+    for key in (
+        "red_pool_size",
+        "blue_pool_size",
+        "red_pick_count",
+        "candidate_attempt_multiplier",
+        "high_number_threshold",
+        "score_log_epsilon",
+        "relaxation_sum_iterations",
+        "relaxation_sum_floor",
+        "relaxation_sum_cap",
+        "relaxation_sum_expand_min",
+        "relaxation_sum_expand_max",
+        "relaxation_odd_deltas",
+        "sample_top_pool_fraction",
+    ):
+        assert key in schema, f"{key} 未在 schema 中暴露"
+        assert "default" in schema[key]
+
+
+def test_hard_constraints_use_high_number_threshold(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "odd_even_enabled": False,
+        "balanced_enabled": True,
+        "sum_min": 21,
+        "sum_max": 183,
+        "target_high": 6,
+        "high_number_threshold": 33,
+        "exclude_include_enabled": False,
+    }
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    filtered = strategy._apply_hard_constraints(candidates, records, options)
+    # high_number_threshold=33 时只有 33 算大号，6 个红球都 >=33 不可能
+    assert len(filtered) == 0
+
+
 def test_blue_sampling_mode_weighted(sample_history):
     strategy = SSQConsensusConstraintStrategy()
     options = {

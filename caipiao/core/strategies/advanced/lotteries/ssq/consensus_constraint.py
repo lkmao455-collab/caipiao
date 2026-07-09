@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta
-from itertools import combinations
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -53,6 +51,110 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
                 "min": 1000,
                 "max": 300000,
                 "tooltip": "初始生成的候选组合数量",
+            },
+            "red_pool_size": {
+                "type": "int",
+                "label": "红球号池大小",
+                "default": SSQ.group("red").size,
+                "min": 1,
+                "max": 100,
+                "tooltip": "红球号池大小，默认取自 SSQ 档案",
+            },
+            "blue_pool_size": {
+                "type": "int",
+                "label": "蓝球号池大小",
+                "default": SSQ.group("blue").size,
+                "min": 1,
+                "max": 100,
+                "tooltip": "蓝球号池大小，默认取自 SSQ 档案",
+            },
+            "red_pick_count": {
+                "type": "int",
+                "label": "红球选取个数",
+                "default": SSQ.group("red").count,
+                "min": 1,
+                "max": 20,
+                "tooltip": "每期选取的红球个数，默认取自 SSQ 档案",
+            },
+            "candidate_attempt_multiplier": {
+                "type": "int",
+                "label": "候选生成尝试倍数",
+                "default": 20,
+                "min": 1,
+                "max": 1000,
+                "tooltip": "候选生成最大尝试次数 = candidate_count * 该值",
+            },
+            "high_number_threshold": {
+                "type": "int",
+                "label": "大号分界阈值",
+                "default": SSQ.group("red").high_low_border,
+                "min": 1,
+                "max": 33,
+                "tooltip": "判定大号的分界值，默认取自 SSQ 档案",
+            },
+            "score_log_epsilon": {
+                "type": "int",
+                "label": "对数平滑指数（10 的幂）",
+                "default": -12,
+                "min": -15,
+                "max": -6,
+                "tooltip": "log 平滑 epsilon 的指数，默认 -12 即 1e-12",
+            },
+            "relaxation_sum_iterations": {
+                "type": "int",
+                "label": "和值放宽迭代次数",
+                "default": 10,
+                "min": 1,
+                "max": 100,
+                "tooltip": "和值范围自动放宽的最大迭代次数",
+            },
+            "relaxation_sum_floor": {
+                "type": "int",
+                "label": "和值放宽下限",
+                "default": 21,
+                "min": 0,
+                "max": 183,
+                "tooltip": "和值下限自动放宽的最低值",
+            },
+            "relaxation_sum_cap": {
+                "type": "int",
+                "label": "和值放宽上限",
+                "default": 183,
+                "min": 0,
+                "max": 1000,
+                "tooltip": "和值上限自动放宽的最高值",
+            },
+            "relaxation_sum_expand_min": {
+                "type": "int",
+                "label": "和值下限放宽比例（%）",
+                "default": 90,
+                "min": 50,
+                "max": 100,
+                "tooltip": "和值下限每次放宽的百分比（90 表示乘以 0.9）",
+            },
+            "relaxation_sum_expand_max": {
+                "type": "int",
+                "label": "和值上限放宽比例（%）",
+                "default": 110,
+                "min": 100,
+                "max": 200,
+                "tooltip": "和值上限每次放宽的百分比（110 表示乘以 1.1）",
+            },
+            "relaxation_odd_deltas": {
+                "type": "list_int",
+                "label": "奇偶放宽增量",
+                "default": [1, 2, 3],
+                "min": 0,
+                "max": 6,
+                "tooltip": "奇数个数冲突时依次尝试的偏移量",
+            },
+            "sample_top_pool_fraction": {
+                "type": "int",
+                "label": "高分池采样比例（%）",
+                "default": 50,
+                "min": 1,
+                "max": 100,
+                "tooltip": "确定性抽样时从高分段选取的池比例",
             },
             "relaxation_order": {
                 "type": "choice",
@@ -348,8 +450,14 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         options: Dict[str, Any],
     ) -> List[Tuple[Tuple[int, ...], int]]:
         """阶段2：按概率生成候选组合。"""
-        candidate_count = int(options.get("candidate_count", 50000))
-        red_size, blue_size = 33, 16
+        schema = self.get_config_schema()
+        candidate_count = int(options.get("candidate_count", schema["candidate_count"]["default"]))
+        red_size = int(options.get("red_pool_size", schema["red_pool_size"]["default"]))
+        blue_size = int(options.get("blue_pool_size", schema["blue_pool_size"]["default"]))
+        red_pick_count = int(options.get("red_pick_count", schema["red_pick_count"]["default"]))
+        attempt_multiplier = int(
+            options.get("candidate_attempt_multiplier", schema["candidate_attempt_multiplier"]["default"])
+        )
         reds = list(range(1, red_size + 1))
         blues = list(range(1, blue_size + 1))
 
@@ -361,11 +469,11 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 
         candidates: Set[Tuple[Tuple[int, ...], int]] = set()
         attempts = 0
-        max_attempts = candidate_count * 20
+        max_attempts = candidate_count * attempt_multiplier
         while len(candidates) < candidate_count and attempts < max_attempts:
             attempts += 1
-            selected = tuple(sorted(rng.choices(reds, weights=red_probs, k=6)))
-            if len(set(selected)) < 6:
+            selected = tuple(sorted(rng.choices(reds, weights=red_probs, k=red_pick_count)))
+            if len(set(selected)) < red_pick_count:
                 continue
             blue = rng.choices(blues, weights=effective_blue_probs, k=1)[0]
             candidates.add((selected, blue))
@@ -379,24 +487,41 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         options: Dict[str, Any],
     ) -> List[Tuple[Tuple[int, ...], int]]:
         """阶段3：硬约束过滤。"""
+        schema = self.get_config_schema()
         result = candidates
 
         if options.get("odd_even_enabled", True):
-            odd_count = int(options.get("odd_count", 3))
-            result = [(reds, blue) for reds, blue in result if sum(1 for n in reds if n % 2 == 1) == odd_count]
-
-        if options.get("balanced_enabled", True) and result:
-            sum_min = int(options.get("sum_min", 60))
-            sum_max = int(options.get("sum_max", 160))
-            target_odd = int(options.get("target_odd", 3))
-            target_high = int(options.get("target_high", 3))
+            odd_count = int(options.get("odd_count", schema["odd_count"]["default"]))
             result = [
                 (reds, blue)
                 for reds, blue in result
-                if sum_min <= sum(reds) <= sum_max
-                and abs(sum(1 for n in reds if n % 2 == 1) - target_odd) <= 0
-                and abs(sum(1 for n in reds if n >= 17) - target_high) <= 0
+                if sum(1 for n in reds if n % 2 == 1) == odd_count
             ]
+
+        if options.get("balanced_enabled", True) and result:
+            sum_min = int(options.get("sum_min", schema["sum_min"]["default"]))
+            sum_max = int(options.get("sum_max", schema["sum_max"]["default"]))
+            target_high = int(options.get("target_high", schema["target_high"]["default"]))
+            high_threshold = int(
+                options.get("high_number_threshold", schema["high_number_threshold"]["default"])
+            )
+            # 奇数个数约束：若已启用 odd_even，则不再用 target_odd 重复过滤。
+            if options.get("odd_even_enabled", True):
+                result = [
+                    (reds, blue)
+                    for reds, blue in result
+                    if sum_min <= sum(reds) <= sum_max
+                    and abs(sum(1 for n in reds if n >= high_threshold) - target_high) <= 0
+                ]
+            else:
+                target_odd = int(options.get("target_odd", schema["target_odd"]["default"]))
+                result = [
+                    (reds, blue)
+                    for reds, blue in result
+                    if sum_min <= sum(reds) <= sum_max
+                    and abs(sum(1 for n in reds if n % 2 == 1) - target_odd) <= 0
+                    and abs(sum(1 for n in reds if n >= high_threshold) - target_high) <= 0
+                ]
 
         if options.get("exclude_include_enabled", False) and result:
             include_red: Set[int] = set(options.get("include_red", []))
@@ -454,13 +579,17 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             return [(0.0, reds, blue) for reds, blue in candidates]
         weights = np.array([w for _, _, w in models], dtype=np.float64)
 
+        schema = self.get_config_schema()
+        red_pick_count = int(options.get("red_pick_count", schema["red_pick_count"]["default"]))
+        epsilon = 10.0 ** int(options.get("score_log_epsilon", schema["score_log_epsilon"]["default"]))
+
         scored: List[Tuple[float, Tuple[int, ...], int]] = []
         for reds, blue in candidates:
             score = 0.0
             for idx, (_, prob, _) in enumerate(models):
                 red_indices = np.array(reds, dtype=np.int64) - 1
-                log_sum = float(np.log(np.maximum(prob[red_indices], 1e-12)).sum())
-                score += (log_sum / 6.0) * (weights[idx] / total_weight)
+                log_sum = float(np.log(np.maximum(prob[red_indices], epsilon)).sum())
+                score += (log_sum / red_pick_count) * (weights[idx] / total_weight)
             scored.append((score, reds, blue))
 
         scored.sort(key=lambda x: (-x[0], x[1], x[2]))
@@ -548,6 +677,7 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         options: Dict[str, Any],
     ) -> Tuple[List[Tuple[Tuple[int, ...], int]], List[str]]:
         """阶段3+5：硬约束过滤，若为空则自动放宽。"""
+        schema = self.get_config_schema()
         if options.get("relaxation_order", "reverse") == "strict":
             return self._apply_hard_constraints(candidates, records, options), []
 
@@ -560,11 +690,22 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 
         # 放宽 balanced 和值范围
         if working_options.get("balanced_enabled", True):
-            for _ in range(10):
-                sum_min = int(working_options.get("sum_min", 60))
-                sum_max = int(working_options.get("sum_max", 160))
-                new_min = max(21, int(sum_min * 0.9))
-                new_max = min(183, int(sum_max * 1.1))
+            sum_iterations = int(
+                options.get("relaxation_sum_iterations", schema["relaxation_sum_iterations"]["default"])
+            )
+            sum_floor = int(options.get("relaxation_sum_floor", schema["relaxation_sum_floor"]["default"]))
+            sum_cap = int(options.get("relaxation_sum_cap", schema["relaxation_sum_cap"]["default"]))
+            expand_min = int(
+                options.get("relaxation_sum_expand_min", schema["relaxation_sum_expand_min"]["default"])
+            )
+            expand_max = int(
+                options.get("relaxation_sum_expand_max", schema["relaxation_sum_expand_max"]["default"])
+            )
+            for _ in range(sum_iterations):
+                sum_min = int(working_options.get("sum_min", schema["sum_min"]["default"]))
+                sum_max = int(working_options.get("sum_max", schema["sum_max"]["default"]))
+                new_min = max(sum_floor, int(sum_min * expand_min / 100.0))
+                new_max = min(sum_cap, int(sum_max * expand_max / 100.0))
                 if new_min == sum_min and new_max == sum_max:
                     break
                 working_options["sum_min"] = new_min
@@ -576,8 +717,11 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 
         # 放宽 odd_even
         if working_options.get("odd_even_enabled", True):
-            odd_count = int(working_options.get("odd_count", 3))
-            for delta in [1, 2, 3]:
+            odd_count = int(working_options.get("odd_count", schema["odd_count"]["default"]))
+            odd_deltas = list(
+                options.get("relaxation_odd_deltas", schema["relaxation_odd_deltas"]["default"])
+            )
+            for delta in odd_deltas:
                 for target in {max(0, odd_count - delta), min(6, odd_count + delta)}:
                     working_options["odd_count"] = target
                     result = self._apply_hard_constraints(candidates, records, working_options)
@@ -618,8 +762,12 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         """阶段6：确定性抽样。"""
         if not scored:
             raise ValueError("没有可用候选组合")
-        # 取前 50% 作为高质量池，再随机抽样增加多样性
-        top_n = max(count, len(scored) // 2)
+        schema = self.get_config_schema()
+        top_fraction = int(
+            options.get("sample_top_pool_fraction", schema["sample_top_pool_fraction"]["default"])
+        )
+        # 取前 top_fraction% 作为高质量池，再随机抽样增加多样性
+        top_n = max(count, int(len(scored) * top_fraction / 100))
         pool = scored[:top_n]
         if len(pool) <= count:
             return [(reds, blue) for _, reds, blue in pool]
