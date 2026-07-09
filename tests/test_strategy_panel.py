@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from PySide6.QtWidgets import QLabel, QLineEdit, QSpinBox
+from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QSpinBox
 
 from caipiao.core.engine import GenerationEngine
 from caipiao.core.strategy import GenerationStrategy, StrategyMetadata
@@ -101,3 +101,36 @@ def test_locked_params_from_memory_cache_take_precedence(qtbot, tmp_path):
     assert lookback_widget.isEnabled()
     assert not hot_widget.isEnabled()
     assert hot_widget.value() == 77
+
+
+def test_recommend_button_for_consensus_constraint(qtbot):
+    from caipiao.core.engine import GenerationEngine
+    from caipiao.core.strategies.advanced.lotteries.ssq.consensus_constraint import (
+        SSQConsensusConstraintStrategy,
+    )
+
+    engine = GenerationEngine()
+    engine.register(SSQConsensusConstraintStrategy())
+    panel = StrategyPanel(engine, profile_key="ssq")
+    qtbot.addWidget(panel)
+    panel.set_strategy_id("consensus_constraint")
+    # 按钮应在 options_group 之前被找到
+    buttons = panel.findChildren(QPushButton)
+    assert any(b.text() == "一键推荐参数" for b in buttons)
+
+
+def test_recommend_requested_signal_emitted(qtbot):
+    from caipiao.core.engine import GenerationEngine
+    from caipiao.core.strategies.advanced.lotteries.ssq.consensus_constraint import (
+        SSQConsensusConstraintStrategy,
+    )
+
+    engine = GenerationEngine()
+    engine.register(SSQConsensusConstraintStrategy())
+    panel = StrategyPanel(engine, profile_key="ssq")
+    qtbot.addWidget(panel)
+    panel.set_strategy_id("consensus_constraint")
+
+    with qtbot.waitSignal(panel.recommend_requested, timeout=1000) as blocker:
+        panel._recommend_btn.click()
+    assert blocker.args == ["consensus_constraint"]

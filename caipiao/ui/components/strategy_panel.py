@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -30,6 +31,7 @@ class StrategyPanel(QWidget):
     """策略选择面板，根据策略动态生成参数控件."""
 
     options_changed = Signal()
+    recommend_requested = Signal(str)
 
     def __init__(
         self,
@@ -133,7 +135,11 @@ class StrategyPanel(QWidget):
             QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
         )
         self.options_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
-        self.layout.addWidget(self.options_group)
+        self.options_scroll = QScrollArea()
+        self.options_scroll.setWidgetResizable(True)
+        self.options_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.options_scroll.setWidget(self.options_group)
+        self.layout.addWidget(self.options_scroll)
 
         # 恢复默认参数
         self.reset_defaults_btn = QPushButton("恢复默认参数")
@@ -156,6 +162,13 @@ class StrategyPanel(QWidget):
                 p for p in self._locked_params if p.strategy_id != strategy_id
             ]
         self._rebuild_options(self._current_strategy)
+
+    def _on_recommend_parameters(self) -> None:
+        if not self._current_strategy or not hasattr(
+            self._current_strategy, "recommend_parameters"
+        ):
+            return
+        self.recommend_requested.emit(self.current_strategy_id())
 
     def _refresh_strategies(self) -> None:
         self.strategy_combo.clear()
@@ -221,6 +234,19 @@ class StrategyPanel(QWidget):
         locked = self._get_locked_for_strategy(strategy.metadata.id)
         self.options_group.setVisible(True)
         self.reset_defaults_btn.setVisible(True)
+
+        # 移除旧推荐按钮（如果存在）
+        if hasattr(self, "_recommend_btn"):
+            self._recommend_btn.deleteLater()
+            delattr(self, "_recommend_btn")
+
+        if hasattr(strategy, "recommend_parameters"):
+            self._recommend_btn = QPushButton("一键推荐参数")
+            self._recommend_btn.setToolTip("基于当前历史数据统计特征自动推荐参数")
+            self._recommend_btn.clicked.connect(self._on_recommend_parameters)
+            self.layout.insertWidget(4, self._recommend_btn)
+            self._recommend_btn.setVisible(True)
+
         for key, meta in schema.items():
             locked_value = locked.get(key)
             effective_meta = meta
