@@ -22,12 +22,6 @@ class SSQPeriodicStrategy(SSQAdvancedStrategy):
     def get_config_schema(self) -> Dict[str, Any]:
         schema = super().get_config_schema()
         schema.update({
-            "predict_date": {
-                "type": "string",
-                "label": "预测日期 (YYYY-MM-DD)",
-                "default": "",
-                "tooltip": "周期分析使用的日期；留空使用历史最后一期+1天",
-            },
             "week_weight": {
                 "type": "int",
                 "label": "周周期权重 (0-100)",
@@ -65,14 +59,6 @@ class SSQPeriodicStrategy(SSQAdvancedStrategy):
             current_date = records[-1].draw_date + timedelta(days=1)
         else:
             current_date = datetime.now()
-
-        predict_date_str = options.get("predict_date", "")
-        if predict_date_str:
-            try:
-                current_date = datetime.strptime(predict_date_str, "%Y-%m-%d")
-            except ValueError:
-                # 格式错误时保持默认行为
-                pass
 
         total_w = week_w + month_w + quarter_w
         if total_w == 0:

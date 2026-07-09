@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import random
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -16,7 +18,6 @@ from .....ticket import Ticket
 from caipiao.core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
 from caipiao.core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
 from caipiao.core.strategies.advanced.lotteries.ssq.trend import SSQTrendStrategy
-from caipiao.core.strategies.advanced.lotteries.ssq.periodic import SSQPeriodicStrategy
 from caipiao.core.strategies.advanced.lotteries.ssq.correlation import SSQCorrelationStrategy
 
 
@@ -37,19 +38,31 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 
     @classmethod
     def recommend_parameters(
-        cls, records: List[DrawRecord]
+        cls,
+        records: List[DrawRecord],
+        options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """基于历史数据统计特征推荐参数。"""
+        """基于历史数据统计特征推荐参数。
+
+        Args:
+            records: 历史开奖记录。
+            options: 可选覆盖项；未提供时使用 schema 默认值。
+        """
         analyzer = DrawAnalyzer(records, SSQ)
         reasons: Dict[str, str] = {}
         params: Dict[str, Any] = {}
+        schema = cls().get_config_schema()
+        options = dict(options or {})
 
         total = len(records)
 
         # stats
-        stats_lookback = min(int(total * 0.8), 5000)
-        params["stats_lookback"] = max(20, stats_lookback)
-        reasons["stats_lookback"] = f"使用历史期数的 80%（{params['stats_lookback']} 期），兼顾稳定性与近期性。"
+        history_ratio = int(options.get("recommend_history_ratio", schema["recommend_history_ratio"]["default"])) / 100.0
+        max_lookback = int(options.get("recommend_max_lookback", schema["recommend_max_lookback"]["default"]))
+        min_lookback = int(options.get("recommend_min_lookback", schema["recommend_min_lookback"]["default"]))
+        stats_lookback = min(int(total * history_ratio), max_lookback)
+        params["stats_lookback"] = max(min_lookback, stats_lookback)
+        reasons["stats_lookback"] = f"使用历史期数的 {int(history_ratio * 100)}%（{params['stats_lookback']} 期），兼顾稳定性与近期性。"
 
         # odd / balanced
         odd_ratio, _ = analyzer.odd_even_ratio(params["stats_lookback"])
@@ -64,35 +77,34 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 
         sum_stats = analyzer.sum_statistics(params["stats_lookback"])
         avg = sum_stats["avg"]
-        std = (sum_stats["max"] - sum_stats["min"]) / 6.0 if sum_stats["max"] > sum_stats["min"] else 10
-        params["sum_min"] = int(max(21, avg - 1.5 * std))
-        params["sum_max"] = int(min(183, avg + 1.5 * std))
-        reasons["sum_min"] = f"历史平均和值 {avg:.1f} 减 1.5 倍标准差。"
-        reasons["sum_max"] = f"历史平均和值 {avg:.1f} 加 1.5 倍标准差。"
+        sum_std_divisor = int(options.get("recommend_sum_std_divisor", schema["recommend_sum_std_divisor"]["default"]))
+        sum_std_multiplier = int(options.get("recommend_sum_std_multiplier", schema["recommend_sum_std_multiplier"]["default"])) / 100.0
+        std = (sum_stats["max"] - sum_stats["min"]) / sum_std_divisor if sum_stats["max"] > sum_stats["min"] else 10
+        params["sum_min"] = int(max(21, avg - sum_std_multiplier * std))
+        params["sum_max"] = int(min(183, avg + sum_std_multiplier * std))
+        reasons["sum_min"] = f"历史平均和值 {avg:.1f} 减 {sum_std_multiplier} 倍标准差。"
+        reasons["sum_max"] = f"历史平均和值 {avg:.1f} 加 {sum_std_multiplier} 倍标准差。"
 
         # trend
-        params["trend_window_size"] = max(5, min(30, total // 10))
-        reasons["trend_window_size"] = f"max(5, min(30, {total} // 10))。"
+        trend_window_divisor = int(options.get("recommend_trend_window_divisor", schema["recommend_trend_window_divisor"]["default"]))
+        params["trend_window_size"] = max(5, min(30, total // trend_window_divisor))
+        reasons["trend_window_size"] = f"max(5, min(30, {total} // {trend_window_divisor}))。"
 
         # correlation
-        params["correlation_min_support"] = max(1, min(10, total // 100))
-        reasons["correlation_min_support"] = f"随数据量动态调整：max(1, min(10, {total} // 100))。"
+        correlation_support_divisor = int(options.get("recommend_correlation_support_divisor", schema["recommend_correlation_support_divisor"]["default"]))
+        params["correlation_min_support"] = max(1, min(10, total // correlation_support_divisor))
+        reasons["correlation_min_support"] = f"随数据量动态调整：max(1, min(10, {total} // {correlation_support_divisor}))。"
 
         # 其余参数使用 schema 默认值
-        schema = cls().get_config_schema()
         for key, meta in schema.items():
             if key not in params:
                 params[key] = meta.get("default")
                 reasons[key] = "使用默认值。"
 
-        # 保留历史数据以便 validate_options 校验
-        params["history"] = records
-
         return params, reasons
 
     def generate_report(
         self,
-        options: Dict[str, Any],
         records: List[DrawRecord],
         params: Dict[str, Any],
         reasons: Dict[str, str],
@@ -104,10 +116,12 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
 
         param_rows = ""
         for key, value in params.items():
+            if key == "history":
+                continue
             reason = reasons.get(key, "")
-            param_rows += f"<tr><td>{key}</td><td>{value}</td><td>{reason}</td></tr>\n"
+            param_rows += f"<tr><td>{html.escape(str(key))}</td><td>{html.escape(str(value))}</td><td>{html.escape(str(reason))}</td></tr>\n"
 
-        html = f"""<!DOCTYPE html>
+        report_html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -123,7 +137,7 @@ th {{ background: #f2f2f2; }}
 </head>
 <body>
 <h1>共识约束策略 - 参数推荐报告</h1>
-<p>历史数据范围：{first_date} ~ {last_date}，共 {len(records)} 期。</p>
+<p>历史数据范围：{html.escape(first_date)} ~ {html.escape(last_date)}，共 {len(records)} 期。</p>
 <h2>推荐参数与数学原理</h2>
 <table>
 <tr><th>参数名</th><th>推荐值</th><th>推荐依据</th></tr>
@@ -136,7 +150,7 @@ th {{ background: #f2f2f2; }}
 </html>"""
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(output_path).write_text(html, encoding="utf-8")
+        Path(output_path).write_text(report_html, encoding="utf-8")
         return str(output_path)
 
     def get_config_schema(self) -> Dict[str, Any]:
@@ -148,6 +162,58 @@ th {{ background: #f2f2f2; }}
                 "min": 0,
                 "max": 999999999,
                 "tooltip": "统一随机种子，相同历史数据+相同全部参数=相同输出",
+            },
+            # recommendation tuning
+            "recommend_history_ratio": {
+                "type": "int",
+                "label": "推荐历史期数比例",
+                "default": 80,
+                "min": 0,
+                "max": 100,
+                "tooltip": "百分比",
+            },
+            "recommend_max_lookback": {
+                "type": "int",
+                "label": "推荐最大回看期数",
+                "default": 5000,
+                "min": 1,
+                "max": 100000,
+            },
+            "recommend_min_lookback": {
+                "type": "int",
+                "label": "推荐最小回看期数",
+                "default": 20,
+                "min": 1,
+                "max": 1000,
+            },
+            "recommend_sum_std_divisor": {
+                "type": "int",
+                "label": "推荐和值标准差除数",
+                "default": 6,
+                "min": 1,
+                "max": 100,
+            },
+            "recommend_sum_std_multiplier": {
+                "type": "int",
+                "label": "推荐和值标准差倍数",
+                "default": 150,
+                "min": 0,
+                "max": 1000,
+                "tooltip": "百分比，150 = 1.5",
+            },
+            "recommend_trend_window_divisor": {
+                "type": "int",
+                "label": "推荐趋势窗口除数",
+                "default": 10,
+                "min": 1,
+                "max": 100,
+            },
+            "recommend_correlation_support_divisor": {
+                "type": "int",
+                "label": "推荐相关性支持度除数",
+                "default": 100,
+                "min": 1,
+                "max": 1000,
             },
             "candidate_count": {
                 "type": "int",
@@ -853,13 +919,67 @@ th {{ background: #f2f2f2; }}
         return self._model_probability(SSQTrendStrategy, records, options, "trend")
 
     def _periodic_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
+        """周期概率：基于周/月/季度频率，不依赖 SSQPeriodicStrategy。"""
         if not records:
             raise ValueError("周期分析需要历史数据")
-        model_options = dict(options)
-        predict_date = options.get("predict_date")
-        if predict_date:
-            model_options["predict_date"] = predict_date
-        return self._model_probability(SSQPeriodicStrategy, records, model_options, "periodic")
+        schema = self.get_config_schema()
+        size = SSQ.group("red").size
+
+        predict_date_str = options.get("predict_date", "")
+        if predict_date_str:
+            try:
+                current_date = datetime.strptime(predict_date_str, "%Y-%m-%d")
+            except ValueError:
+                current_date = records[-1].draw_date + timedelta(days=1)
+        else:
+            current_date = records[-1].draw_date + timedelta(days=1)
+
+        week_w = int(options.get("periodic_week_weight", schema["periodic_week_weight"]["default"]))
+        month_w = int(options.get("periodic_month_weight", schema["periodic_month_weight"]["default"]))
+        quarter_w = int(options.get("periodic_quarter_weight", schema["periodic_quarter_weight"]["default"]))
+        total_w = week_w + month_w + quarter_w
+        if total_w == 0:
+            total_w = 1
+
+        def _cycle_frequency(cycle_type: str, current_value: int) -> np.ndarray:
+            freq = np.zeros(size)
+            count = 0
+            for r in records:
+                date = r.draw_date
+                if cycle_type == "weekday":
+                    match = date.weekday() == current_value
+                elif cycle_type == "month":
+                    match = date.month == current_value
+                elif cycle_type == "quarter":
+                    match = (date.month - 1) // 3 == current_value
+                else:
+                    match = False
+                if match:
+                    count += 1
+                    for n in r.red_balls:
+                        if 1 <= n <= size:
+                            freq[n - 1] += 1
+            if count > 0:
+                freq /= count
+            s = freq.sum()
+            if s > 0:
+                freq /= s
+            else:
+                freq = np.ones(size) / size
+            return freq
+
+        week_proba = _cycle_frequency("weekday", current_date.weekday())
+        month_proba = _cycle_frequency("month", current_date.month)
+        quarter = (current_date.month - 1) // 3
+        quarter_proba = _cycle_frequency("quarter", quarter)
+
+        proba = (week_w * week_proba + month_w * month_proba + quarter_w * quarter_proba) / total_w
+        s = proba.sum()
+        if s > 0:
+            proba /= s
+        else:
+            proba = np.ones(size) / size
+        return proba
 
     def _correlation_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
         return self._model_probability(SSQCorrelationStrategy, records, options, "correlation")

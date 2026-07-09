@@ -251,6 +251,13 @@ def test_new_schema_parameters_exposed():
     strategy = SSQConsensusConstraintStrategy()
     schema = strategy.get_config_schema()
     for key in (
+        "recommend_history_ratio",
+        "recommend_max_lookback",
+        "recommend_min_lookback",
+        "recommend_sum_std_divisor",
+        "recommend_sum_std_multiplier",
+        "recommend_trend_window_divisor",
+        "recommend_correlation_support_divisor",
         "candidate_attempt_multiplier",
         "high_number_threshold",
         "score_log_epsilon",
@@ -333,18 +340,18 @@ def test_recommend_parameters(sample_history):
     strategy = SSQConsensusConstraintStrategy()
     records = [r for r in sample_history]
     params, reasons = strategy.recommend_parameters(records)
-    strategy.validate_options(params)
+    options = {**params, "history": records}
+    strategy.validate_options(options)
     assert len(reasons) > 0
     assert "stats_lookback" in reasons
 
 
 def test_generate_report(sample_history, tmp_path):
     strategy = SSQConsensusConstraintStrategy()
-    options = {"history": sample_history, "seed": 42, "candidate_count": 1000}
     records = [r for r in sample_history]
     output = tmp_path / "report.html"
     params, reasons = strategy.recommend_parameters(records)
-    report_path = strategy.generate_report(options, records, params, reasons, str(output))
+    report_path = strategy.generate_report(records, params, reasons, str(output))
     assert Path(report_path).exists()
     content = Path(report_path).read_text(encoding="utf-8")
     assert "共识约束策略" in content
