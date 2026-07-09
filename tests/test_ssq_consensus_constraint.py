@@ -1,9 +1,31 @@
+from datetime import datetime, timedelta
+
 import pytest
 from caipiao.core.profile import SSQ
 from caipiao.core.strategies.advanced.lotteries.ssq.consensus_constraint import (
     SSQConsensusConstraintStrategy,
 )
 from caipiao.core.ticket import Ticket
+from caipiao.data.models import DrawRecord
+
+
+@pytest.fixture
+def sample_history():
+    """生成 100 期双色球历史记录作为测试样本。"""
+    records = []
+    for i in range(100):
+        red_start = (i % 28) + 1
+        reds = sorted([red_start + j for j in range(6)])
+        blue = (i % 16) + 1
+        records.append(
+            DrawRecord(
+                issue=f"{i + 1:03d}",
+                draw_date=datetime(2024, 1, 1) + timedelta(days=i),
+                red_balls=reds,
+                blue_ball=blue,
+            )
+        )
+    return records
 
 
 def test_metadata_and_schema():
@@ -44,3 +66,24 @@ def test_validate_options_checks_sum_range():
         strategy.validate_options({"history": history, "sum_min": 100, "sum_max": 99})
 
     strategy.validate_options({"history": history, "sum_min": 60, "sum_max": 160})
+
+
+def test_statistical_prior_is_probability_distribution(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "stats_enabled": True,
+        "smart_hot_cold_enabled": True,
+        "hot_cold_enabled": True,
+        "missing_number_enabled": True,
+    }
+    red_probs, blue_probs, basis = strategy._compute_statistical_prior(
+        [r for r in sample_history], options
+    )
+    assert abs(red_probs.sum() - 1.0) < 1e-10
+    assert abs(blue_probs.sum() - 1.0) < 1e-10
+    assert len(red_probs) == 33
+    assert len(blue_probs) == 16
+    assert isinstance(basis, str)
+    assert basis.startswith("共识约束策略：统计先验融合")
