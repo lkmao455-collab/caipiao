@@ -14,6 +14,11 @@ from ......data.models import DrawRecord
 from .....profile import SSQ
 from .....strategy import GenerationStrategy, StrategyMetadata
 from .....ticket import Ticket
+from caipiao.core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
+from caipiao.core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
+from caipiao.core.strategies.advanced.lotteries.ssq.trend import SSQTrendStrategy
+from caipiao.core.strategies.advanced.lotteries.ssq.periodic import SSQPeriodicStrategy
+from caipiao.core.strategies.advanced.lotteries.ssq.correlation import SSQCorrelationStrategy
 
 
 class SSQConsensusConstraintStrategy(GenerationStrategy):
@@ -400,6 +405,97 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
             ]
 
         return result
+
+    def _score_candidates(
+        self,
+        candidates: List[Tuple[Tuple[int, ...], int]],
+        records: List[DrawRecord],
+        options: Dict[str, Any],
+    ) -> List[Tuple[float, Tuple[int, ...], int]]:
+        """阶段4：概率精排，返回（得分，红球，蓝球）列表。"""
+        models: List[Tuple[str, np.ndarray, int]] = []
+
+        if options.get("bayesian_enabled", True):
+            prob = self._bayesian_probability(records, options)
+            weight = int(options.get("bayesian_weight", 25))
+            models.append(("bayesian", prob, weight))
+
+        if options.get("markov_enabled", True):
+            prob = self._markov_probability(records, options)
+            weight = int(options.get("markov_weight", 20))
+            models.append(("markov", prob, weight))
+
+        if options.get("trend_enabled", True):
+            prob = self._trend_probability(records, options)
+            weight = int(options.get("trend_model_weight", 20))
+            models.append(("trend", prob, weight))
+
+        if options.get("periodic_enabled", True):
+            prob = self._periodic_probability(records, options)
+            weight = int(options.get("periodic_weight", 20))
+            models.append(("periodic", prob, weight))
+
+        if options.get("correlation_enabled", True):
+            prob = self._correlation_probability(records, options)
+            weight = int(options.get("correlation_model_weight", 15))
+            models.append(("correlation", prob, weight))
+
+        if not models:
+            return [(0.0, reds, blue) for reds, blue in candidates]
+
+        total_weight = sum(w for _, _, w in models)
+        weights = np.array([w for _, _, w in models], dtype=np.float64)
+
+        scored: List[Tuple[float, Tuple[int, ...], int]] = []
+        for reds, blue in candidates:
+            score = 0.0
+            for idx, (_, prob, _) in enumerate(models):
+                red_indices = np.array(reds, dtype=np.int64) - 1
+                log_sum = float(np.log(np.maximum(prob[red_indices], 1e-12)).sum())
+                score += (log_sum / 6.0) * (weights[idx] / total_weight)
+            scored.append((score, reds, blue))
+
+        scored.sort(key=lambda x: (-x[0], x[1], x[2]))
+        return scored
+
+    def _model_probability(
+        self,
+        model_class: type,
+        records: List[DrawRecord],
+        options: Dict[str, Any],
+        option_prefix: str,
+    ) -> np.ndarray:
+        """复用现有高级策略的概率计算逻辑，但完全隔离实例。"""
+        model = model_class()
+        model_options: Dict[str, Any] = {"history": records}
+        schema = model.get_config_schema()
+        prefix = option_prefix + "_"
+        for key, value in options.items():
+            if key.startswith(prefix):
+                stripped = key[len(prefix):]
+                if stripped in schema:
+                    model_options[stripped] = value
+                elif key in schema:
+                    model_options[key] = value
+        proba, _ = model._compute_probabilities(records, model_options)
+        return proba
+
+    def _bayesian_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
+        return self._model_probability(SSQBayesianStrategy, records, options, "bayesian")
+
+    def _markov_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
+        return self._model_probability(SSQMarkovStrategy, records, options, "markov")
+
+    def _trend_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
+        return self._model_probability(SSQTrendStrategy, records, options, "trend")
+
+    def _periodic_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
+        if not records:
+            raise ValueError("周期分析需要历史数据")
+        return self._model_probability(SSQPeriodicStrategy, records, options, "periodic")
+
+    def _correlation_probability(self, records: List[DrawRecord], options: Dict[str, Any]) -> np.ndarray:
+        return self._model_probability(SSQCorrelationStrategy, records, options, "correlation")
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None

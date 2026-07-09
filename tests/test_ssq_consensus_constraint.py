@@ -129,3 +129,24 @@ def test_hard_constraints_filter(sample_history):
     for reds, blue in filtered:
         assert sum(1 for n in reds if n % 2 == 1) == 3
         assert sum_min <= sum(reds) <= sum_max
+
+
+def test_refinement_scores_candidates(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "candidate_count": 100,
+        "bayesian_enabled": True,
+        "markov_enabled": False,
+        "trend_enabled": False,
+        "periodic_enabled": False,
+        "correlation_enabled": False,
+    }
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    scored = strategy._score_candidates(candidates, records, options)
+    assert len(scored) == len(candidates)
+    assert all(isinstance(s, float) for s, _, _ in scored)
