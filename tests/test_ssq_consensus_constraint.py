@@ -1,5 +1,7 @@
+import random
 from datetime import datetime, timedelta
 
+import numpy as np
 import pytest
 from caipiao.core.profile import SSQ
 from caipiao.core.strategies.advanced.lotteries.ssq.consensus_constraint import (
@@ -87,3 +89,43 @@ def test_statistical_prior_is_probability_distribution(sample_history):
     assert len(blue_probs) == 16
     assert isinstance(basis, str)
     assert basis.startswith("共识约束策略：统计先验融合")
+
+
+def test_generate_candidates_valid(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {"history": sample_history, "seed": 42, "candidate_count": 1000}
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    assert len(candidates) <= 1000
+    assert all(len(c[0]) == 6 and len(set(c[0])) == 6 for c in candidates)
+    assert all(1 <= c[1] <= 16 for c in candidates)
+
+
+def test_hard_constraints_filter(sample_history):
+    strategy = SSQConsensusConstraintStrategy()
+    options = {
+        "history": sample_history,
+        "seed": 42,
+        "odd_even_enabled": True,
+        "odd_count": 3,
+        "balanced_enabled": True,
+        "balanced_lookback": 100,
+        "sum_min": 80,
+        "sum_max": 150,
+        "target_odd": 3,
+        "target_high": 3,
+        "exclude_include_enabled": False,
+    }
+    records = [r for r in sample_history]
+    red_probs, blue_probs, _ = strategy._compute_statistical_prior(records, options)
+    rng = random.Random(42)
+    candidates = strategy._generate_candidates(rng, red_probs, blue_probs, options)
+    filtered = strategy._apply_hard_constraints(candidates, records, options)
+    assert len(filtered) <= len(candidates)
+    sum_min = options["sum_min"]
+    sum_max = options["sum_max"]
+    for reds, blue in filtered:
+        assert sum(1 for n in reds if n % 2 == 1) == 3
+        assert sum_min <= sum(reds) <= sum_max

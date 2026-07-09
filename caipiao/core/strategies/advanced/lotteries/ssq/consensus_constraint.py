@@ -335,6 +335,72 @@ class SSQConsensusConstraintStrategy(GenerationStrategy):
         text = f"missing_number({lookback}, pool={pool_size})"
         return self._pool_to_probability(red_pool, 33), self._pool_to_probability(blue_pool, 16), text
 
+    def _generate_candidates(
+        self,
+        rng: random.Random,
+        red_probs: np.ndarray,
+        blue_probs: np.ndarray,
+        options: Dict[str, Any],
+    ) -> List[Tuple[Tuple[int, ...], int]]:
+        """阶段2：按概率生成候选组合。"""
+        candidate_count = int(options.get("candidate_count", 50000))
+        red_size, blue_size = 33, 16
+        reds = list(range(1, red_size + 1))
+        blues = list(range(1, blue_size + 1))
+
+        candidates: Set[Tuple[Tuple[int, ...], int]] = set()
+        attempts = 0
+        max_attempts = candidate_count * 20
+        while len(candidates) < candidate_count and attempts < max_attempts:
+            attempts += 1
+            selected = tuple(sorted(rng.choices(reds, weights=red_probs, k=6)))
+            if len(set(selected)) < 6:
+                continue
+            blue = rng.choices(blues, weights=blue_probs, k=1)[0]
+            candidates.add((selected, blue))
+
+        return sorted(candidates)
+
+    def _apply_hard_constraints(
+        self,
+        candidates: List[Tuple[Tuple[int, ...], int]],
+        records: List[DrawRecord],
+        options: Dict[str, Any],
+    ) -> List[Tuple[Tuple[int, ...], int]]:
+        """阶段3：硬约束过滤。"""
+        result = candidates
+
+        if options.get("odd_even_enabled", True):
+            odd_count = int(options.get("odd_count", 3))
+            result = [(reds, blue) for reds, blue in result if sum(1 for n in reds if n % 2 == 1) == odd_count]
+
+        if options.get("balanced_enabled", True) and result:
+            sum_min = int(options.get("sum_min", 60))
+            sum_max = int(options.get("sum_max", 160))
+            target_odd = int(options.get("target_odd", 3))
+            target_high = int(options.get("target_high", 3))
+            result = [
+                (reds, blue)
+                for reds, blue in result
+                if sum_min <= sum(reds) <= sum_max
+                and abs(sum(1 for n in reds if n % 2 == 1) - target_odd) <= 0
+                and abs(sum(1 for n in reds if n >= 17) - target_high) <= 0
+            ]
+
+        if options.get("exclude_include_enabled", False) and result:
+            include_red: Set[int] = set(options.get("include_red", []))
+            exclude_red: Set[int] = set(options.get("exclude_red", []))
+            exclude_blue: Set[int] = set(options.get("exclude_blue", []))
+            result = [
+                (reds, blue)
+                for reds, blue in result
+                if include_red <= set(reds)
+                and not (set(reds) & exclude_red)
+                and blue not in exclude_blue
+            ]
+
+        return result
+
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
