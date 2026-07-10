@@ -108,11 +108,20 @@ def fc3d_bet_type(numbers: List[int]) -> str:
 
 
 def shape_ratio(records: List[DrawRecord], lookback: int = 100) -> Dict[str, float]:
-    """历史形态比例：豹子/组三/组六。"""
+    """历史形态比例：豹子/组三/组六.
+
+    默认值使用理论概率而非均匀假设：
+    - 豹子号：10/1000 = 1%
+    - 组选3：270/1000 = 27%
+    - 组选6：720/1000 = 72%
+    """
+    # 理论概率作为默认值
+    theoretical = {"leopard": 0.01, "group3": 0.27, "group6": 0.72}
+    
     sliced = _slice_records(records, lookback)
     total = len(sliced)
     if total == 0:
-        return {"leopard": 1 / 3, "group3": 1 / 3, "group6": 1 / 3}
+        return theoretical
     counts = {"leopard": 0, "group3": 0, "group6": 0}
     for record in sliced:
         nums = record.groups.get("pos", [])[:POSITION_COUNT]

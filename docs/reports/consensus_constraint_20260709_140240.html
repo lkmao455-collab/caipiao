@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>共识约束策略 - 参数推荐报告</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+h1 { color: #1976D2; }
+h2 { color: #333; margin-top: 30px; }
+h3 { color: #555; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin-top: 10px; margin-bottom: 10px; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background: #f2f2f2; }
+.disclaimer { color: #d32f2f; background: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<h1>共识约束策略 - 参数推荐报告</h1>
+<p>历史数据范围：2003-02-23 ~ 2026-07-07，共 3474 期。</p>
+<h2>推荐参数与数学原理</h2>
+<table>
+<tr><th>参数名</th><th>推荐值</th><th>推荐依据</th></tr>
+<tr><td>stats_lookback</td><td>2779</td><td>使用历史期数的 80%（2779 期），兼顾稳定性与近期性。</td></tr>
+<tr><td>odd_count</td><td>3</td><td>基于最近 100 期奇偶比 0.51 的期望。</td></tr>
+<tr><td>target_odd</td><td>3</td><td>与奇偶约束保持一致。</td></tr>
+<tr><td>target_high</td><td>3</td><td>基于最近 100 期大小比 0.50 的期望。</td></tr>
+<tr><td>sum_min</td><td>71</td><td>历史平均和值 99.9 减 1.5 倍标准差。</td></tr>
+<tr><td>sum_max</td><td>127</td><td>历史平均和值 99.9 加 1.5 倍标准差。</td></tr>
+<tr><td>trend_window_size</td><td>30</td><td>max(5, min(30, 3474 // 10))。</td></tr>
+<tr><td>correlation_min_support</td><td>10</td><td>随数据量动态调整：max(1, min(10, 3474 // 100))。</td></tr>
+<tr><td>seed</td><td>42</td><td>使用默认值。</td></tr>
+<tr><td>recommend_history_ratio</td><td>80</td><td>使用默认值。</td></tr>
+<tr><td>recommend_max_lookback</td><td>5000</td><td>使用默认值。</td></tr>
+<tr><td>recommend_min_lookback</td><td>20</td><td>使用默认值。</td></tr>
+<tr><td>recommend_sum_std_divisor</td><td>6</td><td>使用默认值。</td></tr>
+<tr><td>recommend_sum_std_multiplier</td><td>150</td><td>使用默认值。</td></tr>
+<tr><td>recommend_trend_window_divisor</td><td>10</td><td>使用默认值。</td></tr>
+<tr><td>recommend_correlation_support_divisor</td><td>100</td><td>使用默认值。</td></tr>
+<tr><td>candidate_count</td><td>50000</td><td>使用默认值。</td></tr>
+<tr><td>candidate_attempt_multiplier</td><td>20</td><td>使用默认值。</td></tr>
+<tr><td>high_number_threshold</td><td>17</td><td>使用默认值。</td></tr>
+<tr><td>score_log_epsilon</td><td>-12</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_sum_iterations</td><td>10</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_sum_floor</td><td>21</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_sum_cap</td><td>183</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_sum_expand_min</td><td>90</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_sum_expand_max</td><td>110</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_odd_deltas</td><td>[1, 2, 3]</td><td>使用默认值。</td></tr>
+<tr><td>sample_top_pool_fraction</td><td>50</td><td>使用默认值。</td></tr>
+<tr><td>relaxation_order</td><td>reverse</td><td>使用默认值。</td></tr>
+<tr><td>predict_date</td><td></td><td>使用默认值。</td></tr>
+<tr><td>blue_sampling_mode</td><td>weighted</td><td>使用默认值。</td></tr>
+<tr><td>stats_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>stats_mode</td><td>smart</td><td>使用默认值。</td></tr>
+<tr><td>stats_hot_weight</td><td>60</td><td>使用默认值。</td></tr>
+<tr><td>stats_cold_weight</td><td>40</td><td>使用默认值。</td></tr>
+<tr><td>stats_pool_size</td><td>12</td><td>使用默认值。</td></tr>
+<tr><td>stats_red_pool_size_hot_cold</td><td>16</td><td>使用默认值。</td></tr>
+<tr><td>stats_red_pool_size_mixed_half</td><td>8</td><td>使用默认值。</td></tr>
+<tr><td>stats_blue_pool_size</td><td>8</td><td>使用默认值。</td></tr>
+<tr><td>stats_weight</td><td>25</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_lookback</td><td>100</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_hot_weight</td><td>60</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_cold_weight</td><td>40</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_smoothing_floor</td><td>0.1</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_smoothing_offset</td><td>1.0</td><td>使用默认值。</td></tr>
+<tr><td>smart_hot_cold_weight</td><td>25</td><td>使用默认值。</td></tr>
+<tr><td>hot_cold_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>hot_cold_mode</td><td>mixed</td><td>使用默认值。</td></tr>
+<tr><td>hot_cold_red_pool_size</td><td>16</td><td>使用默认值。</td></tr>
+<tr><td>hot_cold_red_pool_size_mixed_half</td><td>8</td><td>使用默认值。</td></tr>
+<tr><td>hot_cold_blue_pool_size</td><td>8</td><td>使用默认值。</td></tr>
+<tr><td>hot_cold_weight</td><td>25</td><td>使用默认值。</td></tr>
+<tr><td>missing_number_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>missing_number_lookback</td><td>50</td><td>使用默认值。</td></tr>
+<tr><td>missing_number_pool_size</td><td>12</td><td>使用默认值。</td></tr>
+<tr><td>missing_blue_pool_cap</td><td>8</td><td>使用默认值。</td></tr>
+<tr><td>missing_blue_pool_formula_offset</td><td>2</td><td>使用默认值。</td></tr>
+<tr><td>missing_blue_pool_formula_divisor</td><td>2</td><td>使用默认值。</td></tr>
+<tr><td>missing_number_weight</td><td>25</td><td>使用默认值。</td></tr>
+<tr><td>odd_even_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>balanced_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>balanced_lookback</td><td>100</td><td>使用默认值。</td></tr>
+<tr><td>exclude_include_enabled</td><td>False</td><td>使用默认值。</td></tr>
+<tr><td>include_red</td><td>[]</td><td>使用默认值。</td></tr>
+<tr><td>exclude_red</td><td>[]</td><td>使用默认值。</td></tr>
+<tr><td>exclude_blue</td><td>[]</td><td>使用默认值。</td></tr>
+<tr><td>bayesian_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>bayesian_prior_weight</td><td>60</td><td>使用默认值。</td></tr>
+<tr><td>bayesian_lookback</td><td>50</td><td>使用默认值。</td></tr>
+<tr><td>bayesian_alpha</td><td>2</td><td>使用默认值。</td></tr>
+<tr><td>bayesian_weight</td><td>25</td><td>使用默认值。</td></tr>
+<tr><td>markov_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>markov_order</td><td>2</td><td>使用默认值。</td></tr>
+<tr><td>markov_lookback</td><td>10</td><td>使用默认值。</td></tr>
+<tr><td>markov_transition_weight</td><td>30</td><td>使用默认值。</td></tr>
+<tr><td>markov_weight</td><td>20</td><td>使用默认值。</td></tr>
+<tr><td>trend_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>trend_weight</td><td>50</td><td>使用默认值。</td></tr>
+<tr><td>trend_model_weight</td><td>20</td><td>使用默认值。</td></tr>
+<tr><td>periodic_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>periodic_week_weight</td><td>40</td><td>使用默认值。</td></tr>
+<tr><td>periodic_month_weight</td><td>35</td><td>使用默认值。</td></tr>
+<tr><td>periodic_quarter_weight</td><td>25</td><td>使用默认值。</td></tr>
+<tr><td>periodic_weight</td><td>20</td><td>使用默认值。</td></tr>
+<tr><td>correlation_enabled</td><td>True</td><td>使用默认值。</td></tr>
+<tr><td>correlation_weight</td><td>60</td><td>使用默认值。</td></tr>
+<tr><td>correlation_model_weight</td><td>15</td><td>使用默认值。</td></tr>
+
+</table>
+<h2>生成详情</h2>
+<table>
+<tr><th>项目</th><th>数值</th></tr>
+<tr><td>初始候选池大小</td><td>50000</td></tr><tr><td>奇偶约束过滤后剩余</td><td>16237</td></tr><tr><td>历史均衡约束过滤后剩余</td><td>5637</td></tr><tr><td>排除/必含约束过滤后剩余</td><td>5637</td></tr><tr><td>最终候选池大小</td><td>5637</td></tr><tr><td>自动放宽的约束</td><td>无</td></tr>
+</table>
+<h3>最终抽样的号码组合</h3>
+<table>
+<tr><th>序号</th><th>红球</th><th>蓝球</th></tr>
+<tr><td>1</td><td>09 11 14 24 32 33</td><td>10</td></tr>
+<tr><td>2</td><td>01 06 14 28 29 31</td><td>10</td></tr>
+<tr><td>3</td><td>05 06 08 18 29 33</td><td>12</td></tr>
+<tr><td>4</td><td>05 07 14 22 26 27</td><td>05</td></tr>
+<tr><td>5</td><td>06 07 14 27 28 33</td><td>12</td></tr>
+<tr><td>6</td><td>06 09 10 26 29 33</td><td>09</td></tr>
+<tr><td>7</td><td>09 10 14 17 18 29</td><td>06</td></tr>
+<tr><td>8</td><td>06 11 16 21 29 32</td><td>10</td></tr>
+<tr><td>9</td><td>06 11 16 28 29 33</td><td>10</td></tr>
+<tr><td>10</td><td>07 10 14 21 22 33</td><td>10</td></tr>
+<tr><td>11</td><td>06 07 09 18 22 27</td><td>14</td></tr>
+<tr><td>12</td><td>06 07 10 18 29 31</td><td>01</td></tr>
+<tr><td>13</td><td>10 13 14 21 27 28</td><td>06</td></tr>
+<tr><td>14</td><td>07 10 15 22 26 27</td><td>07</td></tr>
+<tr><td>15</td><td>06 08 10 27 31 33</td><td>07</td></tr>
+<tr><td>16</td><td>06 07 08 23 26 27</td><td>03</td></tr>
+<tr><td>17</td><td>01 06 10 21 22 27</td><td>07</td></tr>
+<tr><td>18</td><td>04 06 09 17 30 31</td><td>01</td></tr>
+<tr><td>19</td><td>10 11 14 22 27 31</td><td>12</td></tr>
+<tr><td>20</td><td>07 10 11 23 28 32</td><td>12</td></tr>
+
+</table>
+
+<div class="disclaimer">
+<strong>数学声明：</strong>彩票开奖是独立随机事件，历史统计规律不能预测未来开奖。本策略所有计算仅为基于历史数据的号码筛选参考，不提供中奖保证。
+</div>
+</body>
+</html>

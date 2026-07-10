@@ -1,55 +1,68 @@
-"""KL8 专属 ML 预测器占位实现."""
+"""KL8 专属 ML 预测器."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
+from ....core.profile import KL8
+from ....data.models import DrawRecord
+from ...common.predictor import BaseMLPredictor
 
-class KL8Predictor:
-    """KL8 机器学习预测器占位.
 
-    由于当前 ``GenericMLPredictor`` 训练目标为开奖 20 码，而玩家选号范围为
-    1-10 个，计数不匹配，因此暂不提供实现。
+class KL8Predictor(BaseMLPredictor):
+    """基于历史数据的 KL8 专属机器学习号码推荐器.
+
+    使用 ``BaseMLPredictor`` 的通用训练/推理能力，
+    但在推荐阶段根据用户选号个数（1-10）进行加权采样。
     """
 
     def __init__(
         self,
-        records: list[Any],
+        records: List[DrawRecord],
         lookback: int = 50,
-        model_path: Optional[Any] = None,
+        model_path: Optional[Path] = None,
         backend: str = "xgboost",
         temp_dir: Optional[str] = None,
     ) -> None:
-        self.records = records
-        self.lookback = lookback
-        self.model_path = model_path
-        self.backend = backend
-        self.temp_dir = temp_dir
-
-    def train(self, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError(
-            "KL8 的 ML 预测器尚未实现：GenericMLPredictor 的组合组采样固定返回 "
-            "20 个号码，与 KL8 投注单 1-10 个号码的约束不匹配。"
+        super().__init__(
+            records=records,
+            profile=KL8,
+            lookback=lookback,
+            model_path=model_path,
+            backend=backend,
+            temp_dir=temp_dir,
         )
 
-    def predict(self) -> Dict[str, np.ndarray]:
-        raise NotImplementedError(
-            "KL8 的 ML 预测器尚未实现：GenericMLPredictor 的组合组采样固定返回 "
-            "20 个号码，与 KL8 投注单 1-10 个号码的约束不匹配。"
-        )
+    def predict(self) -> np.ndarray:
+        """预测下一期各号码出现概率.
+
+        Returns:
+            80 个号码的 step-0 初始概率（ndarray, shape=(80,)）。
+        """
+        proba = super().predict()
+        return proba["main"]
 
     def recommend(
         self,
-        group_picks: Optional[Dict[str, int]] = None,
+        pick: int = 4,
         diversity_boost: float = 0.3,
         rng: Optional[np.random.RandomState] = None,
-    ) -> Dict[str, List[int]]:
-        raise NotImplementedError(
-            "KL8 的 ML 预测器尚未实现：GenericMLPredictor 的组合组采样固定返回 "
-            "20 个号码，与 KL8 投注单 1-10 个号码的约束不匹配。"
-        )
+    ) -> List[int]:
+        """推荐号码组合.
 
-    def is_ready(self) -> bool:
-        return False
+        Args:
+            pick: 要选多少个号码（1-10）。
+            diversity_boost: 多样性增强系数。
+            rng: 随机数生成器。
+
+        Returns:
+            推荐号码列表（已排序）。
+        """
+        if rng is None:
+            rng = np.random.RandomState()
+        proba = self.predict()
+        main_group = self.profile.primary_group
+        return self._recommend_combination(main_group, proba, pick, diversity_boost, rng)

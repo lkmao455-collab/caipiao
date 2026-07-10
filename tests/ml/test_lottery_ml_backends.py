@@ -230,18 +230,25 @@ def test_model_classes_pin_profile(profile, model_classes):
 
 
 # --------------------------------------------------------------------------- #
-# KL8 占位
+# KL8 Predictor
 # --------------------------------------------------------------------------- #
-def test_kl8_predictor_placeholder():
+def test_kl8_predictor_real():
     records = make_history(KL8, n=120)
     predictor = KL8Predictor(records, lookback=LOOKBACK)
     assert predictor.is_ready() is False
-    with pytest.raises(NotImplementedError):
-        predictor.train()
-    with pytest.raises(NotImplementedError):
-        predictor.predict()
-    with pytest.raises(NotImplementedError):
-        predictor.recommend()
+    predictor.train()
+    assert predictor.is_ready() is True
+    proba = predictor.predict()
+    assert isinstance(proba, np.ndarray)
+    assert proba.shape == (80,)
+    assert abs(proba.sum() - 1.0) < 1e-4
+    recommended = predictor.recommend(pick=4)
+    assert len(recommended) == 4
+    for n in recommended:
+        assert 1 <= n <= 80
+    # 不同 pick count 应返回不同数量
+    assert len(predictor.recommend(pick=1)) == 1
+    assert len(predictor.recommend(pick=10)) == 10
 
 
 @pytest.mark.parametrize("cls", [KL8XGBoostModel, KL8LightGBMModel, KL8CatBoostModel])

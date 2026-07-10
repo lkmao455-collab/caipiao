@@ -1,22 +1,53 @@
-"""快乐8智能冷热号策略."""
+"""快乐8智能冷热号策略.
+
+在「每号每期独立同分布（出现概率 p=0.25）」的零假设下，用统计显著
+的冷热信号驱动加权采样，并用 χ² 均匀性检验守卫防止把随机噪声当作
+预测信号（赌徒谬误）。温度参数控制偏离均匀的程度，温度→∞ 退化为
+纯随机均匀采样，符合「彩票是随机的」基本原则。
+"""
 
 from __future__ import annotations
 
+import copy
 import random
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-
-from .....data.analyzer import DrawAnalyzer
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
 from ...common.records import records_from_options
-from ...common.rng import make_rng
-from ._base import PROFILE, _add_pick_count_schema, _get_pick_count, _make_ticket
+from ._base import (
+    PROFILE,
+    _add_pick_count_schema,
+    _get_pick_count,
+    _make_ticket,
+)
+from .stability import (
+    MAIN_POOL,
+    chi_square_uniform_test,
+    deterministic_seed,
+    frequency_counts,
+    geometric_missing_zscore,
+    raw_missing_periods,
+    stable_frequency,
+    stable_scores,
+    weighted_sample_without_replacement,
+)
+
+
+# 智能冷热号策略默认选四（快乐8 选1-选10 共 10 种玩法）
+DEFAULT_PICK_COUNT = 4
 
 
 class KL8SmartHotColdStrategy(GenerationStrategy):
-    """综合热号频率与冷号遗漏值加权生成."""
+    """综合热号频率与冷号遗漏值加权生成.
+
+    数学要点:
+        - 热号信号: 拉普拉斯平滑频率（小样本向均匀先验收缩）
+        - 冷号信号: 遗漏期数 → 几何分布 z-score（仅统计显著偏离才计分）
+        - χ² 守卫: 判断整体是否显著偏离均匀，否则冷热信号弱
+        - z-score 标准化 + softmax 温度: 控制集中程度，温度→∞ 即纯随机
+        - 加权无放回采样: 选取 pick 个互不重复号码
+    """
 
     _needs_history = True
 
@@ -35,6 +66,14 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
             "cold_weight": {"type": "int", "label": "冷号权重", "default": 40, "min": 0, "max": 100},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
+            "temperature": {
+                "type": "int",
+                "label": "温度(x0.1)",
+                "default": 10,
+                "min": 1,
+                "max": 50,
+                "tooltip": "控制号码集中程度。10=标准平衡，1=高度集中（强烈偏向热/冷号），50=接近随机均匀分布",
+            },
             "dedup": {
                 "type": "bool",
                 "label": "号码去重",
@@ -49,7 +88,7 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
                 "max": 999999999,
             },
         }
-        _add_pick_count_schema(schema)
+        _add_pick_count_schema(schema, default_pick=DEFAULT_PICK_COUNT)
         return schema
 
     def validate_options(self, options: Dict[str, Any]) -> None:
@@ -63,34 +102,56 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         options = options or {}
         self.validate_options(options)
         records = records_from_options(options)
+        lookback = int(options.get("lookback", 100))
         hot_weight = int(options.get("hot_weight", 60))
         cold_weight = int(options.get("cold_weight", 40))
-        lookback = int(options.get("lookback", 100))
-        rng = make_rng(options)
+        temperature = int(options.get("temperature", 10)) / 10.0
+        pick = _get_pick_count(options, default_pick=DEFAULT_PICK_COUNT)
+        rng = self._make_rng(options, records, lookback)
         primary = PROFILE.primary_group
-        pick = _get_pick_count(options)
 
-        analyzer = DrawAnalyzer(records, PROFILE)
-        freq = analyzer.frequency(primary.key)
-        max_freq = max(freq.values()) if freq else 1
-        missing = dict(analyzer.missing(primary.key, lookback))
-        max_missing = max(missing.values()) if missing else 1
+        # 热号信号: 拉普拉斯平滑后的号码概率分布
+        freq_prob = stable_frequency(records, lookback)
 
-        scores: Dict[int, float] = {n: 0.0 for n in primary.values}
-        for n, f in freq.items():
-            scores[n] += hot_weight * (f / max_freq)
-        for n, m in missing.items():
-            scores[n] += cold_weight * (m / max_missing)
-        min_score = min(scores.values())
-        weights = [max(0.1, scores[n] - min_score + 1.0) for n in primary.values]
+        # 冷号信号: 原始遗漏期数 → 几何分布 z-score
+        # 在均匀假设(p=0.25)下 E[遗漏]=3, σ≈3.464
+        # z>1.96 才算 95% 置信的统计显著偏冷，避免赌徒谬误
+        raw_missing = raw_missing_periods(records, lookback)
+        geo_z = geometric_missing_zscore(raw_missing)
 
-        basis = (
-            f"智能冷热号策略：综合最近 {lookback} 期热号频率（权重 {hot_weight}）"
-            f"与冷号遗漏值（权重 {cold_weight}）加权评分后随机抽取 {pick} 个号码。"
+        # χ² 均匀性检验守卫: 用原始观测计数判断整体是否统计显著偏离均匀
+        counts = list(frequency_counts(records, lookback).values())
+        chi2_value, is_uniform = chi_square_uniform_test(counts)
+
+        # z-score 标准化 + softmax 温度 → 1-80 概率分布
+        probabilities = stable_scores(
+            freq_prob, geo_z, hot_weight, cold_weight, temperature
         )
+
+        # 构建说明文本
+        basis = (
+            f"智能冷热号策略：lookback={lookback}，热权重={hot_weight}，"
+            f"冷权重={cold_weight}，温度={temperature}，选{pick}。"
+        )
+        if is_uniform:
+            basis += (
+                "χ²检验显示号码分布接近均匀（频率波动在统计噪声范围内），"
+                "冷热信号较弱。"
+            )
+        else:
+            basis += "χ²检验显示号码分布显著偏离均匀，冷热信号有效。"
+        basis += "注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         seed = options.get("seed")
         if seed is not None:
             basis += f" 随机种子：{seed}。"
+
+        details: Dict[str, Any] = {
+            "probabilities": probabilities,
+            "chi_square": round(chi2_value, 2),
+            "is_uniform": is_uniform,
+            "cold_signal": "geometric_zscore",
+            "pick_count": pick,
+        }
 
         dedup = bool(options.get("dedup", True))
 
@@ -98,33 +159,38 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         tickets: List[Ticket] = []
         max_attempts = count * 50 if dedup else 1
         for _ in range(count):
-            for attempt in range(max_attempts):
-                groups: Dict[str, List[int]] = {}
-                if primary.positional:
-                    groups[primary.key] = [rng.choices(primary.values, weights=weights, k=1)[0] for _ in range(primary.count)]
-                else:
-                    selected = sorted(rng.choices(primary.values, weights=weights, k=pick))
-                    while len(set(selected)) < pick and not primary.allow_repeat:
-                        selected = sorted(rng.choices(primary.values, weights=weights, k=pick))
-                    groups[primary.key] = selected
-                self._fill_random_other(groups, rng)
-                if primary.positional:
-                    dedup_key = tuple(sorted(groups[primary.key]))
-                else:
-                    dedup_key = tuple(groups[primary.key])
-                if not dedup or dedup_key not in seen:
+            selected: Optional[List[int]] = None
+            for _attempt in range(max_attempts):
+                chosen = weighted_sample_without_replacement(
+                    rng, MAIN_POOL, probabilities, pick
+                )
+                chosen_sorted = sorted(chosen)
+                if not dedup or tuple(chosen_sorted) not in seen:
                     if dedup:
-                        seen.add(dedup_key)
+                        seen.add(tuple(chosen_sorted))
+                    selected = chosen_sorted
                     break
-            else:
-                groups = {}
-                if primary.positional:
-                    groups[primary.key] = [rng.randint(primary.lo, primary.hi) for _ in range(primary.count)]
-                else:
-                    groups[primary.key] = sorted(rng.sample(primary.values, pick))
-                self._fill_random_other(groups, rng)
-            tickets.append(_make_ticket(groups, strategy_name=self.metadata.name, basis=basis))
+            if selected is None:
+                # 兜底: 均匀随机抽样（不应常见，仅在 dedup 候选耗尽时触发）
+                selected = sorted(rng.sample(MAIN_POOL, pick))
+            groups: Dict[str, List[int]] = {primary.key: selected}
+            self._fill_random_other(groups, rng)
+            tickets.append(
+                _make_ticket(
+                    groups, strategy_name=self.metadata.name, basis=basis,
+                    details=copy.deepcopy(details),
+                )
+            )
         return tickets
+
+    def _make_rng(
+        self, options: Dict[str, Any], records: list, lookback: int
+    ) -> random.Random:
+        """无用户 seed 时基于历史内容派生确定性 seed，保证可复现。"""
+        seed = deterministic_seed(
+            options, records, lookback, self.metadata.id
+        )
+        return random.Random(seed)
 
     def _fill_random_other(self, groups: Dict[str, List[int]], rng: random.Random) -> None:
         for g in PROFILE.pick_groups:

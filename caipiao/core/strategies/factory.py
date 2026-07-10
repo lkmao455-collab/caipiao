@@ -23,7 +23,8 @@ def needs_history(strategy_id: str) -> bool:
         "hot_cold", "smart_hot_cold", "missing_number", "balanced",
         "stats", "xgboost", "lightgbm", "catboost", "ml_",
         "lstm", "hybrid", "random_forest", "bayesian", "markov",
-        "trend", "periodic", "ensemble", "correlation", "transformer",
+        "trend", "periodic", "ensemble", "correlation", "consensus_constraint",
+        "transformer",
     ):
         if strategy_id.startswith(key):
             return True

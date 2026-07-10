@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 from datetime import datetime
 from functools import partial
 from typing import Any, Dict, List, Optional
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QSplitter,
+    QTextBrowser,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -159,22 +161,33 @@ class BatchBacktestDialog(QDialog):
         result_group = QGroupBox("回测汇总")
         result_layout = QVBoxLayout(result_group)
 
+        # 汇总头部：「保存为参数组」按钮右对齐（扫描完成后才显示）
         summary_header = QWidget()
         summary_header_layout = QHBoxLayout(summary_header)
         summary_header_layout.setContentsMargins(0, 0, 0, 0)
-        self.summary_label = QLabel('尚未开始批量历史回测。')
-        self.summary_label.setWordWrap(True)
-        self.summary_label.setStyleSheet(
-            "QLabel { color: #0A2540; background-color: #E3F2FD; "
-            "border-radius: 4px; padding: 6px; font-size: 11pt; font-weight: bold; }"
-        )
-        summary_header_layout.addWidget(self.summary_label, 1)
+        summary_header_layout.addStretch()
         self.save_group_btn = QPushButton('保存为参数组')
         self.save_group_btn.setToolTip('将本次扫描排名的前 N 个策略保存为参数组')
         self.save_group_btn.clicked.connect(self._on_save_parameter_group)
         self.save_group_btn.setVisible(False)
         summary_header_layout.addWidget(self.save_group_btn)
         result_layout.addWidget(summary_header)
+
+        # 汇总结果用 QTextBrowser（浏览器控件）显示：
+        # QLabel 在长文本（多注中奖明细）时会被布局截断导致数据显示不全，
+        # QTextBrowser 可滚动且支持富文本，保证汇总信息完整可见。
+        self.summary_label = QTextBrowser()
+        self.summary_label.setOpenExternalLinks(True)
+        self.summary_label.setMinimumHeight(110)
+        self.summary_label.setMaximumHeight(260)
+        self.summary_label.setStyleSheet(
+            "QTextBrowser { color: #0A2540; background-color: #E3F2FD; "
+            "border: 1px solid #90CAF9; border-radius: 4px; padding: 8px; "
+            "font-size: 11pt; }"
+        )
+        result_layout.addWidget(self.summary_label)
+        self._summary_plain = ""
+        self._set_summary("尚未开始批量历史回测。")
 
         result_layout.addWidget(QLabel('详细结果（中奖记录，按日期追加）:'))
         self.detail_text = QTextEdit()
@@ -184,6 +197,37 @@ class BatchBacktestDialog(QDialog):
         splitter.addWidget(result_group)
         splitter.setSizes([350, 450])
         layout.addWidget(splitter, 1)
+
+    def _set_summary(self, text: str) -> None:
+        """将纯文本汇总渲染为 HTML 显示在 QTextBrowser 中.
+
+        QLabel 在长文本下会被布局截断（数据显示不全），QTextBrowser 可滚动
+        且支持富文本。这里对纯文本做 HTML 转义、换行转 <br>，并对盈亏行
+        按正负着色，使汇总信息完整可读。
+        """
+        self._summary_plain = text
+        lines = text.split("\n")
+        rendered = []
+        for line in lines:
+            if not line:
+                continue
+            esc = html.escape(line)
+            if esc.startswith("盈亏："):
+                tail = esc[len("盈亏："):]
+                if tail.startswith("+"):
+                    esc = f"<b>盈亏：</b><span style='color:#2E7D32;font-weight:bold'>{tail}</span>"
+                elif tail.startswith("-"):
+                    esc = f"<b>盈亏：</b><span style='color:#C62828;font-weight:bold'>{tail}</span>"
+                else:
+                    esc = f"<b>盈亏：</b><span style='font-weight:bold'>{tail}</span>"
+            elif "：" in esc:
+                key, sep, rest = esc.partition("：")
+                esc = f"<b>{key}</b>{sep}{rest}"
+            rendered.append(esc)
+        body = "<br>".join(rendered)
+        self.summary_label.setHtml(
+            f"<div style='color:#0A2540;font-size:11pt;line-height:1.7'>{body}</div>"
+        )
 
     def _refresh_date_range(self) -> None:
         start, end = self.data_repository.get_date_range()
@@ -238,6 +282,17 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "提示", "请选择一个生成策略")
             return
 
+        # 检查是否为占位策略（尚未实现的 ML 策略）
+        strategy = self.context.engine.get(strategy_id)
+        if strategy is not None and getattr(strategy, "_placeholder", False):
+            QMessageBox.warning(
+                self,
+                "策略未实现",
+                f"策略「{strategy.metadata.name}」({strategy_id}) 尚未实现，"
+                "无法执行批量回测。请选择其他策略。",
+            )
+            return
+
         try:
             options = self.strategy_panel.current_options()
         except ValueError as exc:
@@ -263,7 +318,7 @@ class BatchBacktestDialog(QDialog):
         self.progress.setVisible(True)
         self.detail_text.clear()
         self.status_text.clear()
-        self.summary_label.setText("正在批量回测，请稍候...")
+        self._set_summary("正在批量回测，请稍候...")
         self._detail_lines: List[str] = []
         self._running_cost = 0
         self._running_fixed_prize = 0
@@ -325,9 +380,18 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "提示", "请选择一个生成策略")
             return
 
-        from ...ui.optimal_period_config import resolve_optimal_param
+        # 检查是否为占位策略（尚未实现的 ML 策略）
+        strategy = self.context.engine.get(strategy_id)
+        if strategy is not None and getattr(strategy, "_placeholder", False):
+            QMessageBox.warning(
+                self,
+                "策略未实现",
+                f"策略「{strategy.metadata.name}」({strategy_id}) 尚未实现，"
+                "无法执行最优期数扫描。请选择其他策略。",
+            )
+            return
 
-        resolved = resolve_optimal_param(strategy_id)
+        from ...ui.optimal_period_config import resolve_optimal_param
         if resolved is None:
             QMessageBox.information(
                 self,
@@ -353,7 +417,7 @@ class BatchBacktestDialog(QDialog):
         self.progress.setVisible(True)
         self.detail_text.clear()
         self.status_text.clear()
-        self.summary_label.setText("正在扫描最优参数，请稍候...")
+        self._set_summary("正在扫描最优参数，请稍候...")
 
         self._scan_thread = OptimalPeriodScanThread(
             engine=self.context.engine,
@@ -422,7 +486,7 @@ class BatchBacktestDialog(QDialog):
         self.progress.setVisible(True)
         self.detail_text.clear()
         self.status_text.clear()
-        self.summary_label.setText("正在扫描最优策略和参数，请稍候...")
+        self._set_summary("正在扫描最优策略和参数，请稍候...")
 
         self._strategy_scan_thread = OptimalStrategyScanThread(
             engine=self.context.engine,
@@ -465,13 +529,11 @@ class BatchBacktestDialog(QDialog):
 
         if error:
             QMessageBox.critical(self, "扫描失败", str(error))
-            self.summary_label.setText("一键找最优策略和参数失败。")
+            self._set_summary("一键找最优策略和参数失败。")
             return
 
         if result is None:
-            self.summary_label.setText(
-                self.summary_label.text() + "\n（已停止）"
-            )
+            self._set_summary(self._summary_plain + "\n（已停止）")
             return
 
         # 自动将最优策略和参数写回策略面板
@@ -493,7 +555,7 @@ class BatchBacktestDialog(QDialog):
         ])
         if result.interrupted:
             summary_lines.append("（已中断，结果为部分扫描）")
-        self.summary_label.setText("\n".join(summary_lines))
+        self._set_summary("\n".join(summary_lines))
 
         self._last_strategy_scan_result = result
         self.save_group_btn.setVisible(True)
@@ -627,7 +689,7 @@ class BatchBacktestDialog(QDialog):
             rate = count / rounds * 100
             per_ticket_lines.append(f"第 {i + 1} 注：{count} 次（{rate:.1f}%）")
 
-        self.summary_label.setText(
+        self._set_summary(
             f"正在回测：{current}/{total} 期\n"
             f"已花费：{self._running_cost} 元 | "
             f"固定奖金：{self._running_fixed_prize} 元 | "
@@ -650,14 +712,12 @@ class BatchBacktestDialog(QDialog):
 
         if error:
             QMessageBox.critical(self, "批量回测失败", str(error))
-            self.summary_label.setText("批量回测失败。")
+            self._set_summary("批量回测失败。")
             return
 
         if result is None:
             # 用户手动停止，保留已回测的汇总结果
-            self.summary_label.setText(
-                self.summary_label.text() + "\n（已停止）"
-            )
+            self._set_summary(self._summary_plain + "\n（已停止）")
             return
 
         # 持久化批量回测汇总
@@ -684,7 +744,7 @@ class BatchBacktestDialog(QDialog):
             "各注中奖次数：" + " | ".join(per_ticket_lines),
             f"盈亏：{profit:+d} 元",
         ]
-        self.summary_label.setText("\n".join(summary_lines))
+        self._set_summary("\n".join(summary_lines))
 
         if not self._detail_lines:
             self.detail_text.setText("没有中奖记录。")
@@ -700,13 +760,11 @@ class BatchBacktestDialog(QDialog):
 
         if error:
             QMessageBox.critical(self, "扫描失败", str(error))
-            self.summary_label.setText("一键找最优期数失败。")
+            self._set_summary("一键找最优期数失败。")
             return
 
         if result is None:
-            self.summary_label.setText(
-                self.summary_label.text() + "\n（已停止）"
-            )
+            self._set_summary(self._summary_plain + "\n（已停止）")
             return
 
         # 自动将最优参数写回策略面板
@@ -722,7 +780,7 @@ class BatchBacktestDialog(QDialog):
         ]
         if result.interrupted:
             summary_lines.append("（已中断，结果为部分扫描）")
-        self.summary_label.setText("\n".join(summary_lines))
+        self._set_summary("\n".join(summary_lines))
 
         # 在日志区打印所有结果排名
         ranked = sorted(

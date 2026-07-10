@@ -64,12 +64,15 @@ class KL8OddEvenStrategy(GenerationStrategy):
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         primary = PROFILE.primary_group
         pick = _get_pick_count(options)
         odd_count = int(options.get("odd_count", pick // 2))
         even_count = pick - odd_count
         rng = make_rng(options)
 
+        if odd_count > pick:
+            raise ValueError(f"奇数个数 {odd_count} 不能超过投注个数 {pick}")
         odd_pool = [n for n in primary.values if n % 2 == 1]
         even_pool = [n for n in primary.values if n % 2 == 0]
         if odd_count > len(odd_pool) or even_count > len(even_pool):

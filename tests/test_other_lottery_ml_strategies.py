@@ -127,9 +127,7 @@ def test_build_strategies_includes_ml(key, profile, classes, model_dir):
 
 @pytest.mark.parametrize("key, profile, classes", LOTTERY_CASES)
 def test_real_ml_strategy_generates_valid(key, profile, classes, model_dir):
-    """非占位 ML 策略在 120 期合成历史上应生成合法投注单。"""
-    if key == "kl8":
-        pytest.skip("KL8 ML 策略当前为占位实现")
+    """ML 策略在 120 期合成历史上应生成合法投注单。"""
     history = make_history(profile, n=120)
     for cls in classes:
         s = cls()
@@ -144,20 +142,41 @@ def test_real_ml_strategy_generates_valid(key, profile, classes, model_dir):
                     assert g.lo <= n <= g.hi
 
 
-@pytest.mark.parametrize("cls", [KL8XGBoostStrategy, KL8LightGBMStrategy, KL8CatBoostStrategy])
-def test_kl8_ml_strategy_placeholder(cls, model_dir):
-    """KL8 ML 策略占位实现应抛出清晰的 NotImplementedError。"""
-    s = cls()
-    history = make_history(KL8, n=120)
-    with pytest.raises(NotImplementedError):
-        s.generate(count=1, options={"history": history})
-
-
 @pytest.mark.parametrize("key, profile, classes", LOTTERY_CASES)
 def test_ml_strategy_needs_sufficient_history(key, profile, classes, model_dir):
     """历史记录不足 100 期时应抛出 ValueError。"""
-    if key == "kl8":
-        pytest.skip("KL8 ML 策略当前为占位实现，由独立占位测试覆盖")
     s = classes[0]()
     with pytest.raises(ValueError):
         s.generate(count=1, options={"history": make_history(profile, n=50)})
+
+
+@pytest.mark.parametrize("cls", [KL8XGBoostStrategy, KL8LightGBMStrategy, KL8CatBoostStrategy])
+def test_kl8_ml_strategy_pick_count(cls, model_dir):
+    """KL8 ML 策略应支持 1-10 选号个数参数。"""
+    history = make_history(KL8, n=120)
+    s = cls()
+    for pick in (1, 4, 7, 10):
+        tickets = s.generate(count=2, options={"history": history, "pick_count": pick})
+        assert len(tickets) == 2
+        for t in tickets:
+            assert len(t.groups["main"]) == pick
+    # 边界：默认为 10 (effective_pick_max)
+    tickets = s.generate(count=1, options={"history": history})
+    assert len(tickets[0].groups["main"]) == 10
+
+
+@pytest.mark.parametrize("cls", [KL8XGBoostStrategy, KL8LightGBMStrategy, KL8CatBoostStrategy])
+def test_kl8_ml_strategy_details(cls, model_dir):
+    """KL8 ML 策略应生成含概率等信息的 details。"""
+    history = make_history(KL8, n=120)
+    s = cls()
+    tickets = s.generate(count=1, options={"history": history})
+    assert len(tickets) == 1
+    t = tickets[0]
+    assert "probabilities" in t.details
+    assert len(t.details["probabilities"]) == 80
+    assert "diversity_boost" in t.details
+    assert "pick_count" in t.details
+    assert "backend" in t.details
+    assert t.details["backend"] == cls._backend
+    assert t.basis and "ML" not in t.basis

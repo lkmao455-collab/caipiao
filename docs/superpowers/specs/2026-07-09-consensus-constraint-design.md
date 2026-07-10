@@ -23,6 +23,8 @@
 - **英文名**：Consensus Constraint Strategy
 - **策略 ID**：`consensus_constraint`
 
+由于该策略依赖历史数据，必须将其 ID 前缀加入 `caipiao/core/strategies/factory.py` 中 `needs_history()` 的前缀列表，这样 UI、回测、参数组等上层逻辑才能自动注入历史开奖数据。
+
 命名含义：候选号码必须通过多层数学约束的“共识”——既要符合统计先验，又要通过硬约束过滤，还要在概率精排中得分足够高，最终才能被选中。
 
 ## 3. 总体架构
@@ -243,7 +245,8 @@ HTML 模板可内嵌在策略类中（简单的字符串模板），避免额外
 2. **`caipiao/core/strategies/registry.py`**
    - 在 `STRATEGY_REGISTRY["ssq"]` 中注册 `SSQConsensusConstraintStrategy`。
 
-3. **`caipiao/ui/lottery_context.py`**
+3. **`caipiao/core/strategies/factory.py`**
+   - 将 `consensus_constraint` 加入 `needs_history()` 的前缀列表，确保上层能自动注入历史数据。
    - 在 `register_builtin_strategies()` 中实例化并注册新策略。
 
 4. **`caipiao/ui/components/strategy_panel.py`**

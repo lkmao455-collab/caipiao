@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
 from ...common.rng import make_rng
-from ._base import PROFILE, _make_ticket
+from ._base import PROFILE, _add_pick_count_schema, _get_pick_count, _make_ticket
 
 
 class KL8ExcludeIncludeStrategy(GenerationStrategy):
@@ -40,6 +40,7 @@ class KL8ExcludeIncludeStrategy(GenerationStrategy):
                 "min": g.lo,
                 "max": g.hi,
             }
+        _add_pick_count_schema(schema)
         schema["seed"] = {
             "type": "int",
             "label": "随机种子（可选）",
@@ -105,12 +106,14 @@ class KL8ExcludeIncludeStrategy(GenerationStrategy):
                         pos_chosen.append(rng.choice(pos_pool))
                     groups[g.key] = pos_chosen
                 else:
-                    if g.variable_pick:
+                    if g.is_primary:
+                        pick = _get_pick_count(options)
+                    elif g.variable_pick:
                         pick = rng.randint(g.effective_pick_min, g.effective_pick_max)
-                        pick = max(pick, len(include))
-                        pick = min(pick, g.effective_pick_max)
                     else:
                         pick = g.count
+                    pick = max(pick, len(include))
+                    pick = min(pick, g.effective_pick_max)
                     if len(include) >= pick:
                         groups[g.key] = sorted(include)[:pick]
                         continue

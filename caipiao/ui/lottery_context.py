@@ -79,10 +79,12 @@ class LotteryContext(QObject):
             from ..core.strategies.lotteries.fc3d.missing_number import FC3DMissingNumberStrategy
             from ..core.strategies.lotteries.fc3d.ml.xgboost import FC3DXGBoostStrategy
             from ..core.strategies.lotteries.fc3d.balanced import FC3DBalancedStrategy
+            from ..core.strategies.lotteries.fc3d.ensemble import FC3DEnsembleStrategy
             self.engine.register(FC3DSmartHotColdStrategy())
             self.engine.register(FC3DMissingNumberStrategy())
             self.engine.register(FC3DXGBoostStrategy())
             self.engine.register(FC3DBalancedStrategy())
+            self.engine.register(FC3DEnsembleStrategy())
         elif self.profile.key == "dlt":
             # 大乐透：原仅保留 XGBoost，generic 移除后注册全部基础策略
             from ..core.strategies import build_strategies

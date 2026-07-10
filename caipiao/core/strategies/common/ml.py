@@ -181,6 +181,7 @@ def make_placeholder_ml_base(
     class _PlaceholderLotteryMLStrategyBase(GenerationStrategy):
         _backend: str = "xgboost"
         is_ml: bool = True
+        _placeholder: bool = True
 
         def get_config_schema(self) -> Dict[str, Any]:
             return {

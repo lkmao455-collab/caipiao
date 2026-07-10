@@ -23,6 +23,8 @@
   - 新策略主体：metadata、schema、generate、推荐参数、HTML 报告。
 - **Modify:** `caipiao/core/strategies/registry.py:157-179`
   - 在 `STRATEGY_REGISTRY["ssq"]` 列表末尾添加 `SSQConsensusConstraintStrategy`。
+- **Modify:** `caipiao/core/strategies/factory.py:20-30`
+  - 将 `consensus_constraint` 加入 `needs_history()` 的前缀列表，使 UI、回测、参数组等上层逻辑自动注入历史数据。
 - **Modify:** `caipiao/ui/lottery_context.py:19-23,67-73`
   - 导入新策略并在 SSQ 分支注册。
 - **Modify:** `caipiao/ui/components/strategy_panel.py`
