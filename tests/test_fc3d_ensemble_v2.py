@@ -129,3 +129,26 @@ def test_temperature_affects_substrategies():
         f"lower temperature should concentrate probability: "
         f"T=1={low_t}, T=10={mid_t}, T=50={high_t}"
     )
+
+
+def test_adaptive_boosts_missing_when_cold_signal():
+    """N6: 自适应权重应在存在显著冷号时提升 missing 权重。"""
+    strategy = FC3DStrategyFusionStrategy()
+    # 构造历史：数字 0 在各位置长期未出现
+    records = [make_record([1, 2, 3]) for _ in range(200)]
+
+    t = strategy.generate(count=1, options={
+        "history": records,
+        "lookback": 200,
+        "balanced_weight": 33,
+        "hot_cold_weight": 33,
+        "missing_weight": 34,
+        "adaptive": True,
+        "temperature": 10,
+        "dedup": False,
+        "seed": 1,
+    })[0]
+
+    # 至少有一位 missing 权重被提升
+    boosted = any(w["missing"] > 0.34 for w in t.details["pos_weights"])
+    assert boosted, "adaptive should boost missing weight when cold signal exists"

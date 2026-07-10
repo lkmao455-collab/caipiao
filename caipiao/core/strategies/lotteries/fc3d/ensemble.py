@@ -355,34 +355,30 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
     # ------------------------------------------------------------------ #
     def _adaptive_weights_per_pos(
         self,
-        chi2_values: List[float],
         uniform_flags: List[bool],
         base_weights: Dict[str, float],
+        missing_has_signal: List[bool],
     ) -> Dict[int, Dict[str, float]]:
-        """逐位自适应权重：以 base_weights 为基准做乘性调整后归一化.
+        """逐位自适应权重：以 base_weights 为基准，根据实际信号类型做乘性调整.
 
         - 以用户配置的 base_weights 为基准（修正旧实现忽略用户配置的问题）；
-        - 逐位置根据该位自身的 χ²/uniform 调整，而非全局平均；
-        - 分档阈值对齐 χ²(df=9) 临界值：5%=16.92、1%=21.67（有统计依据）；
+        - 该位均匀时维持基准权重；
+        - 该位非均匀且存在显著冷号时，提升 missing（追冷），降低 balanced；
+        - 该位非均匀但无显著冷号时，提升 hot_cold（追热/结构），降低 missing；
         - base_weights 为 0 的策略调整后仍为 0（尊重用户明确禁用）。
         """
-        # χ²(df=9) 临界值
-        CHI2_05 = 16.92  # 5% 显著性
-        CHI2_01 = 21.67  # 1% 显著性
         result: Dict[int, Dict[str, float]] = {}
         keys = ("balanced", "hot_cold", "missing")
         for pos in range(3):
-            chi2 = chi2_values[pos]
-            uniform = uniform_flags[pos]
-            if uniform:
-                # 该位均匀（χ²<16.92）：维持基准权重
+            if uniform_flags[pos]:
+                # 该位均匀：维持基准权重
                 mult = {"balanced": 1.0, "hot_cold": 1.0, "missing": 1.0}
-            elif chi2 > CHI2_01:
-                # 1% 显著偏离：提升遗漏号追踪（追冷）
+            elif missing_has_signal[pos]:
+                # 存在显著冷号：提升遗漏号追踪（追冷），略降 balanced
                 mult = {"balanced": 0.8, "hot_cold": 1.0, "missing": 1.5}
             else:
-                # 5%~1% 偏离：提升智能冷热号
-                mult = {"balanced": 1.0, "hot_cold": 1.2, "missing": 1.0}
+                # 非均匀但无显著冷号：提升智能冷热号（追热/结构）
+                mult = {"balanced": 1.0, "hot_cold": 1.2, "missing": 0.8}
             adjusted = {
                 k: max(base_weights.get(k, 0) * mult[k], 0.0) for k in keys
             }
@@ -433,7 +429,14 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
             chi2_values.append(round(chi2, 2))
             uniform_flags.append(is_uniform)
 
-        # 2. 逐位自适应权重（以用户 base_weights 为基准）
+        # 2. 共享遗漏统计与 missing 信号（自适应权重需要）
+        raw_missing = raw_missing_periods(records, lookback)
+        geo_z = geometric_missing_zscore(raw_missing)
+        missing_probs, missing_has_signal = self._get_missing_probs(
+            geo_z, z_threshold, uniform_flags, temperature
+        )
+
+        # 3. 逐位自适应权重（以用户 base_weights 为基准）
         base_weights = {
             "balanced": balanced_weight,
             "hot_cold": hot_cold_weight,
@@ -441,7 +444,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         }
         if adaptive:
             pos_weights = self._adaptive_weights_per_pos(
-                chi2_values, uniform_flags, base_weights
+                uniform_flags, base_weights, missing_has_signal
             )
         else:
             total_bw = sum(base_weights.values())
@@ -451,17 +454,12 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
                 norm_bw = {k: 1.0 / 3 for k in base_weights}
             pos_weights = {pos: dict(norm_bw) for pos in range(3)}
 
-        # 3. 各策略概率分布（共享遗漏统计 geo_z，避免 hot_cold/missing 重复计算）
-        raw_missing = raw_missing_periods(records, lookback)
-        geo_z = geometric_missing_zscore(raw_missing)
+        # 4. 其余策略概率分布
         balanced_probs = self._get_balanced_probs(
             records, lookback, uniform_flags, z_threshold, temperature
         )
         hot_cold_probs = self._get_hot_cold_probs(
             records, lookback, hot_weight, cold_weight, geo_z, temperature
-        )
-        missing_probs, missing_has_signal = self._get_missing_probs(
-            geo_z, z_threshold, uniform_flags, temperature
         )
 
         # 4. 逐位概率融合（含遗漏弃权重的再分配）
