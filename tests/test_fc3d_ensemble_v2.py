@@ -29,3 +29,41 @@ def test_zscore_list_uses_population_std():
     result = FC3DStrategyFusionStrategy._zscore_list(vals)
     for r, e in zip(result, expected):
         assert abs(r - e) < 1e-9
+
+
+def test_balanced_respects_z_threshold():
+    """N1: z_threshold 应影响 balanced 子策略的奇偶/大小门控。"""
+    strategy = FC3DStrategyFusionStrategy()
+    # 构造数据：pos0 强烈偏奇数（chi2>16.92，能通过χ²守卫），
+    # pos1/pos2 均匀，整体奇偶比例处于 z≈2.45（在 1.96 与 3.0 之间）。
+    records = []
+    for i in range(200):
+        pos0 = [1, 3, 5, 7, 9][i % 5] if i < 130 else [0, 2, 4, 6, 8][i % 5]
+        pos1 = random.randint(0, 9)
+        pos2 = random.randint(0, 9)
+        records.append(make_record([pos0, pos1, pos2]))
+
+    def pos0_odd_prob(options):
+        t = strategy.generate(count=1, options=options)[0]
+        p = t.details["pos_probabilities"][0]
+        return sum(p[d] for d in [1, 3, 5, 7, 9])
+
+    base = {
+        "history": records,
+        "lookback": 200,
+        "balanced_weight": 100,
+        "hot_cold_weight": 0,
+        "missing_weight": 0,
+        "adaptive": False,
+        "temperature": 10,
+        "dedup": False,
+        "seed": 1,
+    }
+    # z=1.96 时 parity 信号应注入；z=3.0 时被门控。
+    low_threshold = pos0_odd_prob({**base, "z_threshold": 196})
+    high_threshold = pos0_odd_prob({**base, "z_threshold": 300})
+    assert low_threshold > high_threshold, (
+        f"z_threshold=1.96 should let parity signal through "
+        f"(odd_prob={low_threshold}), z_threshold=3.0 should block it "
+        f"(odd_prob={high_threshold})"
+    )

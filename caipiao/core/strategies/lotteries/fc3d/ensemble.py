@@ -235,7 +235,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
     # 三个子策略的概率分布
     # ------------------------------------------------------------------ #
     def _get_balanced_probs(
-        self, records: List, lookback: int, uniform_flags: List[bool]
+        self, records: List, lookback: int, uniform_flags: List[bool], z_threshold: float
     ) -> List[List[float]]:
         """历史均衡子策略的概率分布.
 
@@ -243,7 +243,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
           从源头消除「均匀数据上输出极端分布」的噪声放大问题。
         - 频率/012路趋中：z-score 的 -|z|，偏好接近该位历史均值的数字（反极端）。
         - 奇偶/大小延续：基于显著性的方向性信号（_ratio_signal），仅当比例
-          偏离超过统计噪声带（z>2）时才温和注入，避免 z-score 对二元信号的
+          偏离超过统计噪声带（z>z_threshold）时才温和注入，避免 z-score 对二元信号的
           无条件放大（旧实现把 0.01 的随机噪声放大成 ±0.95 强信号）。
         """
         weights = positional_weights(records, lookback, smoothing=1.0)
@@ -273,11 +273,11 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
             road_score = [-abs(z) for z in road_z]
             # 维度3：奇偶延续（显著性 gating，噪声不注入）
             parity_score = self._ratio_signal(
-                odd_ratio - 0.5, sigma_ratio, odd_mask
+                odd_ratio - 0.5, sigma_ratio, odd_mask, z_threshold=z_threshold
             )
             # 维度4：大小延续
             size_score = self._ratio_signal(
-                high_ratio - 0.5, sigma_ratio, high_mask
+                high_ratio - 0.5, sigma_ratio, high_mask, z_threshold=z_threshold
             )
 
             combined = [
@@ -451,7 +451,9 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         # 3. 各策略概率分布（共享遗漏统计 geo_z，避免 hot_cold/missing 重复计算）
         raw_missing = raw_missing_periods(records, lookback)
         geo_z = geometric_missing_zscore(raw_missing)
-        balanced_probs = self._get_balanced_probs(records, lookback, uniform_flags)
+        balanced_probs = self._get_balanced_probs(
+            records, lookback, uniform_flags, z_threshold
+        )
         hot_cold_probs = self._get_hot_cold_probs(
             records, lookback, hot_weight, cold_weight, geo_z
         )
