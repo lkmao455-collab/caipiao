@@ -591,6 +591,8 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
                 "chi_square": chi2_values,
                 "is_uniform": uniform_flags,
                 # 三位平均权重（概览）；逐位完整数据见 pos_weights
+                "avg_weights": avg_weights,
+                # 兼容旧字段名
                 "weights": avg_weights,
                 # 逐位实际权重（含遗漏弃权重后的再分配）
                 "pos_weights": final_pos_weights,

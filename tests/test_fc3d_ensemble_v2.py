@@ -196,3 +196,24 @@ def test_shape_correction_influences_output():
     assert t.details["shape_weights"] is not None
     # 历史豹子号过多，修正权重应小于 1（抑制豹子）
     assert t.details["shape_weights"]["leopard"] < 1.0
+
+
+def test_details_has_avg_and_pos_weights():
+    """N7: details 应同时提供 avg_weights 与 pos_weights，并保留 weights 别名。"""
+    strategy = FC3DStrategyFusionStrategy()
+    t = strategy.generate(count=1, options={
+        "history": [make_record([1, 2, 3]) for _ in range(50)],
+        "lookback": 50,
+        "balanced_weight": 33,
+        "hot_cold_weight": 33,
+        "missing_weight": 34,
+        "adaptive": True,
+        "temperature": 10,
+        "dedup": False,
+        "seed": 1,
+    })[0]
+    assert "avg_weights" in t.details
+    assert "pos_weights" in t.details
+    assert "weights" in t.details  # 兼容别名
+    assert len(t.details["pos_weights"]) == 3
+    assert t.details["avg_weights"] == t.details["weights"]
