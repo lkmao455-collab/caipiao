@@ -152,3 +152,22 @@ def test_adaptive_boosts_missing_when_cold_signal():
     # 至少有一位 missing 权重被提升
     boosted = any(w["missing"] > 0.34 for w in t.details["pos_weights"])
     assert boosted, "adaptive should boost missing weight when cold signal exists"
+
+
+def test_dedup_preserves_permutation_probability():
+    """N3: 去重采样应保留组内各排列的相对概率。"""
+    from caipiao.core.strategies.lotteries.fc3d._base import (
+        _weighted_sample_without_replacement,
+    )
+
+    pos_probs = [[0.05] * 10, [0.05] * 10, [0.05] * 10]
+    pos_probs[0][1] = 0.55
+    pos_probs[1][2] = 0.55
+    pos_probs[2][3] = 0.55
+    rng = random.Random(1)
+    results = _weighted_sample_without_replacement(pos_probs, count=220, rng=rng)
+    count_123 = sum(1 for r in results if r == [1, 2, 3])
+    count_321 = sum(1 for r in results if r == [3, 2, 1])
+    assert count_123 > count_321 * 2, (
+        f"123 should be much more likely than 321: 123={count_123}, 321={count_321}"
+    )

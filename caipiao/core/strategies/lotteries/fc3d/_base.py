@@ -93,11 +93,13 @@ def _weighted_sample_without_replacement(
     """
     group_probs: Dict[Tuple[int, ...], float] = {}
     group_perms: Dict[Tuple[int, ...], List[Tuple[int, ...]]] = {}
+    perm_probs: Dict[Tuple[int, ...], Dict[Tuple[int, ...], float]] = {}
     for combo in itertools.product(range(10), repeat=3):
         key = tuple(sorted(combo))
         p = pos_probs[0][combo[0]] * pos_probs[1][combo[1]] * pos_probs[2][combo[2]]
         group_probs[key] = group_probs.get(key, 0.0) + p
         group_perms.setdefault(key, []).append(combo)
+        perm_probs.setdefault(key, {})[combo] = p
 
     keys: List[Tuple[int, ...]] = list(group_probs.keys())
     weights: List[float] = [group_probs[k] for k in keys]
@@ -120,6 +122,11 @@ def _weighted_sample_without_replacement(
         key = keys.pop(idx)
         weights.pop(idx)
         perms = group_perms[key]
-        selected.append(list(rng.choice(perms)))
+        probs = [max(perm_probs[key][perm], 0.0) for perm in perms]
+        perm_total = sum(probs)
+        if perm_total <= 0:
+            selected.append(list(rng.choice(perms)))
+        else:
+            selected.append(list(rng.choices(perms, weights=probs, k=1)[0]))
 
     return selected
