@@ -55,7 +55,7 @@ from .utils import (
 FC3D_GROUP_COMBINATIONS = 220
 
 
-class FC3DEnsembleStrategy(GenerationStrategy):
+class FC3DStrategyFusionStrategy(GenerationStrategy):
     """3D集成策略：综合三个策略的概率分布生成号码.
 
     改进点：
@@ -584,5 +584,5 @@ class FC3DEnsembleStrategy(GenerationStrategy):
         return tickets
 
 
-# 语义清晰的别名，消除与 advanced 占位类 FC3DEnsembleStrategy 的同名混淆
-FC3DStrategyFusionStrategy = FC3DEnsembleStrategy
+# 兼容旧导入名：保留 FC3DEnsembleStrategy 作为别名
+FC3DEnsembleStrategy = FC3DStrategyFusionStrategy
