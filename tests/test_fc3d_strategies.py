@@ -236,11 +236,11 @@ def test_balanced_3d_respects_order():
             profile="3d",
             groups={"pos": [9, 0, 1]},
         )
-        for i in range(20)
+        for i in range(30)
     ]
     ticket = strategy.generate(
         count=1,
-        options={"history": history, "lookback": 20, "seed": 1, "use_enumeration": True},
+        options={"history": history, "lookback": 30, "seed": 1, "use_enumeration": True},
     )[0]
     assert ticket.groups["pos"] == [9, 0, 1]
 
@@ -382,8 +382,9 @@ def _make_biased_history(n=50):
 def test_hot_cold_3d_temperature_changes_concentration():
     strategy = FC3DHotColdStrategy()
     history = _make_biased_history(50)
-    low_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 5})
-    high_t = strategy.generate(count=50, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 50})
+    # 使用更大的样本量降低随机波动，避免小样本下高低温浓度偶尔倒挂
+    low_t = strategy.generate(count=200, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 5})
+    high_t = strategy.generate(count=200, options={"mode": "hot", "history": history, "lookback": 30, "temperature": 50})
     # 低温度下应更集中在高频数字
     assert _max_digit_concentration(low_t) > _max_digit_concentration(high_t)
 
