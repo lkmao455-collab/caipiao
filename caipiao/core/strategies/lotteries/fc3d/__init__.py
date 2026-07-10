@@ -1,6 +1,7 @@
 """福彩3D生成策略."""
 
 from .balanced import FC3DBalancedStrategy
+from .dispersed_random import FC3DDispersedRandomStrategy
 from .ensemble import FC3DEnsembleStrategy, FC3DStrategyFusionStrategy
 from .exclude_include import FC3DExcludeIncludeStrategy
 from .hot_cold import FC3DHotColdStrategy
@@ -20,6 +21,7 @@ __all__ = [
     "FC3DSmartHotColdStrategy",
     "FC3DMissingNumberStrategy",
     "FC3DBalancedStrategy",
+    "FC3DDispersedRandomStrategy",
     "FC3DEnsembleStrategy",
     "FC3DStrategyFusionStrategy",
     "FC3DXGBoostStrategy",

@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Dict, List, Type
 
 from .lotteries.fc3d import balanced as fc3d_balanced
+from .lotteries.fc3d import dispersed_random as fc3d_dispersed_random
+from .lotteries.fc3d import ensemble as fc3d_ensemble_v2
 from .lotteries.fc3d import exclude_include as fc3d_exclude_include
 from .lotteries.fc3d import hot_cold as fc3d_hot_cold
 from .lotteries.fc3d import missing_number as fc3d_missing_number
@@ -187,6 +189,8 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
         fc3d_smart_hot_cold.FC3DSmartHotColdStrategy,
         fc3d_missing_number.FC3DMissingNumberStrategy,
         fc3d_balanced.FC3DBalancedStrategy,
+        fc3d_ensemble_v2.FC3DEnsembleStrategy,
+        fc3d_dispersed_random.FC3DDispersedRandomStrategy,
         fc3d_xgboost.FC3DXGBoostStrategy,
         fc3d_lightgbm.FC3DLightGBMStrategy,
         fc3d_catboost.FC3DCatBoostStrategy,

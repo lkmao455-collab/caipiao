@@ -14,6 +14,7 @@ EXPECTED_IDS = {
     "3d": {
         "random_3d", "odd_even_3d", "hot_cold_3d", "exclude_include_3d",
         "smart_hot_cold_3d", "missing_number_3d", "balanced_3d",
+        "ensemble_v2_3d", "dispersed_random_3d",
         "xgboost_3d", "lightgbm_3d", "catboost_3d",
         "random_forest_3d", "bayesian_3d", "markov_3d", "trend_3d",
         "periodic_3d", "ensemble_3d", "correlation_3d", "transformer_3d",
@@ -77,6 +78,7 @@ def test_needs_history_prefixes():
     assert needs_history("random") is False
     assert needs_history("xgboost_3d") is True
     assert needs_history("random_forest") is True
+    assert needs_history("consensus_constraint") is True
 
 
 def test_is_ml_strategy_prefixes():
