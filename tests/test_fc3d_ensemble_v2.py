@@ -217,3 +217,53 @@ def test_details_has_avg_and_pos_weights():
     assert "weights" in t.details  # 兼容别名
     assert len(t.details["pos_weights"]) == 3
     assert t.details["avg_weights"] == t.details["weights"]
+
+
+def test_count_over_220_raises():
+    """N9: 去重模式下请求超过 220 组应抛出 ValueError。"""
+    strategy = FC3DStrategyFusionStrategy()
+    with pytest.raises(ValueError):
+        strategy.generate(count=300, options={
+            "history": [make_record([1, 2, 3]) for _ in range(50)],
+            "lookback": 50,
+            "dedup": True,
+        })
+
+
+def test_disabled_strategies_respected():
+    """N9: 用户禁用 balanced/hot_cold 时权重应为 0。"""
+    strategy = FC3DStrategyFusionStrategy()
+    t = strategy.generate(count=1, options={
+        "history": [make_record([1, 2, 3]) for _ in range(50)],
+        "lookback": 50,
+        "balanced_weight": 0,
+        "hot_cold_weight": 0,
+        "missing_weight": 100,
+        "adaptive": True,
+        "dedup": False,
+        "seed": 1,
+    })[0]
+    for w in t.details["pos_weights"]:
+        assert w["balanced"] == 0.0
+        assert w["hot_cold"] == 0.0
+
+
+def test_uniform_data_outputs_near_uniform():
+    """N9: 均匀数据上输出不应过度集中。"""
+    strategy = FC3DStrategyFusionStrategy()
+    random.seed(123)
+    records = [make_record([random.randint(0, 9) for _ in range(3)]) for _ in range(200)]
+    t = strategy.generate(count=1, options={
+        "history": records,
+        "lookback": 200,
+        "balanced_weight": 33,
+        "hot_cold_weight": 33,
+        "missing_weight": 34,
+        "adaptive": False,
+        "temperature": 10,
+        "dedup": False,
+        "seed": 1,
+    })[0]
+    for pos in range(3):
+        p = t.details["pos_probabilities"][pos]
+        assert max(p) < 0.25, f"pos{pos} too concentrated on uniform data"
