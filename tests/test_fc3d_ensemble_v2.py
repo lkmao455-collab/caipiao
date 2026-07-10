@@ -67,3 +67,34 @@ def test_balanced_respects_z_threshold():
         f"(odd_prob={low_threshold}), z_threshold=3.0 should block it "
         f"(odd_prob={high_threshold})"
     )
+
+
+def test_per_position_parity_signal():
+    """N5: 奇偶/大小信号应基于逐位比例，而非三位合并的整体比例。"""
+    strategy = FC3DStrategyFusionStrategy()
+    records = []
+    for i in range(200):
+        pos0 = random.choice([1, 3, 5, 7, 9]) if random.random() < 0.7 else random.randint(0, 9)
+        pos1 = random.choice([0, 2, 4, 6, 8]) if random.random() < 0.7 else random.randint(0, 9)
+        pos2 = random.randint(0, 9)
+        records.append(make_record([pos0, pos1, pos2]))
+
+    t = strategy.generate(count=1, options={
+        "history": records,
+        "lookback": 200,
+        "balanced_weight": 100,
+        "hot_cold_weight": 0,
+        "missing_weight": 0,
+        "adaptive": False,
+        "temperature": 10,
+        "dedup": False,
+        "seed": 1,
+    })[0]
+
+    for pos, expected_odd_high in [(0, True), (1, False)]:
+        p = t.details["pos_probabilities"][pos]
+        odd = sum(p[d] for d in [1, 3, 5, 7, 9])
+        if expected_odd_high:
+            assert odd > 0.5, f"pos{pos} should favor odd"
+        else:
+            assert odd < 0.5, f"pos{pos} should favor even"

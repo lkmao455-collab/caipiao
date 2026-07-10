@@ -44,8 +44,6 @@ from .stability import (
 )
 from .utils import (
     DIGIT_POOL,
-    overall_high_low_ratio,
-    overall_odd_even_ratio,
     positional_frequency,
     positional_weights,
     road_012_statistics,
@@ -242,19 +240,14 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         - χ² 守卫：该位被判均匀时直接返回均匀分布（与原历史均衡策略一致），
           从源头消除「均匀数据上输出极端分布」的噪声放大问题。
         - 频率/012路趋中：z-score 的 -|z|，偏好接近该位历史均值的数字（反极端）。
-        - 奇偶/大小延续：基于显著性的方向性信号（_ratio_signal），仅当比例
-          偏离超过统计噪声带（z>z_threshold）时才温和注入，避免 z-score 对二元信号的
-          无条件放大（旧实现把 0.01 的随机噪声放大成 ±0.95 强信号）。
+        - 奇偶/大小延续：基于逐位显著性的方向性信号（_ratio_signal），仅当该位
+          比例偏离超过统计噪声带（z>z_threshold）时才温和注入，避免使用三位合并
+          的整体比例导致信号抵消或错误传播。
         """
         weights = positional_weights(records, lookback, smoothing=1.0)
         road = road_012_statistics(records, lookback)
-        odd_ratio, _ = overall_odd_even_ratio(records, lookback)
-        high_ratio, _ = overall_high_low_ratio(records, lookback)
+        pos_freq_counts = positional_frequency(records, lookback)
 
-        actual_n = min(lookback, len(records))
-        # overall 奇偶/大小统计合并三位，共 3*actual_n 个数字；
-        # p=0.5 的比例标准差 = 0.5 / sqrt(3n)
-        sigma_ratio = 0.5 / math.sqrt(max(3 * actual_n, 1))
         odd_mask = [d % 2 == 1 for d in DIGIT_POOL]   # 奇数
         high_mask = [d >= 5 for d in DIGIT_POOL]      # 大数
 
@@ -264,6 +257,13 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
             if uniform_flags[pos]:
                 pos_probs.append([1.0 / 10.0] * 10)
                 continue
+
+            # 逐位奇偶/大小比例与标准差
+            counts = pos_freq_counts[pos]
+            total = sum(counts.values()) or 1
+            odd_ratio = sum(counts.get(d, 0) for d in [1, 3, 5, 7, 9]) / total
+            high_ratio = sum(counts.get(d, 0) for d in [5, 6, 7, 8, 9]) / total
+            sigma_ratio = 0.5 / math.sqrt(max(total, 1))
 
             # 维度1：频率趋中（-|z|，接近均值得分高）
             freq_z = self._zscore_list([weights[pos][d] for d in DIGIT_POOL])
