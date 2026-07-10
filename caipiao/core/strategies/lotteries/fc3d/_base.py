@@ -10,6 +10,7 @@ from ....profile import get_profile
 from ....ticket import Ticket
 from .....data.models import DrawRecord
 from .stability import deterministic_seed
+from .utils import fc3d_bet_type
 
 
 FC3D_PROFILE = get_profile("3d")
@@ -75,6 +76,7 @@ def _weighted_sample_without_replacement(
     pos_probs: List[List[float]],
     count: int,
     rng: random.Random,
+    shape_weights: Optional[Dict[str, float]] = None,
 ) -> List[List[int]]:
     """对3D组合做按概率加权无放回采样（组选去重）。
 
@@ -84,12 +86,15 @@ def _weighted_sample_without_replacement(
     3. 按 sorted tuple 聚合为组选概率（去重单位）
     4. 逐次加权抽取，每次抽中后从候选池移除
 
+    若提供 shape_weights，则额外乘以该组合形态（豹子/组三/组六）的修正权重，
+    使输出形态分布向理论比例回归。
+
     相比拒绝采样 (_sample_with_dedup):
     - 拒绝采样在概率集中时效率骤降: 高概率组合被选完后被迫选低概率组合，
       扭曲输出分布（低温 + count 较大时尤为严重）
     - 加权无放回采样始终保持边际概率的相对关系，输出分布忠实于设计概率
 
-    适用于 smart_hot_cold / hot_cold / missing_number 等概率加权策略。
+    适用于 smart_hot_cold / hot_cold / missing_number / ensemble 等概率加权策略。
     """
     group_probs: Dict[Tuple[int, ...], float] = {}
     group_perms: Dict[Tuple[int, ...], List[Tuple[int, ...]]] = {}
@@ -97,6 +102,11 @@ def _weighted_sample_without_replacement(
     for combo in itertools.product(range(10), repeat=3):
         key = tuple(sorted(combo))
         p = pos_probs[0][combo[0]] * pos_probs[1][combo[1]] * pos_probs[2][combo[2]]
+        if shape_weights:
+            shape = fc3d_bet_type(list(combo))
+            shape_key = {"豹子号": "leopard", "组选3": "group3", "组选6": "group6"}.get(shape)
+            if shape_key:
+                p *= shape_weights.get(shape_key, 1.0)
         group_probs[key] = group_probs.get(key, 0.0) + p
         group_perms.setdefault(key, []).append(combo)
         perm_probs.setdefault(key, {})[combo] = p

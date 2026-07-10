@@ -171,3 +171,28 @@ def test_dedup_preserves_permutation_probability():
     assert count_123 > count_321 * 2, (
         f"123 should be much more likely than 321: 123={count_123}, 321={count_321}"
     )
+
+
+def test_shape_correction_influences_output():
+    """N4: 形态修正应在去重模式下影响输出形态分布。"""
+    strategy = FC3DStrategyFusionStrategy()
+    # 构造历史：豹子号远多于理论 1%
+    records = [make_record([5, 5, 5]) for _ in range(200)]
+
+    t = strategy.generate(count=1, options={
+        "history": records,
+        "lookback": 200,
+        "balanced_weight": 33,
+        "hot_cold_weight": 33,
+        "missing_weight": 34,
+        "adaptive": False,
+        "temperature": 10,
+        "dedup": True,
+        "seed": 1,
+    })[0]
+
+    # basis 应包含形态修正权重
+    assert "形态修正权重" in t.basis
+    assert t.details["shape_weights"] is not None
+    # 历史豹子号过多，修正权重应小于 1（抑制豹子）
+    assert t.details["shape_weights"]["leopard"] < 1.0

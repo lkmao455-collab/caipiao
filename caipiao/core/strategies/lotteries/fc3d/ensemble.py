@@ -47,6 +47,7 @@ from .utils import (
     positional_frequency,
     positional_weights,
     road_012_statistics,
+    shape_ratio,
 )
 
 # 去重模式下 3D 组选组合上限：组六 120 + 组三 90 + 豹子 10
@@ -539,9 +540,30 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         if user_seed is not None:
             basis += f" 随机种子：{user_seed}。"
 
-        # 6. 采样生成号码
+        # 6. 形态修正（仅在去重模式下通过 group 权重生效）
+        theoretical_shape = {"leopard": 0.01, "group3": 0.27, "group6": 0.72}
+        hist_shape = shape_ratio(records, lookback)
+        shape_weights: Optional[Dict[str, float]] = None
         if dedup:
-            results = _weighted_sample_without_replacement(pos_probs, count, rng)
+            shape_weights = {}
+            for key in theoretical_shape:
+                hist = hist_shape.get(key, theoretical_shape[key])
+                if hist <= 0:
+                    hist = theoretical_shape[key]
+                shape_weights[key] = min(
+                    max(theoretical_shape[key] / hist, 0.2), 5.0
+                )
+            basis += (
+                f"形态修正权重：豹子{shape_weights['leopard']:.2f}/"
+                f"组三{shape_weights['group3']:.2f}/"
+                f"组六{shape_weights['group6']:.2f}。"
+            )
+
+        # 7. 采样生成号码
+        if dedup:
+            results = _weighted_sample_without_replacement(
+                pos_probs, count, rng, shape_weights=shape_weights
+            )
         else:
             results = [
                 [sample_weighted(rng, list(range(10)), pos_probs[pos]) for pos in range(3)]
@@ -575,6 +597,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
                 "missing_has_signal": missing_has_signal,
                 "adaptive": adaptive,
                 "temperature": temperature,
+                "shape_weights": shape_weights,
                 "strategy_components": {
                     "balanced": "历史均衡",
                     "hot_cold": "智能冷热号",
