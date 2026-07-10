@@ -98,3 +98,34 @@ def test_per_position_parity_signal():
             assert odd > 0.5, f"pos{pos} should favor odd"
         else:
             assert odd < 0.5, f"pos{pos} should favor even"
+
+
+def test_temperature_affects_substrategies():
+    """N2: 温度应透传给子策略并改变集中度。"""
+    strategy = FC3DStrategyFusionStrategy()
+    records = []
+    for i in range(200):
+        nums = [4 if random.random() < 0.6 else random.randint(0, 9) for _ in range(3)]
+        records.append(make_record(nums))
+
+    def max_prob(options):
+        t = strategy.generate(count=1, options=options)[0]
+        return max(t.details["pos_probabilities"][0])
+
+    base = {
+        "history": records,
+        "lookback": 200,
+        "balanced_weight": 0,
+        "hot_cold_weight": 100,
+        "missing_weight": 0,
+        "adaptive": False,
+        "dedup": False,
+        "seed": 1,
+    }
+    low_t = max_prob({**base, "temperature": 1})
+    mid_t = max_prob({**base, "temperature": 10})
+    high_t = max_prob({**base, "temperature": 50})
+    assert low_t > mid_t > high_t, (
+        f"lower temperature should concentrate probability: "
+        f"T=1={low_t}, T=10={mid_t}, T=50={high_t}"
+    )

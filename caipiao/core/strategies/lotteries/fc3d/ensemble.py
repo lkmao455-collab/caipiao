@@ -140,7 +140,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
                 "default": 10,
                 "min": 1,
                 "max": 50,
-                "tooltip": "控制号码集中程度（作用于融合后分布）。10=标准平衡，1=高度集中，50=接近随机。",
+                "tooltip": "控制号码集中程度（作用于三个子策略的概率生成）。10=标准平衡，1=高度集中，50=接近随机。",
             },
             "dedup": {
                 "type": "bool",
@@ -233,7 +233,8 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
     # 三个子策略的概率分布
     # ------------------------------------------------------------------ #
     def _get_balanced_probs(
-        self, records: List, lookback: int, uniform_flags: List[bool], z_threshold: float
+        self, records: List, lookback: int, uniform_flags: List[bool],
+        z_threshold: float, temperature: float
     ) -> List[List[float]]:
         """历史均衡子策略的概率分布.
 
@@ -284,7 +285,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
                 freq_score[d] + road_score[d] + parity_score[d] + size_score[d]
                 for d in DIGIT_POOL
             ]
-            probs = softmax_scores(combined, temperature=1.0)
+            probs = softmax_scores(combined, temperature=temperature)
             pos_probs.append(probs)
 
         return pos_probs
@@ -296,6 +297,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         hot_weight: float,
         cold_weight: float,
         geo_z: Dict[int, Dict[int, float]],
+        temperature: float,
     ) -> List[List[float]]:
         """获取智能冷热号策略的概率分布（geo_z 由调用方共享，避免重复计算）."""
         freq = stable_frequency(records, lookback)
@@ -303,7 +305,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         pos_probs: List[List[float]] = []
         for pos in range(3):
             probs = stable_scores(
-                freq[pos], geo_z[pos], hot_weight, cold_weight, temperature=1.0
+                freq[pos], geo_z[pos], hot_weight, cold_weight, temperature
             )
             pos_probs.append(probs)
 
@@ -314,6 +316,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         geo_z: Dict[int, Dict[int, float]],
         z_threshold: float,
         uniform_flags: List[bool],
+        temperature: float,
     ) -> Tuple[List[List[float]], List[bool]]:
         """获取遗漏号追踪策略的概率分布（geo_z 由调用方共享）.
 
@@ -342,7 +345,7 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
             else:
                 has_signal.append(True)
                 logits = [geo_z[pos][d] for d in DIGIT_POOL]
-                probs = softmax_scores(logits, temperature=1.0)
+                probs = softmax_scores(logits, temperature=temperature)
                 pos_probs.append(probs)
 
         return pos_probs, has_signal
@@ -452,16 +455,16 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
         raw_missing = raw_missing_periods(records, lookback)
         geo_z = geometric_missing_zscore(raw_missing)
         balanced_probs = self._get_balanced_probs(
-            records, lookback, uniform_flags, z_threshold
+            records, lookback, uniform_flags, z_threshold, temperature
         )
         hot_cold_probs = self._get_hot_cold_probs(
-            records, lookback, hot_weight, cold_weight, geo_z
+            records, lookback, hot_weight, cold_weight, geo_z, temperature
         )
         missing_probs, missing_has_signal = self._get_missing_probs(
-            geo_z, z_threshold, uniform_flags
+            geo_z, z_threshold, uniform_flags, temperature
         )
 
-        # 4. 逐位概率融合（含遗漏弃权重的再分配）+ 温度调节
+        # 4. 逐位概率融合（含遗漏弃权重的再分配）
         pos_probs: List[List[float]] = []
         final_pos_weights: List[Dict[str, float]] = []
         for pos in range(3):
@@ -477,13 +480,12 @@ class FC3DStrategyFusionStrategy(GenerationStrategy):
                 for d in range(10)
             ]
 
-            # 温度调节（作用于融合后分布；temperature=1.0 时为恒等）
-            logits = [math.log(max(p, 1e-12)) for p in fused]
-            fused = softmax_scores(logits, temperature)
-
             # 归一化
             total = sum(fused)
-            fused = [p / total for p in fused]
+            if total > 0:
+                fused = [p / total for p in fused]
+            else:
+                fused = [1.0 / 10.0] * 10
             pos_probs.append(fused)
             final_pos_weights.append({k: round(v, 3) for k, v in w.items()})
 
