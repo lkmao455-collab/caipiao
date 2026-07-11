@@ -2,15 +2,30 @@
 
 from __future__ import annotations
 
+import logging
+import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QThread, Signal
 
-from ..core.engine import GenerationEngine, filter_ssq_by_history
+from ..core.engine import (
+    GenerationEngine,
+    estimate_fc3d_pass_count,
+    filter_fc3d_by_history,
+    filter_ssq_by_history,
+)
 from ..core.profile import LotteryProfile, SSQ
 from ..data.fetcher import LotteryDataFetcher
 from ..utils import app_data_dir
+
+logger = logging.getLogger(__name__)
+
+# 3D 经验策略过滤自适应候选倍数相关常量
+# 安全系数：补偿加权采样下实际通过率低于均匀理论值的情况（实测最低约理论的 0.48 倍）
+_FC3D_FILTER_SAFETY = 2.5
+# 候选生成数量上限：3D 直选全空间为 1000，再大也无意义
+_FC3D_FILTER_MAX_CANDIDATES = 1000
 
 
 class FetchAllDataThread(QThread):
@@ -112,7 +127,33 @@ class GenerateTicketsThread(QThread):
             profile_key = self.options.get("_profile_key")
             has_records = bool(self.options.get("_draw_records"))
             need_filter = has_records and profile_key == "ssq"
-            gen_count = self.count * 3 if need_filter else self.count
+            need_3d_filter = (
+                has_records
+                and profile_key == "3d"
+                and bool(self.options.get("_fc3d_filter_enabled", False))
+            )
+
+            # 计算候选生成数量：
+            # - 3D 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
+            # - 双色球过滤：固定 3 倍
+            cp = mo = pass_count = None
+            if need_3d_filter:
+                cp = int(self.options.get("_fc3d_filter_compare_periods", 5))
+                mo = int(self.options.get("_fc3d_filter_max_overlap", 1))
+                pass_count = estimate_fc3d_pass_count(
+                    self.options["_draw_records"], cp, mo
+                )
+                # 通过率下限 0.05，避免极端严格参数导致除以过小值
+                pass_ratio = max(pass_count / 1000.0, 0.05)
+                gen_count = math.ceil(self.count / pass_ratio * _FC3D_FILTER_SAFETY)
+                gen_count = max(
+                    self.count * 3,
+                    min(_FC3D_FILTER_MAX_CANDIDATES, gen_count),
+                )
+            elif need_filter:
+                gen_count = self.count * 3
+            else:
+                gen_count = self.count
 
             # 传递进度回调给策略
             self.options["_progress_callback"] = lambda msg: self.progress.emit(msg)
@@ -133,6 +174,24 @@ class GenerateTicketsThread(QThread):
                         blue_compare_periods=self.options.get("_ssq_blue_periods", 0),
                     )
                 tickets = tickets[:self.count]
+
+            # 最后一层过滤（福彩3D 经验策略）
+            if need_3d_filter and profile_key == "3d":
+                if tickets:
+                    filtered = filter_fc3d_by_history(
+                        tickets,
+                        self.options["_draw_records"],
+                        compare_periods=cp,
+                        max_overlap=mo,
+                    )
+                    if len(filtered) < self.count:
+                        logger.warning(
+                            "3D经验策略过滤：生成 %d 候选，过滤后仅剩 %d，"
+                            "不足 %d 注（理论通过 %d/1000，建议放宽过滤参数）",
+                            len(tickets), len(filtered), self.count,
+                            pass_count if pass_count is not None else 0,
+                        )
+                    tickets = filtered[:self.count]
 
             if self.isInterruptionRequested():
                 return

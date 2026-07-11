@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 from ...persistence.backtest_db import BacktestDatabase
 from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.parameter_group_store import ParameterGroupStore
+from ...persistence.settings import AppSettings
 from ...core.profile import LotteryProfile
 from ...core.strategies import needs_history
 from ...utils import app_data_dir
@@ -61,6 +62,7 @@ class BatchBacktestDialog(QDialog):
         self._start_date_for_scan: str = ""
         self._end_date_for_scan: str = ""
         self._thread: Optional[BatchBacktestThread] = None
+        self.settings = AppSettings()
 
         self.setWindowTitle(f"{self.profile.name}批量历史回测")
         self.resize(1100, 800)
@@ -73,17 +75,9 @@ class BatchBacktestDialog(QDialog):
         self._refresh_date_range()
 
     def _setup_ui(self) -> None:
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
 
-        info = QLabel(
-            "选择起始与结束日期，程序会对区间内每一期开奖，"
-            "使用该日期之前的历史数据生成预测并统计中奖情况。"
-            "ML 策略会自动为每个日期重新训练模型。"
-        )
-        info.setWordWrap(True)
-        info.setStyleSheet("color: #666;")
-        layout.addWidget(info)
-
+        # 顶部控制栏
         control_layout = QHBoxLayout()
         control_layout.addWidget(QLabel("起始日期:"))
         self.start_date_edit = QDateEdit()
@@ -131,8 +125,53 @@ class BatchBacktestDialog(QDialog):
         control_layout.addWidget(self.strategy_scan_btn)
 
         control_layout.addStretch()
-        layout.addLayout(control_layout)
+        main_layout.addLayout(control_layout)
 
+        # 过滤回测控制栏
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("过滤回测:"))
+        filter_layout.addWidget(QLabel("重合上限:"))
+        self.filter_threshold_spin = QSpinBox()
+        self.filter_threshold_spin.setRange(0, 10)
+        # 加载按彩种存储的过滤阈值，默认1
+        self.filter_threshold_spin.setValue(self.settings.get_batch_backtest_filter_threshold(self.profile.key))
+        self.filter_threshold_spin.setToolTip("号码重合数超过此阈值则被过滤")
+        self.filter_threshold_spin.valueChanged.connect(self._on_filter_threshold_changed)
+        filter_layout.addWidget(self.filter_threshold_spin)
+
+        filter_layout.addWidget(QLabel("比较期数:"))
+        self.filter_periods_spin = QSpinBox()
+        self.filter_periods_spin.setRange(1, 50)
+        # 加载按彩种存储的比较期数，默认7
+        self.filter_periods_spin.setValue(self.settings.get_batch_backtest_filter_periods(self.profile.key))
+        self.filter_periods_spin.setToolTip("与最近N期开奖记录比较")
+        self.filter_periods_spin.valueChanged.connect(self._on_filter_periods_changed)
+        filter_layout.addWidget(self.filter_periods_spin)
+
+        self.filter_backtest_btn = QPushButton("过滤回测")
+        self.filter_backtest_btn.setToolTip("测试过滤策略：对日期区间逐期购买所有有效号码，统计收益")
+        self.filter_backtest_btn.clicked.connect(self._run_filter_backtest)
+        self.filter_backtest_btn.setAutoDefault(False)
+        filter_layout.addWidget(self.filter_backtest_btn)
+
+        filter_layout.addStretch()
+        main_layout.addLayout(filter_layout)
+
+        # 进度条
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setVisible(False)
+        main_layout.addWidget(self.progress)
+
+        # 中间 splitter：左侧策略面板 + 右侧回测结果
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(6)
+
+        # 左侧：策略面板
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.addWidget(QLabel("策略选择"))
         self.strategy_panel = StrategyPanel(
             self.context.engine,
             profile_key=self.profile.key,
@@ -140,28 +179,27 @@ class BatchBacktestDialog(QDialog):
             locked_params=self._optimal_param_store.load(self.profile.key).locked,
             parent=self,
         )
-        layout.addWidget(self.strategy_panel)
+        left_layout.addWidget(self.strategy_panel)
+        splitter.addWidget(left_widget)
 
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 0)
-        self.progress.setVisible(False)
-        layout.addWidget(self.progress)
+        # 右侧：运行日志 + 回测结果
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
 
-        # 中间状态与结果用 splitter 分隔，可自由调整高度
-        splitter = QSplitter(Qt.Orientation.Vertical)
-
+        # 运行日志
         status_group = QGroupBox("运行日志")
         status_layout = QVBoxLayout(status_group)
         self.status_text = QTextEdit()
         self.status_text.setReadOnly(True)
-        self.status_text.setPlaceholderText("点击“开始批量回测”后，此处会显示每期的处理过程...")
+        self.status_text.setPlaceholderText("点击开始批量回测后，此处会显示每期的处理过程...")
         status_layout.addWidget(self.status_text)
-        splitter.addWidget(status_group)
+        right_layout.addWidget(status_group, 1)
 
+        # 回测汇总
         result_group = QGroupBox("回测汇总")
         result_layout = QVBoxLayout(result_group)
 
-        # 汇总头部：「保存为参数组」按钮右对齐（扫描完成后才显示）
         summary_header = QWidget()
         summary_header_layout = QHBoxLayout(summary_header)
         summary_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -173,9 +211,6 @@ class BatchBacktestDialog(QDialog):
         summary_header_layout.addWidget(self.save_group_btn)
         result_layout.addWidget(summary_header)
 
-        # 汇总结果用 QTextBrowser（浏览器控件）显示：
-        # QLabel 在长文本（多注中奖明细）时会被布局截断导致数据显示不全，
-        # QTextBrowser 可滚动且支持富文本，保证汇总信息完整可见。
         self.summary_label = QTextBrowser()
         self.summary_label.setOpenExternalLinks(True)
         self.summary_label.setMinimumHeight(110)
@@ -186,7 +221,7 @@ class BatchBacktestDialog(QDialog):
             "font-size: 11pt; }"
         )
         result_layout.addWidget(self.summary_label)
-        self._summary_plain = ""
+        self._summary_plain = ''
         self._set_summary("尚未开始批量历史回测。")
 
         result_layout.addWidget(QLabel('详细结果（中奖记录，按日期追加）:'))
@@ -194,9 +229,12 @@ class BatchBacktestDialog(QDialog):
         self.detail_text.setReadOnly(True)
         result_layout.addWidget(self.detail_text, 1)
 
-        splitter.addWidget(result_group)
-        splitter.setSizes([350, 450])
-        layout.addWidget(splitter, 1)
+        right_layout.addWidget(result_group, 2)
+
+        splitter.addWidget(right_widget)
+        splitter.setSizes([300, 800])
+
+        main_layout.addWidget(splitter, 1)
 
     def _set_summary(self, text: str) -> None:
         """将纯文本汇总渲染为 HTML 显示在 QTextBrowser 中.
@@ -363,6 +401,319 @@ class BatchBacktestDialog(QDialog):
             self.status_text.append("用户请求停止策略扫描...")
             self._strategy_scan_thread.requestInterruption()
             self.stop_btn.setEnabled(False)
+
+    def _on_filter_threshold_changed(self, value: int) -> None:
+        """过滤阈值变化时保存按彩种存储的设置。"""
+        self.settings.set_batch_backtest_filter_threshold(self.profile.key, value)
+        self.settings.sync()
+
+    def _on_filter_periods_changed(self, value: int) -> None:
+        """比较期数变化时保存按彩种存储的设置。"""
+        self.settings.set_batch_backtest_filter_periods(self.profile.key, value)
+        self.settings.sync()
+
+    def _run_filter_backtest(self) -> None:
+        """过滤回测：对日期区间逐期购买所有有效号码，统计长期收益."""
+        start_qdate = self.start_date_edit.date()
+        end_qdate = self.end_date_edit.date()
+        if start_qdate > end_qdate:
+            QMessageBox.warning(self, "日期错误", "起始日期不能晚于结束日期")
+            return
+
+        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
+        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
+
+        threshold = self.filter_threshold_spin.value()
+        compare_periods = self.filter_periods_spin.value()
+
+        all_records = self.data_repository.get_all()
+        if not all_records:
+            QMessageBox.warning(self, "数据不足", "没有历史开奖数据")
+            return
+
+        # 筛选日期区间内的记录
+        target_records = [r for r in all_records if start_date <= r.draw_date <= end_date]
+        if not target_records:
+            QMessageBox.warning(self, "无数据", "所选日期区间内没有开奖记录")
+            return
+
+        self.filter_backtest_btn.setEnabled(False)
+        self.filter_backtest_btn.setText("回测中...")
+        self.progress.setVisible(True)
+        self.status_text.clear()
+        self.status_text.append("开始过滤回测...\n")
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        profile = self.profile
+        total_tests = 0
+        total_cost = 0
+        total_prize = 0
+        wins = 0
+        details = []
+
+        for idx, target in enumerate(target_records):
+            # 获取目标日期之前的历史记录
+            history = [r for r in all_records if r.draw_date < target.draw_date]
+            if len(history) < compare_periods:
+                continue
+
+            recent = history[-compare_periods:]
+
+            if profile.key in ("3d", "pl3"):
+                target_nums = target.groups.get("pos", [])
+                if len(target_nums) != 3:
+                    continue
+
+                # 生成所有1000个数字
+                all_numbers = set()
+                for a in range(10):
+                    for b in range(10):
+                        for c in range(10):
+                            all_numbers.add((a, b, c))
+
+                # 过滤
+                filtered_numbers = set()
+                for num in all_numbers:
+                    for record in recent:
+                        hist_nums = record.groups.get("pos", [])
+                        if len(hist_nums) == 3:
+                            same_count = sum(1 for x, y in zip(num, hist_nums) if x == y)
+                            if same_count > threshold:
+                                filtered_numbers.add(num)
+                                break
+
+                # 转换为组合
+                filtered_combos = set()
+                for num in filtered_numbers:
+                    filtered_combos.add(tuple(sorted(num)))
+
+                total_combos = 220
+                valid_count = total_combos - len(filtered_combos)
+                cost = valid_count * 2
+                total_cost += cost
+
+                # 检查是否中奖
+                target_sorted = tuple(sorted(target_nums))
+                is_win = target_sorted not in filtered_combos
+                prize = 0
+                prize_name = "未中奖"
+                if is_win:
+                    if target_nums[0] == target_nums[1] == target_nums[2]:
+                        prize = 1000
+                        prize_name = "豹子号"
+                    elif target_nums[0] == target_nums[1] or target_nums[1] == target_nums[2] or target_nums[0] == target_nums[2]:
+                        prize = 346
+                        prize_name = "组选3"
+                    else:
+                        prize = 173
+                        prize_name = "组选6"
+                    total_prize += prize
+                    wins += 1
+
+                total_tests += 1
+                profit = prize - cost
+                details.append({
+                    'issue': target.issue,
+                    'date': target.draw_date.strftime('%Y-%m-%d'),
+                    'target': target_nums,
+                    'valid_count': valid_count,
+                    'cost': cost,
+                    'is_win': is_win,
+                    'prize_name': prize_name,
+                    'prize': prize,
+                    'profit': profit,
+                })
+
+                # 更新进度
+                if idx % 10 == 0:
+                    self.status_text.append(f"处理中: {target.issue} ({target.draw_date.strftime('%Y-%m-%d')})...")
+                    QApplication.processEvents()
+
+            elif profile.key == "ssq":
+                target_reds = set(target.groups.get("red", []))
+                target_blue = next(iter(target.groups.get("blue", [])), None)
+
+                # 估算有效号码比例
+                filtered_pairs = 0
+                total_pairs = 0
+                for j in range(len(recent)):
+                    for k in range(j):
+                        base_reds = set(recent[k].groups.get("red", []))
+                        curr_reds = set(recent[j].groups.get("red", []))
+                        overlap = len(base_reds & curr_reds)
+                        total_pairs += 1
+                        if overlap > threshold:
+                            filtered_pairs += 1
+
+                from math import comb
+                filter_pct = filtered_pairs / max(total_pairs, 1)
+                total_ssq = comb(33, 6) * 16
+                valid_count = int(total_ssq * (1 - filter_pct))
+                cost = min(valid_count, 10000) * 2
+                total_cost += cost
+
+                # 检查是否中奖
+                is_filtered = False
+                for record in recent:
+                    hist_reds = set(record.groups.get("red", []))
+                    overlap = len(target_reds & hist_reds)
+                    if overlap > threshold:
+                        is_filtered = True
+                        break
+
+                is_win = not is_filtered
+                prize = 3000 if is_win else 0  # 简化：假设中三等奖
+                total_prize += prize
+                if is_win:
+                    wins += 1
+
+                total_tests += 1
+                profit = prize - cost
+                details.append({
+                    'issue': target.issue,
+                    'date': target.draw_date.strftime('%Y-%m-%d'),
+                    'target': f"红{sorted(target_reds)} 蓝{target_blue}",
+                    'valid_count': valid_count,
+                    'cost': cost,
+                    'is_win': is_win,
+                    'prize_name': '三等奖' if is_win else '未中奖',
+                    'prize': prize,
+                    'profit': profit,
+                })
+
+                if idx % 10 == 0:
+                    self.status_text.append(f"处理中: {target.issue} ({target.draw_date.strftime('%Y-%m-%d')})...")
+                    QApplication.processEvents()
+
+            elif profile.key == "kl8":
+                # 快乐8：从1-80选20个号码
+                # 优化过滤：降低阈值 + 高频过滤
+                target_nums = set(target.groups.get("main", []))
+
+                # 1. 统计每个号码在近期出现的频率
+                num_freq = {}
+                for record in recent:
+                    for num in record.groups.get("main", []):
+                        num_freq[num] = num_freq.get(num, 0) + 1
+
+                # 高频号码：在超过50%的近期出现（快乐8号码分散，用50%更实用）
+                hot_threshold = len(recent) * 0.5
+                hot_numbers = set(num for num, freq in num_freq.items() if freq >= hot_threshold)
+
+                # 2. 计算重合过滤比例
+                filtered_pairs = 0
+                total_pairs = 0
+                for j in range(len(recent)):
+                    for k in range(j):
+                        base_nums = set(recent[k].groups.get("main", []))
+                        curr_nums = set(recent[j].groups.get("main", []))
+                        overlap = len(base_nums & curr_nums)
+                        total_pairs += 1
+                        if overlap > threshold:
+                            filtered_pairs += 1
+
+                overlap_filter_pct = filtered_pairs / max(total_pairs, 1)
+
+                # 3. 高频过滤比例
+                from math import comb
+                hot_count = len(hot_numbers)
+                if hot_count > 0 and hot_count <= 60:
+                    p_no_hot = comb(80 - hot_count, 20) / comb(80, 20)
+                    hot_filter_pct = 1 - p_no_hot
+                elif hot_count > 60:
+                    hot_filter_pct = 0.99
+                else:
+                    hot_filter_pct = 0.0
+
+                # 综合过滤比例
+                filter_pct = max(overlap_filter_pct, hot_filter_pct)
+                total_kl8 = comb(80, 20)
+                valid_count = int(total_kl8 * (1 - filter_pct))
+                cost = min(valid_count, 50000) * 2
+                total_cost += cost
+
+                # 检查是否中奖
+                is_filtered = False
+                for record in recent:
+                    hist_nums = set(record.groups.get("main", []))
+                    overlap = len(target_nums & hist_nums)
+                    if overlap > threshold:
+                        is_filtered = True
+                        break
+                if not is_filtered and hot_numbers:
+                    target_hot = target_nums & hot_numbers
+                    if len(target_hot) >= 2:
+                        is_filtered = True
+
+                is_win = not is_filtered
+                prize = 100 if is_win else 0
+                total_prize += prize
+                if is_win:
+                    wins += 1
+
+                total_tests += 1
+                profit = prize - cost
+                details.append({
+                    'issue': target.issue,
+                    'date': target.draw_date.strftime('%Y-%m-%d'),
+                    'target': str(sorted(target_nums)),
+                    'valid_count': valid_count,
+                    'cost': cost,
+                    'is_win': is_win,
+                    'prize_name': '五等奖' if is_win else '未中奖',
+                    'prize': prize,
+                    'profit': profit,
+                })
+
+                if idx % 10 == 0:
+                    self.status_text.append(f"处理中: {target.issue} ({target.draw_date.strftime('%Y-%m-%d')})...")
+                    QApplication.processEvents()
+            else:
+                continue
+
+        self.filter_backtest_btn.setEnabled(True)
+        self.filter_backtest_btn.setText("过滤回测")
+        self.progress.setVisible(False)
+
+        # 生成汇总报告
+        net_profit = total_prize - total_cost
+        win_rate = wins / max(total_tests, 1) * 100
+        avg_cost = total_cost // max(total_tests, 1)
+        avg_valid = sum(d['valid_count'] for d in details) // max(len(details), 1)
+
+        summary_lines = []
+        summary_lines.append("═" * 60)
+        summary_lines.append("  过滤回测汇总")
+        summary_lines.append("═" * 60)
+        summary_lines.append(f"  回测区间: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
+        summary_lines.append(f"  过滤参数: 重合上限={threshold}, 比较期数={compare_periods}")
+        summary_lines.append(f"  回测期数: {total_tests} 期")
+        summary_lines.append(f"  中奖次数: {wins} 次 (中奖率 {win_rate:.1f}%)")
+        summary_lines.append(f"  总花费: {total_cost:,} 元")
+        summary_lines.append(f"  总奖金: {total_prize:,} 元")
+        summary_lines.append(f"  净收益: {net_profit:+,} 元")
+        summary_lines.append(f"  平均每期花费: {avg_cost} 元")
+        summary_lines.append(f"  平均每期有效号码: {avg_valid} 个")
+        summary_lines.append("═" * 60)
+
+        self._set_summary("\n".join(summary_lines))
+
+        # 显示中奖明细
+        self.detail_text.clear()
+        win_details = [d for d in details if d['is_win']]
+        if win_details:
+            self.detail_text.append("中奖明细:\n")
+            for d in win_details:
+                self.detail_text.append(
+                    f"  {d['issue']} ({d['date']}): {d['target']} "
+                    f"[{d['valid_count']}个有效, 花费{d['cost']}元] "
+                    f"→ {d['prize_name']} {d['prize']}元"
+                )
+        else:
+            self.detail_text.append("本期回测无中奖记录")
+
+        self.status_text.append(f"\n过滤回测完成！共 {total_tests} 期，中奖 {wins} 次，净收益 {net_profit:+,} 元")
 
     def _run_optimal_period_scan(self) -> None:
         """启动一键找最优期数扫描."""

@@ -18,7 +18,9 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFileDialog,
+    QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -27,6 +29,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QTextBrowser,
     QTextEdit,
@@ -356,8 +360,18 @@ class MainWindow(QMainWindow):
         # 右侧结果面板
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
 
-        right_layout.addWidget(QLabel("生成结果:"))
+        # 使用splitter分割生成结果和可编辑列表
+        result_splitter = QSplitter(Qt.Orientation.Vertical)
+        result_splitter.setHandleWidth(6)
+
+        # 上方：生成结果
+        result_widget = QWidget()
+        result_inner_layout = QVBoxLayout(result_widget)
+        result_inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        result_inner_layout.addWidget(QLabel("生成结果:"))
 
         self.target_label = QLabel("")
         self.target_label.setWordWrap(True)
@@ -389,7 +403,69 @@ class MainWindow(QMainWindow):
         self.result_container_layout.setSpacing(6)
         self.result_container_layout.addStretch()
         self.result_area.setWidget(self.result_container)
-        right_layout.addWidget(self.result_area, 2)
+        result_inner_layout.addWidget(self.result_area, 1)
+
+        result_splitter.addWidget(result_widget)
+
+        # 下方：可编辑号码列表（仅福彩3D显示）
+        self.editable_numbers_group = QGroupBox("可编辑号码列表")
+        editable_layout = QVBoxLayout(self.editable_numbers_group)
+
+        # 筛选复选框
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("显示筛选:"))
+        self.filter_zu6_check = QCheckBox("组选6")
+        self.filter_zu6_check.setChecked(True)
+        self.filter_zu6_check.stateChanged.connect(self._on_filter_changed)
+        filter_layout.addWidget(self.filter_zu6_check)
+        self.filter_zu3_check = QCheckBox("组选3")
+        self.filter_zu3_check.setChecked(True)
+        self.filter_zu3_check.stateChanged.connect(self._on_filter_changed)
+        filter_layout.addWidget(self.filter_zu3_check)
+        self.filter_baozi_check = QCheckBox("豹子号")
+        self.filter_baozi_check.setChecked(True)
+        self.filter_baozi_check.stateChanged.connect(self._on_filter_changed)
+        filter_layout.addWidget(self.filter_baozi_check)
+        filter_layout.addStretch()
+        self.filter_count_label = QLabel("共 0 注")
+        self.filter_count_label.setStyleSheet("font-weight: bold;")
+        filter_layout.addWidget(self.filter_count_label)
+        editable_layout.addLayout(filter_layout)
+
+        self.editable_numbers_table = QTableWidget()
+        self.editable_numbers_table.setColumnCount(4)
+        self.editable_numbers_table.setHorizontalHeaderLabels(["序号", "号码", "类型", "操作"])
+        # 自适应列宽
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.editable_numbers_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.editable_numbers_table.verticalHeader().setVisible(False)
+        editable_layout.addWidget(self.editable_numbers_table)
+
+        # 添加号码控件
+        add_layout = QHBoxLayout()
+        self.add_number_input = QLineEdit()
+        self.add_number_input.setPlaceholderText("输入3位数字（如 123）")
+        self.add_number_input.setMaxLength(3)
+        add_layout.addWidget(self.add_number_input)
+        self.add_number_btn = QPushButton("添加号码")
+        self.add_number_btn.clicked.connect(self._add_custom_number)
+        add_layout.addWidget(self.add_number_btn)
+        self.add_random_btn = QPushButton("随机添加")
+        self.add_random_btn.setToolTip("随机生成一个符合过滤规则的号码并添加到列表")
+        self.add_random_btn.clicked.connect(self._add_random_number)
+        add_layout.addWidget(self.add_random_btn)
+        editable_layout.addLayout(add_layout)
+
+        self.editable_numbers_group.setVisible(False)
+        result_splitter.addWidget(self.editable_numbers_group)
+
+        # 设置splitter初始比例（生成结果60%，可编辑列表40%）
+        result_splitter.setSizes([600, 400])
+
+        right_layout.addWidget(result_splitter, 1)
 
         layout.addWidget(right_panel, 2)
 
@@ -1364,6 +1440,14 @@ class MainWindow(QMainWindow):
                 options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
                 options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
                 options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
+        elif profile_key == "3d":
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                options["_fc3d_filter_enabled"] = self.settings.fc3d_filter_enabled
+                options["_fc3d_filter_compare_periods"] = self.settings.fc3d_filter_compare_periods
+                options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
 
         self._generate_single_strategy(strategy_id, count, options)
 
@@ -1578,6 +1662,14 @@ class MainWindow(QMainWindow):
                 options["_ssq_max_red_overlap"] = self.settings.ssq_filter_max_red_overlap
                 options["_ssq_block_blue"] = self.settings.ssq_filter_block_blue
                 options["_ssq_blue_periods"] = self.settings.ssq_filter_compare_periods
+        elif profile_key == "3d":
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                options["_fc3d_filter_enabled"] = self.settings.fc3d_filter_enabled
+                options["_fc3d_filter_compare_periods"] = self.settings.fc3d_filter_compare_periods
+                options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
 
         # 使用新的生成接口，指定回调以继续队列
         self._generate_single_strategy(
@@ -1749,6 +1841,9 @@ class MainWindow(QMainWindow):
             )
         self.result_text.setText("\n".join(header + text_lines))
 
+        # 填充可编辑号码列表（仅福彩3D）
+        self._populate_editable_numbers(tickets)
+
     # ------------------------------------------------------------------ #
     # 福彩3D 概率计算
     # ------------------------------------------------------------------ #
@@ -1914,17 +2009,208 @@ class MainWindow(QMainWindow):
         clipboard.setText(text, QClipboard.Mode.Clipboard)
         QMessageBox.information(self, "复制成功", "号码已复制到剪贴板")
 
+    # ------------------------------------------------------------------ #
+    # 福彩3D可编辑号码列表
+    # ------------------------------------------------------------------ #
+    def _populate_editable_numbers(self, tickets: list) -> None:
+        """将生成的号码填充到可编辑列表（仅福彩3D）."""
+        if not tickets or tickets[0].profile.key != "3d":
+            self.editable_numbers_group.setVisible(False)
+            return
+
+        self.editable_numbers_group.setVisible(True)
+        self._editable_tickets = list(tickets)
+        self._refresh_editable_table()
+
+    def _refresh_editable_table(self) -> None:
+        """刷新可编辑号码表格（根据筛选条件显示）."""
+        # 根据筛选条件过滤
+        show_zu6 = self.filter_zu6_check.isChecked()
+        show_zu3 = self.filter_zu3_check.isChecked()
+        show_baozi = self.filter_baozi_check.isChecked()
+
+        filtered_tickets = []
+        for ticket in self._editable_tickets:
+            nums = ticket.groups.get("pos", [])
+            bet_type = fc3d_bet_type(nums)
+            if bet_type == "组选6" and show_zu6:
+                filtered_tickets.append(ticket)
+            elif bet_type == "组选3" and show_zu3:
+                filtered_tickets.append(ticket)
+            elif bet_type == "豹子号" and show_baozi:
+                filtered_tickets.append(ticket)
+
+        # 更新计数
+        self.filter_count_label.setText(f"共 {len(filtered_tickets)} 注")
+
+        # 填充表格
+        self.editable_numbers_table.setRowCount(len(filtered_tickets))
+        for idx, ticket in enumerate(filtered_tickets):
+            nums = ticket.groups.get("pos", [])
+            # 号码从小到大排序显示
+            sorted_nums = sorted(nums)
+            num_str = "".join(str(n) for n in sorted_nums)
+            bet_type = fc3d_bet_type(nums)
+
+            # 序号
+            item_idx = QTableWidgetItem(str(idx + 1))
+            item_idx.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_idx.setFlags(item_idx.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.editable_numbers_table.setItem(idx, 0, item_idx)
+
+            # 号码（可编辑）
+            item_num = QTableWidgetItem(num_str)
+            item_num.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.editable_numbers_table.setItem(idx, 1, item_num)
+
+            # 类型（只读）
+            item_type = QTableWidgetItem(bet_type)
+            item_type.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item_type.setFlags(item_type.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.editable_numbers_table.setItem(idx, 2, item_type)
+
+            # 删除按钮
+            del_btn = QPushButton("删除")
+            del_btn.setFixedWidth(60)
+            del_btn.clicked.connect(lambda checked, row=idx: self._delete_number(row))
+            self.editable_numbers_table.setCellWidget(idx, 3, del_btn)
+
+        # 监听号码编辑
+        self.editable_numbers_table.cellChanged.connect(self._on_number_edited)
+
+    def _on_filter_changed(self) -> None:
+        """筛选复选框变化时刷新表格."""
+        self._refresh_editable_table()
+
+    def _on_number_edited(self, row: int, col: int) -> None:
+        """号码编辑完成后的处理."""
+        if col != 1:  # 只处理号码列
+            return
+        item = self.editable_numbers_table.item(row, 1)
+        if item is None:
+            return
+        new_num = item.text().strip()
+        # 验证输入
+        if len(new_num) != 3 or not new_num.isdigit():
+            QMessageBox.warning(self, "输入错误", "请输入3位数字（0-9）")
+            self._refresh_editable_table()
+            return
+
+        # 更新ticket（号码从小到大排序存储）
+        if 0 <= row < len(self._editable_tickets):
+            nums = sorted([int(c) for c in new_num])
+            self._editable_tickets[row].groups["pos"] = nums
+            # 刷新表格显示排序后的号码
+            self._refresh_editable_table()
+            # 更新显示文本
+            self._update_result_text()
+
+    def _delete_number(self, row: int) -> None:
+        """删除指定行的号码."""
+        if 0 <= row < len(self._editable_tickets):
+            self._editable_tickets.pop(row)
+            self._refresh_editable_table()
+            self._update_result_text()
+
+    def _add_custom_number(self) -> None:
+        """添加自定义号码."""
+        num_str = self.add_number_input.text().strip()
+        if len(num_str) != 3 or not num_str.isdigit():
+            QMessageBox.warning(self, "输入错误", "请输入3位数字（0-9）")
+            return
+
+        nums = sorted([int(c) for c in num_str])  # 从小到大排序
+        # 创建新ticket
+        from ..core.ticket import Ticket
+        new_ticket = Ticket(
+            profile=self.current.profile,
+            groups={"pos": nums},
+            strategy_name="用户添加",
+            validate=False,
+        )
+        self._editable_tickets.append(new_ticket)
+        self._refresh_editable_table()
+        self._update_result_text()
+        self.add_number_input.clear()
+
+    def _add_random_number(self) -> None:
+        """随机添加一个符合过滤规则的号码."""
+        import random
+
+        # 获取过滤参数
+        threshold = self.settings.get_draw_analysis_filter_threshold(self.current_key)
+        compare_periods = self.settings.get_draw_analysis_max_gap(self.current_key)
+        if compare_periods <= 0:
+            compare_periods = 7
+
+        # 获取历史记录
+        records = self.current.data_repository.get_all()
+        if len(records) < compare_periods:
+            compare_periods = len(records)
+        recent = records[-compare_periods:] if compare_periods > 0 else []
+
+        # 生成符合过滤规则的号码
+        max_attempts = 1000
+        for _ in range(max_attempts):
+            nums = [random.randint(0, 9) for _ in range(3)]
+            # 检查是否符合过滤规则
+            is_valid = True
+            for record in recent:
+                hist_nums = record.groups.get("pos", [])
+                if len(hist_nums) == 3:
+                    same_count = sum(1 for a, b in zip(nums, hist_nums) if a == b)
+                    if same_count > threshold:
+                        is_valid = False
+                        break
+            if is_valid:
+                break
+
+        nums = sorted(nums)  # 从小到大排序
+        from ..core.ticket import Ticket
+        new_ticket = Ticket(
+            profile=self.current.profile,
+            groups={"pos": nums},
+            strategy_name="随机添加",
+            validate=False,
+        )
+        self._editable_tickets.append(new_ticket)
+        self._refresh_editable_table()
+        self._update_result_text()
+
+    def _update_result_text(self) -> None:
+        """更新结果文本显示."""
+        if not hasattr(self, "_editable_tickets"):
+            return
+        text_lines = []
+        for idx, ticket in enumerate(self._editable_tickets, start=1):
+            line = f"{idx:02d}. {ticket.format_compact()}"
+            line += f"  [{fc3d_bet_type(ticket.groups.get('pos', []))}]"
+            if ticket.basis:
+                line += f"  [{ticket.basis}]"
+            text_lines.append(line)
+        self.result_text.setText("\n".join(text_lines))
+
     def _print_results(self) -> None:
         if not hasattr(self, "_last_generated") or not self._last_generated:
             QMessageBox.information(self, "提示", "请先生成号码")
             return
-        self._print_tickets(self._last_generated, f"{self.current.profile.name}生成结果")
+        # 使用可编辑列表中的号码（如果有）
+        if hasattr(self, "_editable_tickets") and self._editable_tickets:
+            tickets_to_print = self._editable_tickets
+        else:
+            tickets_to_print = self._last_generated
+        self._print_tickets(tickets_to_print, f"{self.current.profile.name}生成结果")
 
     def _export_pdf_results(self) -> None:
         if not hasattr(self, "_last_generated") or not self._last_generated:
             QMessageBox.information(self, "提示", "请先生成号码")
             return
-        self._export_tickets_to_pdf(self._last_generated, f"{self.current.profile.name}生成结果")
+        # 使用可编辑列表中的号码（如果有）
+        if hasattr(self, "_editable_tickets") and self._editable_tickets:
+            tickets_to_export = self._editable_tickets
+        else:
+            tickets_to_export = self._last_generated
+        self._export_tickets_to_pdf(tickets_to_export, f"{self.current.profile.name}生成结果")
 
     def _print_tickets(self, tickets: list, title: str) -> None:
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)

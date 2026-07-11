@@ -144,6 +144,19 @@ class AdjacentStats:
     gap_stats: Dict[str, Dict[int, GroupGapStats]] = field(default_factory=dict)
 
 
+@dataclass
+class FilterImpactResult:
+    """单个号码组在指定间隔和阈值下的过滤影响结果."""
+
+    gap_label: str = ""        # "相邻" 或 "间隔 N 期"
+    group_name: str = ""       # "红球"
+    total_pairs: int = 0
+    threshold: int = 0         # 重合上限 K（overlap > K 则过滤）
+    filtered_count: int = 0    # 被过滤的对数
+    filtered_pct: float = 0.0  # 过滤占比
+    retained_count: int = 0    # 保留的对数
+
+
 # --------------------------------------------------------------------------- #
 # 分析器（增量版本）
 # --------------------------------------------------------------------------- #
@@ -574,6 +587,565 @@ def _analyze_adjacent_chunked(
     )
 
 
+def _compute_filter_impact(
+    stats: AdjacentStats,
+    key: str,
+    gap: int,
+    threshold: int,
+) -> Optional[FilterImpactResult]:
+    """计算指定号码组在指定间隔和阈值下的过滤影响.
+
+    Args:
+        stats: 相邻期统计结果
+        key: 号码组 key（如 "red"、"blue"）
+        gap: 间隔期数（0=相邻）
+        threshold: 重合上限 K，overlap > K 则被过滤
+
+    Returns:
+        FilterImpactResult 或 None（无数据时）
+    """
+    if gap == 0:
+        stat = stats.group_stats.get(key)
+    else:
+        gap_dict = stats.gap_stats.get(key, {})
+        stat = gap_dict.get(gap)
+
+    if stat is None or stat.total_pairs == 0:
+        return None
+
+    filtered_count = sum(
+        count for overlap, count in stat.same_counts.items()
+        if overlap > threshold
+    )
+    filtered_pct = filtered_count / max(stat.total_pairs, 1) * 100
+    retained_count = stat.total_pairs - filtered_count
+
+    gap_label = "相邻" if gap == 0 else f"间隔 {gap} 期"
+    return FilterImpactResult(
+        gap_label=gap_label,
+        group_name=stat.group_name,
+        total_pairs=stat.total_pairs,
+        threshold=threshold,
+        filtered_count=filtered_count,
+        filtered_pct=filtered_pct,
+        retained_count=retained_count,
+    )
+
+
+def _get_overlap_numbers_ssq(
+    base: DrawRecord, curr: DrawRecord,
+) -> Tuple[Set[int], Optional[int]]:
+    """获取双色球两期之间重叠的红球号码和相同的蓝球."""
+    base_reds = set(base.groups.get("red", []))
+    curr_reds = set(curr.groups.get("red", []))
+    red_overlap = base_reds & curr_reds
+
+    base_blue = next(iter(base.groups.get("blue", [])), None)
+    curr_blue = next(iter(curr.groups.get("blue", [])), None)
+    blue_same = base_blue if (base_blue is not None and curr_blue is not None and base_blue == curr_blue) else None
+    return red_overlap, blue_same
+
+
+def _get_overlap_numbers_basic_special(
+    base: DrawRecord, curr: DrawRecord,
+    basic_group: NumberGroup, special_group: NumberGroup,
+) -> Tuple[Set[int], Optional[int]]:
+    """获取七乐彩两期之间重叠的基本号和相同的特别号."""
+    base_basic = set(base.groups.get(basic_group.key, []))
+    curr_basic = set(curr.groups.get(special_group.key, []))
+    basic_overlap = base_basic & curr_basic
+
+    base_special = next(iter(base.groups.get(special_group.key, [])), None)
+    curr_special = next(iter(curr.groups.get(special_group.key, [])), None)
+    special_same = base_special if (base_special is not None and curr_special is not None and base_special == curr_special) else None
+    return basic_overlap, special_same
+
+
+def _get_overlap_numbers_positional(
+    base: DrawRecord, curr: DrawRecord, group_key: str,
+) -> List[Tuple[int, int]]:
+    """获取按位彩种两期之间同位相同的号码对."""
+    base_nums = base.groups.get(group_key, [])
+    curr_nums = curr.groups.get(group_key, [])
+    return [(i, a) for i, (a, b) in enumerate(zip(base_nums, curr_nums)) if a == b]
+
+
+def _get_overlap_numbers_generic(
+    base: DrawRecord, curr: DrawRecord, group: NumberGroup,
+) -> Set[int]:
+    """获取通用彩种两期之间重叠的号码."""
+    if group.positional:
+        base_nums = base.groups.get(group.key, [])
+        curr_nums = curr.groups.get(group.key, [])
+        return {a for a, b in zip(base_nums, curr_nums) if a == b}
+    return set(base.groups.get(group.key, [])) & set(curr.groups.get(group.key, []))
+
+
+def _compute_number_frequencies(
+    records: List[DrawRecord], group_key: str,
+) -> Dict[int, int]:
+    """统计每个号码在所有记录中出现的次数."""
+    freq: Dict[int, int] = {}
+    for record in records:
+        nums = record.groups.get(group_key, [])
+        for n in nums:
+            freq[n] = freq.get(n, 0) + 1
+    return freq
+
+
+def _build_detailed_filter_text(
+    records: List[DrawRecord],
+    profile: 'LotteryProfile',
+    max_gap: int,
+    threshold: int,
+) -> str:
+    """构建详细的过滤影响分析，包含具体号码和频率变化.
+
+    Args:
+        records: 开奖记录列表（按时间升序）
+        profile: 彩种档案
+        max_gap: 最大间隔期数
+        threshold: 重合上限阈值
+
+    Returns:
+        格式化的详细过滤影响分析文本
+    """
+    if not records or len(records) < 2:
+        return "  数据不足，无法进行详细分析"
+
+    lines: List[str] = []
+    lines.append("═" * 50)
+    lines.append(f"  详细过滤影响分析（阈值: 重合 > {threshold} 则过滤）")
+    lines.append("═" * 50)
+
+    # 确定要分析的号码组
+    groups_to_analyze: List[Tuple[str, str, NumberGroup]] = []
+    if profile.key == "ssq":
+        groups_to_analyze.append(("red", "红球", profile.group("red")))
+    elif profile.key in ("qlc", "gd36x7"):
+        groups_to_analyze.append(("basic", "基本号", profile.group("basic")))
+    elif profile.key == "kl8":
+        groups_to_analyze.append(("main", "主号码", profile.primary_group))
+    elif profile.key in ("3d", "pl3", "pl5", "qxc"):
+        groups_to_analyze.append(("pos", profile.primary_group.name, profile.primary_group))
+    else:
+        for g in profile.pick_groups:
+            groups_to_analyze.append((g.key, g.name, g))
+
+    for group_key, group_name, group in groups_to_analyze:
+        lines.append("")
+        lines.append(f"【{group_name}】")
+
+        # 统计过滤前每个号码出现的次数
+        freq_before = _compute_number_frequencies(records, group_key)
+        if not freq_before:
+            lines.append("  无数据")
+            continue
+
+        # 按号码排序显示过滤前频率
+        sorted_nums = sorted(freq_before.keys())
+        lines.append(f"  号码池: {sorted_nums[0]}-{sorted_nums[-1]} ({len(sorted_nums)}个)")
+        lines.append(f"  过滤前频率: {', '.join(f'{n}({freq_before[n]})' for n in sorted_nums)}")
+
+        # 对每个 gap 级别进行详细分析
+        for gap in range(0, max_gap + 1):
+            filtered_pairs = []
+            filtered_numbers: Dict[int, int] = {}  # 号码 -> 被过滤次数
+            retained_numbers: Dict[int, int] = {}  # 号码 -> 保留次数
+
+            # 遍历所有 draw 对
+            for i in range(gap + 1, len(records)):
+                base_idx = i - gap - 1
+                base = records[base_idx]
+                curr = records[i]
+
+                # 计算重叠
+                overlap_count = 0
+                overlap_nums: Set[int] = set()
+                if profile.key == "ssq" and group_key == "red":
+                    overlap_nums, _ = _get_overlap_numbers_ssq(base, curr)
+                    overlap_count = len(overlap_nums)
+                elif profile.key in ("qlc", "gd36x7") and group_key == "basic":
+                    overlap_nums, _ = _get_overlap_numbers_basic_special(
+                        base, curr, profile.group("basic"), profile.group("special")
+                    )
+                    overlap_count = len(overlap_nums)
+                elif profile.key in ("3d", "pl3", "pl5", "qxc") and group_key == "pos":
+                    pos_pairs = _get_overlap_numbers_positional(base, curr, group_key)
+                    overlap_count = len(pos_pairs)
+                    overlap_nums = {n for _, n in pos_pairs}
+                else:
+                    overlap_nums = _get_overlap_numbers_generic(base, curr, group)
+                    overlap_count = len(overlap_nums)
+
+                # 判断是否被过滤
+                if overlap_count > threshold:
+                    filtered_pairs.append((base.issue, curr.issue, overlap_nums))
+                    for n in overlap_nums:
+                        filtered_numbers[n] = filtered_numbers.get(n, 0) + 1
+                else:
+                    for n in overlap_nums:
+                        retained_numbers[n] = retained_numbers.get(n, 0) + 1
+
+            if not filtered_pairs:
+                continue
+
+            gap_label = "相邻" if gap == 0 else f"间隔 {gap} 期"
+            lines.append("")
+            lines.append(f"  ── {gap_label}过滤详情 ──")
+            lines.append(f"  被过滤对数: {len(filtered_pairs)}")
+
+            # 显示被过滤的具体号码（取前10对）
+            lines.append(f"  被过滤的号码对（前{min(10, len(filtered_pairs))}对）:")
+            for base_issue, curr_issue, nums in filtered_pairs[:10]:
+                nums_str = ','.join(str(n) for n in sorted(nums)) if nums else '-'
+                lines.append(f"    {base_issue} vs {curr_issue}: 重合 {nums_str}")
+            if len(filtered_pairs) > 10:
+                lines.append(f"    ... 还有 {len(filtered_pairs) - 10} 对")
+
+            # 显示被过滤号码的频率
+            if filtered_numbers:
+                lines.append(f"  被过滤号码出现次数:")
+                for n in sorted(filtered_numbers.keys()):
+                    before = freq_before.get(n, 0)
+                    after = before - filtered_numbers[n]
+                    lines.append(f"    {n}: {before}次 → {after}次 (减少{filtered_numbers[n]}次)")
+
+            # 显示保留号码的频率
+            if retained_numbers:
+                lines.append(f"  保留号码出现次数:")
+                for n in sorted(retained_numbers.keys()):
+                    before = freq_before.get(n, 0)
+                    lines.append(f"    {n}: {before}次 (保留{retained_numbers[n]}次)")
+
+            # 统计未出现的号码
+            all_nums_in_pool = set(freq_before.keys())
+            appeared_in_filtered = set(filtered_numbers.keys())
+            appeared_in_retained = set(retained_numbers.keys())
+            never_filtered = all_nums_in_pool - appeared_in_filtered
+            never_retained = all_nums_in_pool - appeared_in_retained
+
+            if never_filtered:
+                lines.append(f"  从未被过滤的号码: {sorted(never_filtered)}")
+            if never_retained:
+                lines.append(f"  从未被保留的号码: {sorted(never_retained)}")
+
+    return "\n".join(lines)
+
+
+def _build_filter_summary_text(
+    stats: Optional[AdjacentStats],
+    profile: 'LotteryProfile',
+    max_gap: int,
+    threshold: int,
+    records: Optional[List[DrawRecord]] = None,
+) -> str:
+    """构建过滤影响摘要文本（UI显示用）.
+
+    显示预测时的过滤影响：总共有多少种组合，过滤后还剩多少可买.
+    可以直接从 records 计算，不需要先计算 stats.
+    """
+    from math import comb
+    from collections import Counter
+
+    lines: List[str] = []
+    lines.append("═" * 50)
+    lines.append(f"  过滤摘要（阈值: 重合 > {threshold} 则过滤）")
+    lines.append("═" * 50)
+
+    def _estimate_ssq_filter(records: List[DrawRecord], threshold: int, max_gap: int) -> float:
+        """估算双色球过滤比例."""
+        if not records or len(records) < 2:
+            return 0.0
+        # 使用 max_gap 作为比较期数
+        compare_periods = min(max_gap, len(records)) if max_gap > 0 else min(7, len(records))
+        recent = records[-compare_periods:]
+        # 统计历史中红球重合超过阈值的比例
+        filtered_count = 0
+        total_pairs = 0
+        for i in range(len(recent)):
+            for j in range(i):
+                base_reds = set(recent[j].groups.get("red", []))
+                curr_reds = set(recent[i].groups.get("red", []))
+                overlap = len(base_reds & curr_reds)
+                total_pairs += 1
+                if overlap > threshold:
+                    filtered_count += 1
+        return filtered_count / max(total_pairs, 1) * 100
+
+    # 根据彩种计算总组合数和过滤后剩余
+    if profile.key == "ssq":
+        # 双色球: C(33,6) × 16
+        total_red = comb(33, 6)  # 1,107,568
+        total_blue = 16
+        total_combos = total_red * total_blue  # 17,721,088
+
+        # 估算过滤比例
+        if stats:
+            red_impact = _compute_filter_impact(stats, "red", 0, threshold)
+            if red_impact and red_impact.total_pairs > 0:
+                filter_pct = red_impact.filtered_pct
+            else:
+                filter_pct = 0.0
+        elif records:
+            filter_pct = _estimate_ssq_filter(records, threshold, max_gap)
+        else:
+            filter_pct = 0.0
+
+        compare_periods = min(max_gap, len(records)) if max_gap > 0 and records else 0
+        filtered_combos = int(total_combos * filter_pct / 100)
+        remain_combos = total_combos - filtered_combos
+
+        lines.append("")
+        lines.append(f"【双色球】")
+        lines.append(f"  比较期数: {compare_periods} 期")
+        lines.append(f"  总组合数: {total_combos:,} (C(33,6)×16)")
+        lines.append(f"  被过滤: {filtered_combos:,} ({filter_pct:.1f}%)")
+        lines.append(f"  有效可买: {remain_combos:,}")
+
+    elif profile.key in ("3d", "pl3"):
+        # 福彩3D/排列3: 组合数 = 组选6(120) + 组选3(90) + 豹子(10) = 220
+        total_combos = 220  # C(10,3) + 10*9 + 10
+
+        # 精确计算：根据历史记录过滤
+        if records and len(records) > 0:
+            # 使用 max_gap 作为比较期数，不要写死7
+            compare_periods = min(max_gap, len(records)) if max_gap > 0 else min(7, len(records))
+            recent = records[-compare_periods:]
+
+            # 生成所有1000个可能的3位数
+            all_numbers = set()
+            for a in range(10):
+                for b in range(10):
+                    for c in range(10):
+                        all_numbers.add((a, b, c))
+
+            # 检查哪些被过滤，并记录是哪期过滤的
+            filtered_numbers = set()
+            filtered_details = []  # (number, draw_issue, draw_nums)
+            for num in all_numbers:
+                for record in recent:
+                    hist_nums = record.groups.get("pos", [])
+                    if len(hist_nums) == 3:
+                        # 统计同位相同数
+                        same_count = sum(1 for x, y in zip(num, hist_nums) if x == y)
+                        if same_count > threshold:
+                            filtered_numbers.add(num)
+                            filtered_details.append((num, record.issue, hist_nums))
+                            break
+
+            # 将被过滤的数字转换为组合类型统计
+            filtered_combos = set()
+            for num in filtered_numbers:
+                sorted_num = tuple(sorted(num))
+                filtered_combos.add(sorted_num)
+
+            filtered_combos_count = len(filtered_combos)
+            remain_combos = total_combos - filtered_combos_count
+            filter_pct = filtered_combos_count / total_combos * 100
+        else:
+            compare_periods = 0
+            recent = []
+            filtered_details = []
+            pos_impact = _compute_filter_impact(stats, "pos", 0, threshold) if stats and "pos" in stats.group_stats else None
+            if pos_impact and pos_impact.total_pairs > 0:
+                filter_ratio = pos_impact.filtered_pct / 100
+                filtered_combos_count = int(total_combos * filter_ratio)
+                remain_combos = total_combos - filtered_combos_count
+                filter_pct = pos_impact.filtered_pct
+            else:
+                filtered_combos_count = 0
+                remain_combos = total_combos
+                filter_pct = 0.0
+
+        # 统计各类型组合数
+        zu6_count = comb(10, 3)  # 120
+        zu3_count = 10 * 9       # 90
+        baozi_count = 10         # 10
+
+        lines.append("")
+        lines.append(f"【{profile.name}】")
+        lines.append(f"  比较期数: {compare_periods} 期")
+        lines.append(f"  总组合数: {total_combos} (组选6:{zu6_count} + 组选3:{zu3_count} + 豹子:{baozi_count})")
+        lines.append(f"  被过滤: {filtered_combos_count} ({filter_pct:.1f}%)")
+        lines.append(f"  有效可买: {remain_combos}")
+
+        # 显示被过滤的具体号码
+        if filtered_details:
+            lines.append("")
+            lines.append("  被过滤的号码:")
+            for num, issue, hist in filtered_details:
+                lines.append(f"    {num[0]}{num[1]}{num[2]} (与{issue}的{hist[0]}{hist[1]}{hist[2]}重复)")
+
+    elif profile.key == "kl8":
+        # 快乐8: C(80,20)
+        total_combos = comb(80, 20)
+
+        main_key = profile.primary_group.key
+        main_impact = _compute_filter_impact(stats, main_key, 0, threshold)
+        if main_impact and main_impact.total_pairs > 0:
+            filter_ratio = main_impact.filtered_pct / 100
+            filtered_combos = int(total_combos * filter_ratio)
+            remain_combos = total_combos - filtered_combos
+        else:
+            filtered_combos = 0
+            remain_combos = total_combos
+
+        lines.append("")
+        lines.append(f"【快乐8】")
+        lines.append(f"  总组合数: {total_combos:,} (C(80,20))")
+        lines.append(f"  被过滤: {filtered_combos:,} ({main_impact.filtered_pct:.1f}%)" if main_impact else "  被过滤: 0")
+        lines.append(f"  有效可买: {remain_combos:,}")
+
+    elif profile.key in ("qlc", "gd36x7"):
+        # 七乐彩: C(30,7)
+        total_combos = comb(30, 7)
+
+        basic_impact = _compute_filter_impact(stats, "basic", 0, threshold)
+        if basic_impact and basic_impact.total_pairs > 0:
+            filter_ratio = basic_impact.filtered_pct / 100
+            filtered_combos = int(total_combos * filter_ratio)
+            remain_combos = total_combos - filtered_combos
+        else:
+            filtered_combos = 0
+            remain_combos = total_combos
+
+        lines.append("")
+        lines.append(f"【{profile.name}】")
+        lines.append(f"  总组合数: {total_combos:,} (C(30,7))")
+        lines.append(f"  被过滤: {filtered_combos:,} ({basic_impact.filtered_pct:.1f}%)" if basic_impact else "  被过滤: 0")
+        lines.append(f"  有效可买: {remain_combos:,}")
+
+    elif profile.key == "pl5":
+        # 排列5: 10^5 = 100,000
+        total_combos = 100000
+
+        pos_impact = _compute_filter_impact(stats, "pos", 0, threshold) if "pos" in stats.group_stats else None
+        if pos_impact and pos_impact.total_pairs > 0:
+            filter_ratio = pos_impact.filtered_pct / 100
+            filtered_combos = int(total_combos * filter_ratio)
+            remain_combos = total_combos - filtered_combos
+        else:
+            filtered_combos = 0
+            remain_combos = total_combos
+
+        lines.append("")
+        lines.append(f"【排列5】")
+        lines.append(f"  总组合数: {total_combos:,} (10^5)")
+        lines.append(f"  被过滤: {filtered_combos:,} ({pos_impact.filtered_pct:.1f}%)" if pos_impact else "  被过滤: 0")
+        lines.append(f"  有效可买: {remain_combos:,}")
+
+    elif profile.key == "qxc":
+        # 7星彩: 10^7 = 10,000,000
+        total_combos = 10000000
+
+        pos_impact = _compute_filter_impact(stats, "pos", 0, threshold) if "pos" in stats.group_stats else None
+        if pos_impact and pos_impact.total_pairs > 0:
+            filter_ratio = pos_impact.filtered_pct / 100
+            filtered_combos = int(total_combos * filter_ratio)
+            remain_combos = total_combos - filtered_combos
+        else:
+            filtered_combos = 0
+            remain_combos = total_combos
+
+        lines.append("")
+        lines.append(f"【7星彩】")
+        lines.append(f"  总组合数: {total_combos:,} (10^7)")
+        lines.append(f"  被过滤: {filtered_combos:,} ({pos_impact.filtered_pct:.1f}%)" if pos_impact else "  被过滤: 0")
+        lines.append(f"  有效可买: {remain_combos:,}")
+
+    else:
+        # 通用彩种
+        for key in stats.group_stats:
+            gstat = stats.group_stats[key]
+            impact = _compute_filter_impact(stats, key, 0, threshold)
+            if impact:
+                lines.append("")
+                lines.append(f"【{gstat.group_name}】")
+                lines.append(f"  历史对数: {impact.total_pairs}")
+                lines.append(f"  被过滤: {impact.filtered_count} 对 ({impact.filtered_pct:.1f}%)")
+                lines.append(f"  有效保留: {impact.retained_count} 对")
+
+    lines.append("")
+    lines.append("═" * 50)
+    return "\n".join(lines)
+
+
+def _build_filter_impact_text(
+    stats: AdjacentStats,
+    max_gap: int,
+    threshold: int,
+) -> str:
+    """构建过滤影响分析的文本输出（详细版）."""
+    lines: List[str] = []
+    lines.append("═" * 50)
+    lines.append(f"  过滤影响分析（阈值: 重合 > {threshold} 则过滤）")
+    lines.append("═" * 50)
+
+    for key in stats.group_stats:
+        gstat = stats.group_stats[key]
+        lines.append("")
+        lines.append(f"【{gstat.group_name}】")
+
+        # 收集所有 gap 级别的过滤影响
+        impacts: List[FilterImpactResult] = []
+
+        # gap=0（相邻期）
+        impact = _compute_filter_impact(stats, key, 0, threshold)
+        if impact is not None:
+            impacts.append(impact)
+
+        # gap=1..max_gap
+        for gap in range(1, max_gap + 1):
+            impact = _compute_filter_impact(stats, key, gap, threshold)
+            if impact is not None:
+                impacts.append(impact)
+
+        if not impacts:
+            lines.append("  无数据")
+            continue
+
+        # 表头
+        lines.append(f"  {'间隔':<10} {'过滤对数':<12} {'过滤占比':<10} {'保留对数':<10}")
+        lines.append(f"  {'─' * 44}")
+
+        for imp in impacts:
+            lines.append(
+                f"  {imp.gap_label:<10} "
+                f"{imp.filtered_count}/{imp.total_pairs:<8} "
+                f"{imp.filtered_pct:<10.2f} "
+                f"{imp.retained_count}"
+            )
+
+        # 级联影响分析（相邻期过滤对其他间隔的影响）
+        if len(impacts) > 1:
+            adj_impact = impacts[0]
+            if adj_impact.filtered_count > 0:
+                lines.append("")
+                lines.append("  级联影响:")
+                for imp in impacts[1:]:
+                    # 按比例估算：相邻期过滤比例 × 间隔期过滤比例
+                    cascade_count = round(adj_impact.filtered_count * imp.filtered_pct / 100, 1)
+                    lines.append(
+                        f"    相邻期过滤 {adj_impact.filtered_count} 对"
+                        f" → {imp.gap_label}约受影响 {cascade_count} 对"
+                    )
+
+        # 过滤建议
+        adj_pct = impacts[0].filtered_pct if impacts else 0
+        lines.append("")
+        if adj_pct < 5:
+            lines.append("  建议: 过滤率偏低，可适当降低阈值以增强过滤效果")
+        elif adj_pct < 20:
+            lines.append(f"  建议: 相邻期 {adj_pct:.1f}% 过滤率属正常范围")
+        elif adj_pct < 40:
+            lines.append(f"  建议: 相邻期 {adj_pct:.1f}% 过滤率偏高，可适当提高阈值")
+        else:
+            lines.append(f"  警告: 相邻期 {adj_pct:.1f}% 过滤率过高，大量号码被淘汰")
+
+    return "\n".join(lines)
+
+
 # --------------------------------------------------------------------------- #
 # 分组工具
 # --------------------------------------------------------------------------- #
@@ -639,6 +1211,7 @@ class DrawAnalysisDialog(QDialog):
 
         self.setWindowTitle(f"{self.profile.name}开奖记录分析")
         self.resize(1200, 800)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint | Qt.WindowType.WindowMinimizeButtonHint)
         self._setup_ui()
         self._refresh_data()
 
@@ -654,6 +1227,12 @@ class DrawAnalysisDialog(QDialog):
         self.group_combo.addItem("按季度", "quarter")
         self.group_combo.addItem("按月", "month")
         self.group_combo.addItem("按周", "week")
+        # 加载按彩种存储的分组模式
+        saved_mode = self.settings.get_draw_analysis_group_mode(self.profile.key)
+        for i in range(self.group_combo.count()):
+            if self.group_combo.itemData(i) == saved_mode:
+                self.group_combo.setCurrentIndex(i)
+                break
         self.group_combo.currentIndexChanged.connect(self._on_group_changed)
         control_layout.addWidget(self.group_combo)
 
@@ -666,19 +1245,38 @@ class DrawAnalysisDialog(QDialog):
         control_layout.addWidget(QLabel("最大间隔期数:"))
         self.max_gap_spin = QSpinBox()
         self.max_gap_spin.setRange(0, 50)
-        self.max_gap_spin.setValue(min(self.settings.draw_analysis_max_gap, 50))
+        # 使用按彩种存储的设置，默认值为1
+        self.max_gap_spin.setValue(min(self.settings.get_draw_analysis_max_gap(self.profile.key), 50))
         self.max_gap_spin.setToolTip("统计时会同时计算间隔 0（相邻）到最大间隔的号码相同情况。修改后需点击【计算】按钮生效。")
+        self.max_gap_spin.valueChanged.connect(self._on_max_gap_changed)
         control_layout.addWidget(self.max_gap_spin)
 
         self.compute_button = QPushButton("计算")
         self.compute_button.setToolTip("点击后根据当前最大间隔期数重新计算间隔统计")
         self.compute_button.clicked.connect(self._on_compute_clicked)
+        self.compute_button.setAutoDefault(False)  # 禁用回车自动触发
         control_layout.addWidget(self.compute_button)
 
         self.export_btn = QPushButton("导出Excel")
         self.export_btn.setToolTip("将开奖记录和统计结果导出到 Excel 文件")
         self.export_btn.clicked.connect(self._export_excel)
         control_layout.addWidget(self.export_btn)
+
+        control_layout.addSpacing(20)
+        control_layout.addWidget(QLabel("过滤阈值(重合上限):"))
+        self.filter_threshold_spin = QSpinBox()
+        self.filter_threshold_spin.setRange(0, 10)
+        # 使用按彩种存储的设置，默认值为1
+        self.filter_threshold_spin.setValue(min(self.settings.get_draw_analysis_filter_threshold(self.profile.key), 10))
+        self.filter_threshold_spin.setToolTip("号码重合数超过此阈值则被过滤。点击【过滤影响分析】按钮查看各间隔期的过滤影响。")
+        self.filter_threshold_spin.valueChanged.connect(self._on_filter_threshold_changed)
+        control_layout.addWidget(self.filter_threshold_spin)
+
+        self.filter_analysis_btn = QPushButton("过滤影响分析")
+        self.filter_analysis_btn.setToolTip("基于当前统计和阈值，分析各间隔期的过滤影响、级联效应和过滤建议")
+        self.filter_analysis_btn.clicked.connect(self._on_filter_analysis_clicked)
+        self.filter_analysis_btn.setAutoDefault(False)  # 禁用回车自动触发
+        control_layout.addWidget(self.filter_analysis_btn)
 
         control_layout.addStretch()
         layout.addLayout(control_layout)
@@ -699,10 +1297,9 @@ class DrawAnalysisDialog(QDialog):
         group_layout.addWidget(self.group_list)
         splitter.addWidget(group_box)
 
-        # 右侧：表格 + 统计
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        # 右侧：表格 + 统计（使用垂直 splitter 可拖动调整）
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
+        right_splitter.setHandleWidth(6)
 
         table_box = QGroupBox("开奖记录")
         table_layout = QVBoxLayout(table_box)
@@ -727,7 +1324,7 @@ class DrawAnalysisDialog(QDialog):
         page_layout.addStretch()
         table_layout.addLayout(page_layout)
 
-        right_layout.addWidget(table_box, 2)
+        right_splitter.addWidget(table_box)
 
         stats_box = QGroupBox("相邻期统计")
         stats_layout = QVBoxLayout(stats_box)
@@ -738,9 +1335,12 @@ class DrawAnalysisDialog(QDialog):
             "border-radius: 4px; padding: 6px; font-size: 10pt; }"
         )
         stats_layout.addWidget(self.stats_text)
-        right_layout.addWidget(stats_box, 1)
+        right_splitter.addWidget(stats_box)
 
-        splitter.addWidget(right_widget)
+        # 设置垂直 splitter 初始比例（表格 60%，统计 40%）
+        right_splitter.setSizes([480, 320])
+
+        splitter.addWidget(right_splitter)
         splitter.setSizes([250, 950])
         layout.addWidget(splitter, 1)
 
@@ -843,16 +1443,26 @@ class DrawAnalysisDialog(QDialog):
             self.group_list.itemSelectionChanged.disconnect(self._on_group_selected)
             self.group_list.selectRow(0)
             self.group_list.itemSelectionChanged.connect(self._on_group_selected)
-            # 手动触发一次初始显示，因为 selectRow 时信号已断开
-            self._on_group_selected_with_progress(force_compute=False)
+            # 手动触发一次初始显示（仅显示表格，不计算统计）
+            self._show_table_only_initial()
 
     def _on_group_changed(self) -> None:
+        # 保存按彩种存储的分组模式
+        mode = self.group_combo.currentData()
+        if mode:
+            self.settings.set_draw_analysis_group_mode(self.profile.key, mode)
+            self.settings.sync()
         self._invalidate_cache()
         self._rebuild_group_list()
 
     def _on_max_gap_changed(self, value: int) -> None:
-        """最大间隔期数输入变化时仅保存设置，不触发任何计算。"""
-        self.settings.draw_analysis_max_gap = value
+        """最大间隔期数输入变化时保存按彩种存储的设置。"""
+        self.settings.set_draw_analysis_max_gap(self.profile.key, value)
+        self.settings.sync()
+
+    def _on_filter_threshold_changed(self, value: int) -> None:
+        """过滤阈值输入变化时保存按彩种存储的设置。"""
+        self.settings.set_draw_analysis_filter_threshold(self.profile.key, value)
         self.settings.sync()
 
     def _on_compute_clicked(self) -> None:
@@ -861,6 +1471,39 @@ class DrawAnalysisDialog(QDialog):
         if selected:
             logger.info("[UI] 用户点击计算按钮")
             self._on_group_selected_with_progress(force_compute=True)
+
+    def _on_filter_analysis_clicked(self) -> None:
+        """显示过滤影响分析结果：直接从记录计算，不需要先计算间隔统计."""
+        if not self._paged_records:
+            QMessageBox.information(self, "提示", "无开奖记录数据")
+            return
+
+        threshold = self.filter_threshold_spin.value()
+        max_gap = self.max_gap_spin.value()  # 从UI读取最大间隔期数
+
+        # 生成摘要文本（UI显示）- 直接从记录计算
+        summary_text = _build_filter_summary_text(
+            None, self.profile, max_gap, threshold,
+            records=self._paged_records
+        )
+
+        # 生成详细文本（输出到日志文件）
+        detailed_text = _build_detailed_filter_text(
+            self._paged_records, self.profile, max_gap, threshold
+        )
+
+        # 输出详细信息到日志文件
+        from pathlib import Path
+        from datetime import datetime
+        log_dir = Path(".caipiao/logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"filter_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write(detailed_text)
+        logger.info("[过滤分析] 详细信息已保存到: %s", log_file)
+
+        # UI 显示摘要
+        self.stats_text.setText(summary_text)
 
     def _on_group_selected(self) -> None:
         selected = self.group_list.selectedItems()
@@ -1055,7 +1698,26 @@ class DrawAnalysisDialog(QDialog):
 
         self._fill_current_page()
         self._update_page_controls()
-        self.stats_text.setText("正在计算统计...")
+        self.stats_text.setText("点击【计算】按钮可查看间隔统计\n点击【过滤影响分析】可查看预测过滤影响")
+
+    def _show_table_only_initial(self) -> None:
+        """初始化时仅显示表格，不计算任何统计."""
+        row = self.group_list.selectedItems()[0].row() if self.group_list.selectedItems() else 0
+        if self.group_list.rowCount() > 0:
+            group_key = self.group_list.item(row, 0).text()
+            self.current_group_label.setText(group_key)
+            records = self._groups.get(group_key, [])
+        else:
+            records = []
+
+        self._paged_records = records
+        self._paged_details = []
+        self._paged_stats = AdjacentStats()
+        self._current_page = 0
+
+        self._fill_current_page()
+        self._update_page_controls()
+        self.stats_text.setText("点击【计算】按钮可查看间隔统计\n点击【过滤影响分析】可查看预测过滤影响")
 
     def _show_records(self, records: List[DrawRecord], group_key: Optional[str] = None) -> None:
         """计算统计并更新显示（worker 完成后调用）."""
@@ -1690,10 +2352,50 @@ class DrawAnalysisDialog(QDialog):
                                 ws2.cell(row=row, column=4, value=f"{gap_stat.same_ratio(n):.2f}%")
                                 row += 1
 
+            # 过滤影响分析
+            threshold = self.filter_threshold_spin.value()
+            row += 2
+            ws2.cell(row=row, column=1, value=f"【过滤影响分析（阈值: 重合 > {threshold} 则过滤）】").font = Font(bold=True, color="CC0000")
+            row += 1
+            ws2.cell(row=row, column=1, value="号码组")
+            ws2.cell(row=row, column=2, value="间隔")
+            ws2.cell(row=row, column=3, value="过滤对数")
+            ws2.cell(row=row, column=4, value="过滤占比")
+            ws2.cell(row=row, column=5, value="保留对数")
+            for c in range(1, 6):
+                ws2.cell(row=row, column=c).fill = PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid")
+                ws2.cell(row=row, column=c).font = Font(bold=True)
+            row += 1
+
+            for key in stats.group_stats:
+                gstat = stats.group_stats[key]
+                # 相邻期
+                impact = _compute_filter_impact(stats, key, 0, threshold)
+                if impact is not None:
+                    ws2.cell(row=row, column=1, value=gstat.group_name)
+                    ws2.cell(row=row, column=2, value="相邻")
+                    ws2.cell(row=row, column=3, value=f"{impact.filtered_count}/{impact.total_pairs}")
+                    ws2.cell(row=row, column=4, value=f"{impact.filtered_pct:.2f}%")
+                    ws2.cell(row=row, column=5, value=impact.retained_count)
+                    row += 1
+                # 各间隔
+                for gap in sorted(stats.gap_stats.get(key, {}), reverse=True):
+                    if gap > self.max_gap_spin.value():
+                        continue
+                    impact = _compute_filter_impact(stats, key, gap, threshold)
+                    if impact is not None:
+                        ws2.cell(row=row, column=1, value=gstat.group_name)
+                        ws2.cell(row=row, column=2, value=f"间隔{gap}期")
+                        ws2.cell(row=row, column=3, value=f"{impact.filtered_count}/{impact.total_pairs}")
+                        ws2.cell(row=row, column=4, value=f"{impact.filtered_pct:.2f}%")
+                        ws2.cell(row=row, column=5, value=impact.retained_count)
+                        row += 1
+
             ws2.column_dimensions["A"].width = 16
             ws2.column_dimensions["B"].width = 16
             ws2.column_dimensions["C"].width = 10
             ws2.column_dimensions["D"].width = 10
+            ws2.column_dimensions["E"].width = 10
 
             wb.save(path)
             QMessageBox.information(self, "导出成功", f"已导出到：{path}")
