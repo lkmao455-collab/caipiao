@@ -87,7 +87,7 @@ class StrategyPanel(QWidget):
         )
         self.layout.addWidget(self.disclaimer_label)
 
-        # 福彩3D 无过滤（开奖独立事件，过滤只会降低覆盖）
+        # 福彩3D 经验策略过滤：默认关闭，可在下方「经验策略参数」中开启
 
         # 双色球过滤参数
         self.filter_ssq_group = QGroupBox("双色球 过滤")
@@ -125,6 +125,44 @@ class StrategyPanel(QWidget):
 
         self.layout.addWidget(self.filter_ssq_group)
         self.filter_ssq_group.setVisible(False)
+
+        # 福彩3D 经验策略参数
+        self.filter_fc3d_group = QGroupBox("经验策略参数")
+        filter_fc3d_layout = QFormLayout(self.filter_fc3d_group)
+        filter_fc3d_layout.setSpacing(8)
+
+        self.fc3d_filter_enable_check = QCheckBox("启用经验策略过滤")
+        self.fc3d_filter_enable_check.setChecked(self._settings.fc3d_filter_enabled)
+        self.fc3d_filter_enable_check.setToolTip(
+            "开启后将新生成的号码与最近若干期开奖号码逐位比较；\n"
+            "只要与任一期相同的号码数超过允许上限，就放弃该号码。"
+        )
+        self.fc3d_filter_enable_check.stateChanged.connect(self._on_filter_fc3d_changed)
+        filter_fc3d_layout.addRow(self.fc3d_filter_enable_check)
+
+        self.fc3d_compare_spin = QSpinBox()
+        self.fc3d_compare_spin.setRange(0, 50)
+        self.fc3d_compare_spin.setMinimumWidth(60)
+        self.fc3d_compare_spin.setValue(self._settings.fc3d_filter_compare_periods)
+        self.fc3d_compare_spin.setToolTip(
+            "向前比较的历史开奖期数。例如 2 表示分别与前一期、前两期比较。"
+        )
+        self.fc3d_compare_spin.valueChanged.connect(self._on_filter_fc3d_changed)
+        filter_fc3d_layout.addRow("对比期数:", self.fc3d_compare_spin)
+
+        self.fc3d_max_overlap_spin = QSpinBox()
+        self.fc3d_max_overlap_spin.setRange(0, 3)
+        self.fc3d_max_overlap_spin.setMinimumWidth(60)
+        self.fc3d_max_overlap_spin.setValue(self._settings.fc3d_filter_max_overlap)
+        self.fc3d_max_overlap_spin.setToolTip(
+            "允许与某期开奖号码相同的号码最大个数。\n"
+            "若新生成号码与任一期相同号码数多于该值，则放弃该号码。"
+        )
+        self.fc3d_max_overlap_spin.valueChanged.connect(self._on_filter_fc3d_changed)
+        filter_fc3d_layout.addRow("允许相同号码数:", self.fc3d_max_overlap_spin)
+
+        self.layout.addWidget(self.filter_fc3d_group)
+        self.filter_fc3d_group.setVisible(False)
 
         # 参数区域
         self.options_group = QGroupBox("策略参数")
@@ -192,6 +230,9 @@ class StrategyPanel(QWidget):
         is_ssq = bool(strategy_id and not strategy_id.endswith("_3d")
                        and not any(strategy_id.endswith(f"_{s}") for s in ["qlc", "kl8", "dlt", "pl3", "pl5", "qxc", "gd36x7"]))
         self.filter_ssq_group.setVisible(is_ssq)
+        # 仅福彩3D策略显示经验策略参数
+        is_3d = bool(strategy_id and strategy_id.endswith("_3d"))
+        self.filter_fc3d_group.setVisible(is_3d)
         self.options_changed.emit()
 
     def _on_filter_ssq_changed(self, _=None) -> None:
@@ -199,6 +240,13 @@ class StrategyPanel(QWidget):
         self._settings.ssq_filter_compare_periods = self.ssq_compare_spin.value()
         self._settings.ssq_filter_max_red_overlap = self.ssq_max_red_spin.value()
         self._settings.ssq_filter_block_blue = self.ssq_block_blue_check.isChecked()
+        self._settings.sync()
+
+    def _on_filter_fc3d_changed(self, _=None) -> None:
+        """3D经验策略过滤参数变化时保存到 QSettings."""
+        self._settings.fc3d_filter_enabled = self.fc3d_filter_enable_check.isChecked()
+        self._settings.fc3d_filter_compare_periods = self.fc3d_compare_spin.value()
+        self._settings.fc3d_filter_max_overlap = self.fc3d_max_overlap_spin.value()
         self._settings.sync()
 
     def _get_locked_for_strategy(self, strategy_id: str) -> Dict[str, Any]:
