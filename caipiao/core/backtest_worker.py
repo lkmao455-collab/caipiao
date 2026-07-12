@@ -261,7 +261,8 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
                     hits[g.key] = len(set(actual_nums) & set(predicted_nums))
 
             prize_name, prize_amount = calculate_prize(
-                profile.key, hits, ticket.groups, task.actual.groups
+                profile.key, hits, ticket.groups, task.actual.groups,
+                details=ticket.details,
             )
 
             total_cost += 2

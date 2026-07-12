@@ -115,3 +115,30 @@ class TestFc3dPrizeByBetMode:
         assert _prize([1, 2, 3], [1, 2, 3]) == ("直选", 1040)
         assert _prize([1, 2, 3], [3, 2, 1]) == ("组选6", 173)
         assert _prize([1, 2, 3], [4, 5, 6]) == ("未中奖", 0)
+
+
+class TestCallersPassDetails:
+    def test_details_actually_change_result(self):
+        # 同一组号码：传 details 与不改传，结果必须不同
+        ticket = Ticket(profile="3d", groups={"pos": [1, 2, 3]})
+        ticket.details["bet_mode"] = "直选"
+        with_details = calculate_prize(
+            "3d", {"pos": 0}, ticket.groups, {"pos": [3, 2, 1]},
+            details=ticket.details,
+        )
+        without_details = calculate_prize(
+            "3d", {"pos": 0}, ticket.groups, {"pos": [3, 2, 1]},
+        )
+        assert with_details == ("未中奖", 0)
+        assert without_details == ("组选6", 173)
+
+    def test_call_sites_pass_details(self):
+        import inspect
+        import caipiao.core.backtest_worker as bw
+        import caipiao.ui.components.backtest_dialog as bd
+
+        for module in (bw, bd):
+            src = inspect.getsource(module)
+            assert "details=ticket.details" in src, (
+                f"{module.__name__} 的 calculate_prize 调用必须传 details=ticket.details"
+            )

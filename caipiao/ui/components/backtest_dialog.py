@@ -395,7 +395,8 @@ class BacktestDialog(QDialog):
             hit_text = "，".join(hit_parts)
 
             prize_name, prize_amount = calculate_prize(
-                self.profile.key, hits, ticket.groups, actual.groups
+                self.profile.key, hits, ticket.groups, actual.groups,
+                details=ticket.details,
             )
             if prize_amount is None:
                 prize_text = f"{prize_name}（浮动奖金）"

@@ -99,7 +99,10 @@ def _run_backtest(
                     else:
                         hits[g.key] = len(set(actual_nums) & set(predicted_nums))
 
-                prize_name, prize_amount = calculate_prize(profile.key, hits, ticket.groups, actual.groups)
+                prize_name, prize_amount = calculate_prize(
+                    profile.key, hits, ticket.groups, actual.groups,
+                    details=ticket.details,
+                )
                 if prize_amount is None:
                     float_prize_count += 1
                     hit_count += 1
