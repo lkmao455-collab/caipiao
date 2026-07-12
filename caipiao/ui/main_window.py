@@ -1855,10 +1855,27 @@ class MainWindow(QMainWindow):
     _FC3D_TICKET_COST = 2     # 每注成本
 
     @staticmethod
+    def _fc3d_display_label(ticket) -> str:
+        """3D 号码的展示标签：按投注方式，组选票附带形态（组选3/组选6）。"""
+        nums = ticket.groups.get("pos", [])
+        bet_mode = ticket.details.get("bet_mode")
+        if bet_mode == "直选":
+            return "直选"
+        if bet_mode == "组选":
+            unique = len(set(nums))
+            if unique == 2:
+                return "组选3"
+            if unique == 3:
+                return "组选6"
+            return "直选"  # 豹子号兜底（生成时已转直选，正常不会到这里）
+        return fc3d_bet_type(nums)
+
+    @staticmethod
     def _calc_fc3d_probability(tickets: list) -> dict:
         """计算福彩3D概率信息（公平、去重、含期望收益）。
 
-        - 覆盖概率按组选计算：组选6 覆盖 6 个号码，组选3 覆盖 3 个，豹子覆盖 1 个。
+        - 覆盖概率按投注方式计算：直选票覆盖 1 个号码；组选票按形态，
+          组选6 覆盖 6 个号码，组选3 覆盖 3 个，豹子覆盖 1 个。
         - 对排序后相同的号码集合自动去重，避免 coverage 重叠虚高。
         - 策略置信度仅在策略提供 pos_probabilities 时计算，本质是策略的自评，
           非实际中奖概率。
@@ -1867,7 +1884,7 @@ class MainWindow(QMainWindow):
             dict:
             - total_coverage: 去重后总覆盖号码数
             - abs_p: 覆盖概率（%）
-            - breakdown: 注数分布描述（如 "组选6×18 组选3×1 豹子×1"）
+            - breakdown: 注数分布描述（如 "直选×10 组选6×9 组选3×1"）
             - confidence: 策略置信度（%），无 pos_probabilities 时为 None
             - expected_return: 期望收益（元）
             - total_cost: 总投入（元）
@@ -1878,7 +1895,7 @@ class MainWindow(QMainWindow):
         seen_sets: set = set()
         total_coverage = 0
         confidence = 0.0
-        count_z6 = count_z3 = count_bz = 0
+        count_zhi = count_z6 = count_z3 = count_bz = 0
 
         pos_probs = tickets[0].details.get("pos_probabilities") if tickets else None
         has_valid_probs = (
@@ -1896,8 +1913,12 @@ class MainWindow(QMainWindow):
                 continue
             seen_sets.add(key)
 
+            bet_mode = t.details.get("bet_mode")
             unique = len(set(digits))
-            if unique == 3:
+            if bet_mode == "直选":
+                total_coverage += 1
+                count_zhi += 1
+            elif unique == 3:
                 total_coverage += 6
                 count_z6 += 1
             elif unique == 2:
@@ -1915,9 +1936,10 @@ class MainWindow(QMainWindow):
 
         abs_p = total_coverage / 1000 * 100
 
-        # 期望收益 = Σ(每种注数 × 中奖概率 × 奖金)
+        # 期望收益 = Σ(每种注数 × 中奖概率 × 奖金)，按投注方式区分
         expected_return = (
-            count_z6 * (6 / 1000 * MainWindow._FC3D_PRIZE_Z6)
+            count_zhi * (1 / 1000 * MainWindow._FC3D_PRIZE_ZHI)
+            + count_z6 * (6 / 1000 * MainWindow._FC3D_PRIZE_Z6)
             + count_z3 * (3 / 1000 * MainWindow._FC3D_PRIZE_Z3)
             + count_bz * (1 / 1000 * MainWindow._FC3D_PRIZE_ZHI)
         )
@@ -1925,6 +1947,8 @@ class MainWindow(QMainWindow):
         return_rate = (expected_return / total_cost * 100) if total_cost > 0 else 0.0
 
         parts = []
+        if count_zhi:
+            parts.append(f"直选×{count_zhi}")
         if count_z6:
             parts.append(f"组选6×{count_z6}")
         if count_z3:
@@ -2047,10 +2071,9 @@ class MainWindow(QMainWindow):
         self.editable_numbers_table.setRowCount(len(filtered_tickets))
         for idx, ticket in enumerate(filtered_tickets):
             nums = ticket.groups.get("pos", [])
-            # 号码从小到大排序显示
-            sorted_nums = sorted(nums)
-            num_str = "".join(str(n) for n in sorted_nums)
-            bet_type = fc3d_bet_type(nums)
+            # 3D 为按位有序组，保持原始顺序显示（直选位置有意义）
+            num_str = "".join(str(n) for n in nums)
+            bet_type = MainWindow._fc3d_display_label(ticket)
 
             # 序号
             item_idx = QTableWidgetItem(str(idx + 1))
@@ -2096,11 +2119,11 @@ class MainWindow(QMainWindow):
             self._refresh_editable_table()
             return
 
-        # 更新ticket（号码从小到大排序存储）
+        # 更新ticket（3D 为按位有序组，保持用户输入顺序）
         if 0 <= row < len(self._editable_tickets):
-            nums = sorted([int(c) for c in new_num])
+            nums = [int(c) for c in new_num]
             self._editable_tickets[row].groups["pos"] = nums
-            # 刷新表格显示排序后的号码
+            # 刷新表格显示
             self._refresh_editable_table()
             # 更新显示文本
             self._update_result_text()
@@ -2119,7 +2142,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "输入错误", "请输入3位数字（0-9）")
             return
 
-        nums = sorted([int(c) for c in num_str])  # 从小到大排序
+        nums = [int(c) for c in num_str]  # 按位有序，保持输入顺序
         # 创建新ticket
         from ..core.ticket import Ticket
         new_ticket = Ticket(
@@ -2165,7 +2188,7 @@ class MainWindow(QMainWindow):
             if is_valid:
                 break
 
-        nums = sorted(nums)  # 从小到大排序
+        # 按位有序，保持生成顺序
         from ..core.ticket import Ticket
         new_ticket = Ticket(
             profile=self.current.profile,
@@ -2184,7 +2207,7 @@ class MainWindow(QMainWindow):
         text_lines = []
         for idx, ticket in enumerate(self._editable_tickets, start=1):
             line = f"{idx:02d}. {ticket.format_compact()}"
-            line += f"  [{fc3d_bet_type(ticket.groups.get('pos', []))}]"
+            line += f"  [{MainWindow._fc3d_display_label(ticket)}]"
             if ticket.basis:
                 line += f"  [{ticket.basis}]"
             text_lines.append(line)
@@ -2279,7 +2302,7 @@ class MainWindow(QMainWindow):
                     )
             compact = ticket.format_compact()
             if ticket.profile.key == "3d":
-                compact += f"  [{fc3d_bet_type(ticket.groups.get('pos', []))}]"
+                compact += f"  [{MainWindow._fc3d_display_label(ticket)}]"
             rows.append(
                 f"<tr><td style='padding:8px;border-bottom:1px solid #ddd;'>"
                 f"<b>{idx:02d}.</b></td>"

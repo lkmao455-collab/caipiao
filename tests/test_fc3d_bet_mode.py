@@ -142,3 +142,38 @@ class TestCallersPassDetails:
             assert "details=ticket.details" in src, (
                 f"{module.__name__} 的 calculate_prize 调用必须传 details=ticket.details"
             )
+
+
+class TestFc3dProbabilityPanel:
+    @staticmethod
+    def _make(nums, bet_mode):
+        t = Ticket(profile="3d", groups={"pos": nums})
+        t.details["bet_mode"] = bet_mode
+        return t
+
+    def test_zhixuan_counts_as_single_coverage(self):
+        from caipiao.ui.main_window import MainWindow
+
+        tickets = [self._make([1, 2, 3], "直选"), self._make([4, 5, 6], "直选")]
+        info = MainWindow._calc_fc3d_probability(tickets)
+        assert info["total_coverage"] == 2
+        assert info["expected_return"] == round(2 * (1 / 1000 * 1040), 2)
+        assert "直选×2" in info["breakdown"]
+
+    def test_zuxuan_keeps_shape_based_coverage(self):
+        from caipiao.ui.main_window import MainWindow
+
+        tickets = [self._make([1, 2, 3], "组选"), self._make([1, 1, 2], "组选")]
+        info = MainWindow._calc_fc3d_probability(tickets)
+        assert info["total_coverage"] == 9  # 6 + 3
+        expected = 6 / 1000 * 173 + 3 / 1000 * 346
+        assert info["expected_return"] == round(expected, 2)
+
+    def test_display_label(self):
+        from caipiao.ui.main_window import MainWindow
+
+        assert MainWindow._fc3d_display_label(self._make([1, 2, 3], "直选")) == "直选"
+        assert MainWindow._fc3d_display_label(self._make([1, 2, 3], "组选")) == "组选6"
+        assert MainWindow._fc3d_display_label(self._make([1, 1, 2], "组选")) == "组选3"
+        legacy = Ticket(profile="3d", groups={"pos": [1, 2, 3]})
+        assert MainWindow._fc3d_display_label(legacy) == "组选6"
