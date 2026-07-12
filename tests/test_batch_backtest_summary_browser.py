@@ -119,3 +119,28 @@ def test_save_button_in_header_not_blocking_browser(dialog):
     assert dialog.save_group_btn.parentWidget() is not None
     # 浏览器有最小高度，保证多行内容可见
     assert dialog.summary_label.minimumHeight() >= 100
+
+
+def test_close_event_tolerates_strategy_scan_thread_nulling(dialog):
+    """closeEvent 期间 _strategy_scan_thread 被 finished 槽置 None 不应崩溃。
+
+    竞态场景：closeEvent 检查线程后调用 terminate()，此时 finished 信号槽
+    _cleanup_finished_strategy_scan_thread 可能已把属性置为 None，
+    随后再次访问 self._strategy_scan_thread.wait(1000) 会抛 AttributeError。
+    """
+    from PySide6.QtGui import QCloseEvent
+
+    fake = MagicMock()
+    fake.isRunning.return_value = True
+    fake.wait.return_value = False  # 触发 terminate + 第二次 wait 分支
+
+    def _null_attr(*_args, **_kwargs):
+        dialog._strategy_scan_thread = None
+
+    fake.terminate.side_effect = _null_attr
+    dialog._strategy_scan_thread = fake
+
+    dialog.closeEvent(QCloseEvent())  # 修复前在这里抛 AttributeError
+
+    fake.requestInterruption.assert_called_once()
+    fake.terminate.assert_called_once()

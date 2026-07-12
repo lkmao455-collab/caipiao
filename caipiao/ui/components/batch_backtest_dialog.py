@@ -1181,19 +1181,25 @@ class BatchBacktestDialog(QDialog):
             logging.getLogger(__name__).warning("保存批量回测结果失败: %s", exc)
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        if self._thread and self._thread.isRunning():
-            self._thread.requestInterruption()
-            if not self._thread.wait(5000):
-                self._thread.terminate()
-                self._thread.wait(1000)
-        if getattr(self, "_scan_thread", None) and self._scan_thread.isRunning():
-            self._scan_thread.requestInterruption()
-            if not self._scan_thread.wait(5000):
-                self._scan_thread.terminate()
-                self._scan_thread.wait(1000)
-        if getattr(self, "_strategy_scan_thread", None) and self._strategy_scan_thread.isRunning():
-            self._strategy_scan_thread.requestInterruption()
-            if not self._strategy_scan_thread.wait(5000):
-                self._strategy_scan_thread.terminate()
-                self._strategy_scan_thread.wait(1000)
+        # 先把线程对象快照到局部变量：等待/终止期间，finished 信号槽可能把
+        # 对应属性置为 None（如 _cleanup_finished_strategy_scan_thread），
+        # 再次访问 self._xxx_thread 会抛 AttributeError。
+        thread = self._thread
+        if thread and thread.isRunning():
+            thread.requestInterruption()
+            if not thread.wait(5000):
+                thread.terminate()
+                thread.wait(1000)
+        scan_thread = getattr(self, "_scan_thread", None)
+        if scan_thread and scan_thread.isRunning():
+            scan_thread.requestInterruption()
+            if not scan_thread.wait(5000):
+                scan_thread.terminate()
+                scan_thread.wait(1000)
+        strategy_scan_thread = getattr(self, "_strategy_scan_thread", None)
+        if strategy_scan_thread and strategy_scan_thread.isRunning():
+            strategy_scan_thread.requestInterruption()
+            if not strategy_scan_thread.wait(5000):
+                strategy_scan_thread.terminate()
+                strategy_scan_thread.wait(1000)
         super().closeEvent(event)
