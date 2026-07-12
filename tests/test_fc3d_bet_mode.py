@@ -69,3 +69,49 @@ class TestEngineHook:
         engine.register(_Dummy3dStrategy(ssq))
         tickets = engine.generate("dummy-3d", count=2)
         assert all("bet_mode" not in t.details for t in tickets)
+
+
+from caipiao.core.prize import calculate_prize
+
+
+def _prize(ticket_nums, actual_nums, bet_mode=None):
+    details = {"bet_mode": bet_mode} if bet_mode else None
+    return calculate_prize(
+        "3d",
+        {"pos": 0},
+        {"pos": ticket_nums},
+        {"pos": actual_nums},
+        details=details,
+    )
+
+
+class TestFc3dPrizeByBetMode:
+    def test_zhixuan_exact_match(self):
+        assert _prize([1, 2, 3], [1, 2, 3], "直选") == ("直选", 1040)
+
+    def test_zhixuan_wrong_order_no_prize(self):
+        # 直选票顺序不同 → 不中（旧逻辑会发组选6奖金）
+        assert _prize([1, 2, 3], [3, 2, 1], "直选") == ("未中奖", 0)
+
+    def test_zuxuan_unordered_match_group6(self):
+        assert _prize([1, 2, 3], [3, 2, 1], "组选") == ("组选6", 173)
+
+    def test_zuxuan_unordered_match_group3(self):
+        assert _prize([1, 1, 2], [1, 2, 1], "组选") == ("组选3", 346)
+
+    def test_zuxuan_exact_order_still_group_prize(self):
+        # 组选票即使位置全对，也只发组选奖金
+        assert _prize([1, 2, 3], [1, 2, 3], "组选") == ("组选6", 173)
+
+    def test_zuxuan_mismatch(self):
+        assert _prize([1, 2, 3], [4, 5, 6], "组选") == ("未中奖", 0)
+
+    def test_zuxuan_leopard_fallback_zhixuan(self):
+        # 豹子号标组选属异常数据，兜底按直选规则
+        assert _prize([6, 6, 6], [6, 6, 6], "组选") == ("直选", 1040)
+
+    def test_legacy_without_bet_mode_unchanged(self):
+        # 无 bet_mode：保持旧行为（有序全对发直选，无序相同发组选）
+        assert _prize([1, 2, 3], [1, 2, 3]) == ("直选", 1040)
+        assert _prize([1, 2, 3], [3, 2, 1]) == ("组选6", 173)
+        assert _prize([1, 2, 3], [4, 5, 6]) == ("未中奖", 0)
