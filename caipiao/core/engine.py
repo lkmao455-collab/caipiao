@@ -50,7 +50,12 @@ class GenerationEngine:
             raise ValueError(f"未找到策略: {strategy_id}")
         options = options or {}
         strategy.validate_options(options)
-        return strategy.generate(count=count, options=options)
+        tickets = strategy.generate(count=count, options=options)
+        if tickets and tickets[0].profile.key == "3d":
+            from .strategies.lotteries.fc3d.utils import assign_fc3d_bet_modes
+
+            assign_fc3d_bet_modes(tickets)
+        return tickets
 
 
 # --------------------------------------------------------------------------- #

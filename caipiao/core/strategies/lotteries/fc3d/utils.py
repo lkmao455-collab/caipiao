@@ -179,3 +179,25 @@ def sum_statistics(records: List[DrawRecord], lookback: int = 100) -> Dict[str, 
     n = len(sums)
     median = sums[n // 2] if n % 2 else (sums[n // 2 - 1] + sums[n // 2]) / 2
     return {"min": min(sums), "max": max(sums), "avg": sum(sums) / n, "median": median}
+
+
+def assign_fc3d_bet_modes(tickets: list) -> list:
+    """按 1:1 比例为3D投注单分配直选/组选投注方式（就地修改 details）。
+
+    规则：
+    - 总数 N：组选 ceil(N/2) 张、直选 floor(N/2) 张；
+    - 按生成顺序，前 ceil(N/2) 张标 "组选"，其余标 "直选"；
+    - 组选区内的豹子号自动改标 "直选"（不补位，直选可能多一张）。
+
+    投注方式写入 ``ticket.details["bet_mode"]``，取值 "直选" / "组选"，
+    供中奖判定（core.prize._fc3d_prize）与界面展示使用。
+    """
+    n = len(tickets)
+    zu_count = (n + 1) // 2
+    for i, ticket in enumerate(tickets):
+        nums = ticket.groups.get("pos", [])
+        if i < zu_count and fc3d_bet_type(nums) != "豹子号":
+            ticket.details["bet_mode"] = "组选"
+        else:
+            ticket.details["bet_mode"] = "直选"
+    return tickets
