@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run core tests
+      run: |
+        python -m pytest tests/test_core_ticket.py tests/test_core_profile.py tests/test_core_engine.py -v
+
+    - name: Run data tests
+      run: |
+        python -m pytest tests/test_data_repository.py tests/test_data_analyzer.py tests/test_data_models.py -v
+
+    - name: Run e2e tests
+      run: |
+        python -m pytest tests/test_e2e_generation.py -v
+
+    - name: Run history export tests
+      run: |
+        python -m pytest tests/test_history_export.py -v
+
+    - name: Run all tests with coverage
+      run: |
+        python -m pytest tests/ --cov=caipiao.core --cov=caipiao.data --cov-report=xml
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
