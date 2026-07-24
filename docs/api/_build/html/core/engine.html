@@ -1,0 +1,369 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>engine &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="strategy" href="strategy.html" />
+    <link rel="prev" title="profile" href="profile.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="profile.html">profile</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">engine</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.GenerationEngine"><code class="docutils literal notranslate"><span class="pre">GenerationEngine</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.engine.GenerationEngine.register"><code class="docutils literal notranslate"><span class="pre">GenerationEngine.register()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.engine.GenerationEngine.unregister"><code class="docutils literal notranslate"><span class="pre">GenerationEngine.unregister()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.engine.GenerationEngine.get"><code class="docutils literal notranslate"><span class="pre">GenerationEngine.get()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.engine.GenerationEngine.list_strategies"><code class="docutils literal notranslate"><span class="pre">GenerationEngine.list_strategies()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.engine.GenerationEngine.generate"><code class="docutils literal notranslate"><span class="pre">GenerationEngine.generate()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.filter_ssq_by_history"><code class="docutils literal notranslate"><span class="pre">filter_ssq_by_history()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.filter_fc3d_by_history"><code class="docutils literal notranslate"><span class="pre">filter_fc3d_by_history()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.estimate_fc3d_pass_count"><code class="docutils literal notranslate"><span class="pre">estimate_fc3d_pass_count()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.fc3d_filtered_gen_count"><code class="docutils literal notranslate"><span class="pre">fc3d_filtered_gen_count()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.apply_fc3d_experience_filter"><code class="docutils literal notranslate"><span class="pre">apply_fc3d_experience_filter()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.filter_qlc_by_history"><code class="docutils literal notranslate"><span class="pre">filter_qlc_by_history()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.estimate_qlc_pass_ratio"><code class="docutils literal notranslate"><span class="pre">estimate_qlc_pass_ratio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.qlc_filtered_gen_count"><code class="docutils literal notranslate"><span class="pre">qlc_filtered_gen_count()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.engine.apply_qlc_experience_filter"><code class="docutils literal notranslate"><span class="pre">apply_qlc_experience_filter()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../core.html">Core 模块</a></li>
+      <li class="breadcrumb-item active">engine</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core/engine.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-caipiao.core.engine">
+<span id="engine"></span><h1>engine<a class="headerlink" href="#module-caipiao.core.engine" title="Link to this heading"></a></h1>
+<p>生成引擎.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.core.engine.GenerationEngine">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">GenerationEngine</span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#GenerationEngine"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.GenerationEngine" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>号码生成引擎.</p>
+<p>负责管理所有可用策略，并根据选中的策略生成投注单。</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.engine.GenerationEngine.register">
+<span class="sig-name descname"><span class="pre">register</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="strategy.html#caipiao.core.strategy.GenerationStrategy" title="caipiao.core.strategy.GenerationStrategy"><span class="pre">GenerationStrategy</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#GenerationEngine.register"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.GenerationEngine.register" title="Link to this definition"></a></dt>
+<dd><p>注册一个生成策略.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.engine.GenerationEngine.unregister">
+<span class="sig-name descname"><span class="pre">unregister</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#GenerationEngine.unregister"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.GenerationEngine.unregister" title="Link to this definition"></a></dt>
+<dd><p>注销指定策略.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.engine.GenerationEngine.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="strategy.html#caipiao.core.strategy.GenerationStrategy" title="caipiao.core.strategy.GenerationStrategy"><span class="pre">GenerationStrategy</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#GenerationEngine.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.GenerationEngine.get" title="Link to this definition"></a></dt>
+<dd><p>获取指定策略.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.engine.GenerationEngine.list_strategies">
+<span class="sig-name descname"><span class="pre">list_strategies</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="strategy.html#caipiao.core.strategy.GenerationStrategy" title="caipiao.core.strategy.GenerationStrategy"><span class="pre">GenerationStrategy</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#GenerationEngine.list_strategies"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.GenerationEngine.list_strategies" title="Link to this definition"></a></dt>
+<dd><p>列出所有已注册策略.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.engine.GenerationEngine.generate">
+<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">strategy_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#GenerationEngine.generate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.GenerationEngine.generate" title="Link to this definition"></a></dt>
+<dd><p>使用指定策略生成投注单.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.filter_ssq_by_history">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">filter_ssq_by_history</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_red_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">block_blue_match</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blue_compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#filter_ssq_by_history"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.filter_ssq_by_history" title="Link to this definition"></a></dt>
+<dd><p>对双色球号码做最后一层过滤：与最近 N 期开奖记录比对。</p>
+<p>规则：
+- 红球：计算生成号码与历史开奖号码的交集个数，超过 max_red_overlap 则淘汰。
+- 蓝球：若 block_blue_match 为 True，蓝球在 blue_compare_periods 期内与历史相同则淘汰。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tickets</strong> – 策略生成的候选号码列表。</p></li>
+<li><p><strong>draw_records</strong> – DrawRecord 列表（按时间升序）。</p></li>
+<li><p><strong>compare_periods</strong> – 向前比较的期数，默认 7。</p></li>
+<li><p><strong>max_red_overlap</strong> – 允许的红球最大重合数，默认 3。</p></li>
+<li><p><strong>block_blue_match</strong> – 是否禁止蓝球与历史相同，默认 False。</p></li>
+<li><p><strong>blue_compare_periods</strong> – 蓝球禁止重复的对比期数，默认 1。</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>过滤后的号码列表。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.filter_fc3d_by_history">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">filter_fc3d_by_history</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">27</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#filter_fc3d_by_history"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.filter_fc3d_by_history" title="Link to this definition"></a></dt>
+<dd><p>对福彩3D号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对相同号码数。</p>
+<p>规则：
+- 和值：三位数字之和 &lt; min_sum 或 &gt; max_sum 的号码直接淘汰。
+- 将生成号码（3 位）与最近 compare_periods 期开奖号码逐一比对。
+- 统计相同号码个数（使用多集合交集，正确处理 112 等含重复号码的情况）。
+- 只要任一期的相同号码数 &gt; max_overlap，则淘汰该候选号码。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tickets</strong> – 策略生成的候选号码列表。</p></li>
+<li><p><strong>draw_records</strong> – DrawRecord 列表（按时间升序）。</p></li>
+<li><p><strong>compare_periods</strong> – 向前比较的期数，默认 5；&lt;=0 表示不与历史比对。</p></li>
+<li><p><strong>max_overlap</strong> – 允许的相同号码最大个数，默认 1；超过则淘汰。</p></li>
+<li><p><strong>min_sum</strong> – 允许的最小和值，默认 0（不限制）。</p></li>
+<li><p><strong>max_sum</strong> – 允许的最大和值，默认 27（不限制）。</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>过滤后的号码列表。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.estimate_fc3d_pass_count">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">estimate_fc3d_pass_count</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">27</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#estimate_fc3d_pass_count"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.estimate_fc3d_pass_count" title="Link to this definition"></a></dt>
+<dd><p>枚举全部 1000 种3D直选组合，返回能通过经验策略过滤的数量（理论通过数）。</p>
+<p>用于生成前估算过滤强度，从而自适应放大候选生成数量，避免过滤后候选不足。
+与 <code class="docutils literal notranslate"><span class="pre">filter_fc3d_by_history</span></code> 使用完全相同的和值范围 + 多集合交集判定逻辑。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>draw_records</strong> – DrawRecord 列表（按时间升序）。</p></li>
+<li><p><strong>compare_periods</strong> – 向前比较的期数；&lt;=0 表示不与历史比对。</p></li>
+<li><p><strong>max_overlap</strong> – 允许的相同号码最大个数。</p></li>
+<li><p><strong>min_sum</strong> – 允许的最小和值。</p></li>
+<li><p><strong>max_sum</strong> – 允许的最大和值。</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>通过过滤的组合数（0-1000）。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.fc3d_filtered_gen_count">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">fc3d_filtered_gen_count</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">27</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#fc3d_filtered_gen_count"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.fc3d_filtered_gen_count" title="Link to this definition"></a></dt>
+<dd><p>计算 3D 经验过滤场景下的候选生成数量。</p>
+<p>按理论通过率自适应放大，避免过滤后候选不足。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">(gen_count,</span> <span class="pre">pass_count)</span></code>，pass_count 为理论通过数（0-1000）。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.apply_fc3d_experience_filter">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">apply_fc3d_experience_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pass_count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">27</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#apply_fc3d_experience_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.apply_fc3d_experience_filter" title="Link to this definition"></a></dt>
+<dd><p>3D 经验策略过滤的完整后处理：过滤 → 截断 → 重新分配投注方式。</p>
+<p>主界面生成与批量历史回测共用，保证两条路径行为一致。
+截断后必须重新调用 <code class="docutils literal notranslate"><span class="pre">assign_fc3d_bet_modes</span></code>：放大候选时 bet_mode 是在
+放大后的列表上分配的（前一半全为组选），直接截断会导致最终号码几乎全为
+组选，重新分配可恢复直选/组选 1:1 配比。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tickets</strong> – 放大后生成的候选号码（已在 engine.generate 内分配过 bet_mode）。</p></li>
+<li><p><strong>draw_records</strong> – 用于比对的开奖记录（回测场景须为目标期之前的记录）。</p></li>
+<li><p><strong>count</strong> – 最终需要的注数。</p></li>
+<li><p><strong>compare_periods</strong> – 向前比较的期数。</p></li>
+<li><p><strong>max_overlap</strong> – 允许的相同号码最大个数。</p></li>
+<li><p><strong>pass_count</strong> – 理论通过数，仅用于告警信息。</p></li>
+<li><p><strong>min_sum</strong> – 允许的最小和值。</p></li>
+<li><p><strong>max_sum</strong> – 允许的最大和值。</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.filter_qlc_by_history">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">filter_qlc_by_history</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">210</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#filter_qlc_by_history"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.filter_qlc_by_history" title="Link to this definition"></a></dt>
+<dd><p>对七乐彩号码做经验策略过滤：和值范围 + 与最近 N 期开奖比对基本号重合数。</p>
+<p>规则：
+- 和值：7 个基本号之和 &lt; min_sum 或 &gt; max_sum 的号码直接淘汰。
+- 将生成号码与最近 compare_periods 期开奖基本号逐一比对（集合交集）。
+- 只要任一期的重合号码数 &gt; max_overlap，则淘汰该候选号码。
+- 特别号为开奖专用（draw_only），不参与投注，不纳入比对。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tickets</strong> – 策略生成的候选号码列表（groups[“basic”] 为 7 个基本号）。</p></li>
+<li><p><strong>draw_records</strong> – DrawRecord 列表（按时间升序）。</p></li>
+<li><p><strong>compare_periods</strong> – 向前比较的期数，默认 5；&lt;=0 表示不与历史比对。</p></li>
+<li><p><strong>max_overlap</strong> – 允许的基本号最大重合个数，默认 2；超过则淘汰。</p></li>
+<li><p><strong>min_sum</strong> – 允许的最小和值，默认 0（不限制）。</p></li>
+<li><p><strong>max_sum</strong> – 允许的最大和值，默认 210（不限制）。</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>过滤后的号码列表。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.estimate_qlc_pass_ratio">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">estimate_qlc_pass_ratio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">210</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3000</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#estimate_qlc_pass_ratio"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.estimate_qlc_pass_ratio" title="Link to this definition"></a></dt>
+<dd><p>采样估算七乐彩号码通过经验策略过滤的比例（0-1）。</p>
+<p>号码空间约 203 万种组合，无法像福彩3D那样全枚举，
+改用固定种子的均匀采样保证结果确定且可复现。
+判定逻辑与 <code class="docutils literal notranslate"><span class="pre">filter_qlc_by_history</span></code> 完全一致。</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.qlc_filtered_gen_count">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">qlc_filtered_gen_count</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">210</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#qlc_filtered_gen_count"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.qlc_filtered_gen_count" title="Link to this definition"></a></dt>
+<dd><p>计算七乐彩经验过滤场景下的候选生成数量。</p>
+<p>按采样估算的通过率自适应放大，避免过滤后候选不足。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">(gen_count,</span> <span class="pre">pass_ratio)</span></code>，pass_ratio 为采样估算通过率（0-1）。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.engine.apply_qlc_experience_filter">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.engine.</span></span><span class="sig-name descname"><span class="pre">apply_qlc_experience_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">compare_periods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pass_ratio</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">210</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/engine.html#apply_qlc_experience_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.engine.apply_qlc_experience_filter" title="Link to this definition"></a></dt>
+<dd><p>七乐彩经验策略过滤的完整后处理：过滤 → 截断。</p>
+<p>主界面生成与批量历史回测共用，保证两条路径行为一致。
+（七乐彩没有直选/组选之分，无需重新分配投注方式。）</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tickets</strong> – 放大后生成的候选号码。</p></li>
+<li><p><strong>draw_records</strong> – 用于比对的开奖记录（回测场景须为目标期之前的记录）。</p></li>
+<li><p><strong>count</strong> – 最终需要的注数。</p></li>
+<li><p><strong>compare_periods</strong> – 向前比较的期数。</p></li>
+<li><p><strong>max_overlap</strong> – 允许的基本号最大重合个数。</p></li>
+<li><p><strong>pass_ratio</strong> – 采样估算通过率，仅用于告警信息。</p></li>
+<li><p><strong>min_sum</strong> – 允许的最小和值。</p></li>
+<li><p><strong>max_sum</strong> – 允许的最大和值。</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="profile.html" class="btn btn-neutral float-left" title="profile" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="strategy.html" class="btn btn-neutral float-right" title="strategy" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

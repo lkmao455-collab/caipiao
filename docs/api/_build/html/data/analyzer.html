@@ -1,0 +1,250 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>analyzer &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="fetcher" href="fetcher.html" />
+    <link rel="prev" title="repository" href="repository.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/strategy.html">strategy</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="repository.html">repository</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">analyzer</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.frequency"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.frequency()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.hot"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.hot()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.cold"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.cold()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.missing"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.missing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.odd_even_ratio"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.odd_even_ratio()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.high_low_ratio"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.high_low_ratio()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.sum_statistics"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.sum_statistics()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.consecutive_frequency"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.consecutive_frequency()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.consecutive_count_distribution"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.consecutive_count_distribution()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.zone_distribution"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.zone_distribution()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.common_pairs"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.common_pairs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.positional_frequency"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.positional_frequency()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.span"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.span()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.last_draw"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.last_draw()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.data.analyzer.DrawAnalyzer.summary"><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer.summary()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.data.analyzer.LotteryAnalyzer"><code class="docutils literal notranslate"><span class="pre">LotteryAnalyzer</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">analyzer</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/data/analyzer.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-caipiao.data.analyzer">
+<span id="analyzer"></span><h1>analyzer<a class="headerlink" href="#module-caipiao.data.analyzer" title="Link to this heading"></a></h1>
+<p>历史数据分析器（多彩种统一）.</p>
+<p><code class="docutils literal notranslate"><span class="pre">DrawAnalyzer</span></code> 基于 <code class="docutils literal notranslate"><span class="pre">LotteryProfile</span></code> 对任意彩种做统计分析。
+<code class="docutils literal notranslate"><span class="pre">LotteryAnalyzer</span></code> 保留为双色球专用别名，方法签名与行为完全兼容。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.data.analyzer.</span></span><span class="sig-name descname"><span class="pre">DrawAnalyzer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">records</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="models.html#caipiao.data.models.DrawRecord" title="caipiao.data.models.DrawRecord"><span class="pre">DrawRecord</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profile</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../core/profile.html#caipiao.core.profile.LotteryProfile" title="caipiao.core.profile.LotteryProfile"><span class="pre">LotteryProfile</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>基于历史开奖数据进行统计分析（彩种无关）.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.frequency">
+<span class="sig-name descname"><span class="pre">frequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">group_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.frequency"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.frequency" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.hot">
+<span class="sig-name descname"><span class="pre">hot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">group_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.hot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.hot" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.cold">
+<span class="sig-name descname"><span class="pre">cold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">group_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.cold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.cold" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.missing">
+<span class="sig-name descname"><span class="pre">missing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">group_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.missing"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.missing" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.odd_even_ratio">
+<span class="sig-name descname"><span class="pre">odd_even_ratio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.odd_even_ratio"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.odd_even_ratio" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.high_low_ratio">
+<span class="sig-name descname"><span class="pre">high_low_ratio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.high_low_ratio"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.high_low_ratio" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.sum_statistics">
+<span class="sig-name descname"><span class="pre">sum_statistics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.sum_statistics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.sum_statistics" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.consecutive_frequency">
+<span class="sig-name descname"><span class="pre">consecutive_frequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.consecutive_frequency"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.consecutive_frequency" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.consecutive_count_distribution">
+<span class="sig-name descname"><span class="pre">consecutive_count_distribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.consecutive_count_distribution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.consecutive_count_distribution" title="Link to this definition"></a></dt>
+<dd><p>返回每注连号对数的分布 {连号对数: 概率}。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.zone_distribution">
+<span class="sig-name descname"><span class="pre">zone_distribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.zone_distribution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.zone_distribution" title="Link to this definition"></a></dt>
+<dd><p>返回三区分布比例: {zone1(1-11): 比例, zone2(12-22): 比例, zone3(23-33): 比例}。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.common_pairs">
+<span class="sig-name descname"><span class="pre">common_pairs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">top_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.common_pairs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.common_pairs" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.positional_frequency">
+<span class="sig-name descname"><span class="pre">positional_frequency</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.positional_frequency"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.positional_frequency" title="Link to this definition"></a></dt>
+<dd><p>返回按位的频率，如 {0: {0:12, 1:15…}, …}，仅对 positional 彩种有意义。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.span">
+<span class="sig-name descname"><span class="pre">span</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">last_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.span"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.span" title="Link to this definition"></a></dt>
+<dd><p>跨度统计（仅对按位/有主组号码的彩种）：每期最大号-最小号。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.last_draw">
+<span class="sig-name descname"><span class="pre">last_draw</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="models.html#caipiao.data.models.DrawRecord" title="caipiao.data.models.DrawRecord"><span class="pre">DrawRecord</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.last_draw"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.last_draw" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.DrawAnalyzer.summary">
+<span class="sig-name descname"><span class="pre">summary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a></span></span><a class="reference internal" href="../_modules/caipiao/data/analyzer.html#DrawAnalyzer.summary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.data.analyzer.DrawAnalyzer.summary" title="Link to this definition"></a></dt>
+<dd><p>返回综合统计摘要（尽量与原 LotteryAnalyzer.summary 字段一致）。</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.data.analyzer.LotteryAnalyzer">
+<span class="sig-prename descclassname"><span class="pre">caipiao.data.analyzer.</span></span><span class="sig-name descname"><span class="pre">LotteryAnalyzer</span></span><a class="headerlink" href="#caipiao.data.analyzer.LotteryAnalyzer" title="Link to this definition"></a></dt>
+<dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">_LegacyLotteryAnalyzer</span></code></p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="repository.html" class="btn btn-neutral float-left" title="repository" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="fetcher.html" class="btn btn-neutral float-right" title="fetcher" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

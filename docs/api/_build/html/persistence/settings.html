@@ -1,0 +1,433 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>settings &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="history" href="history.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/features.html">features</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="history.html">history</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">settings</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings"><code class="docutils literal notranslate"><span class="pre">AppSettings</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get"><code class="docutils literal notranslate"><span class="pre">AppSettings.get()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set"><code class="docutils literal notranslate"><span class="pre">AppSettings.set()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.default_count"><code class="docutils literal notranslate"><span class="pre">AppSettings.default_count</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_strategy_id"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_strategy_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.dark_theme"><code class="docutils literal notranslate"><span class="pre">AppSettings.dark_theme</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.plugin_dir"><code class="docutils literal notranslate"><span class="pre">AppSettings.plugin_dir</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.auto_update_on_start"><code class="docutils literal notranslate"><span class="pre">AppSettings.auto_update_on_start</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.auto_update_interval_days"><code class="docutils literal notranslate"><span class="pre">AppSettings.auto_update_interval_days</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_data_update"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_data_update</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.boss_key"><code class="docutils literal notranslate"><span class="pre">AppSettings.boss_key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_history_count"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_history_count</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.draw_analysis_max_gap"><code class="docutils literal notranslate"><span class="pre">AppSettings.draw_analysis_max_gap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.draw_analysis_filter_threshold"><code class="docutils literal notranslate"><span class="pre">AppSettings.draw_analysis_filter_threshold</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get_draw_analysis_max_gap"><code class="docutils literal notranslate"><span class="pre">AppSettings.get_draw_analysis_max_gap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set_draw_analysis_max_gap"><code class="docutils literal notranslate"><span class="pre">AppSettings.set_draw_analysis_max_gap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get_draw_analysis_filter_threshold"><code class="docutils literal notranslate"><span class="pre">AppSettings.get_draw_analysis_filter_threshold()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set_draw_analysis_filter_threshold"><code class="docutils literal notranslate"><span class="pre">AppSettings.set_draw_analysis_filter_threshold()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get_draw_analysis_group_mode"><code class="docutils literal notranslate"><span class="pre">AppSettings.get_draw_analysis_group_mode()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set_draw_analysis_group_mode"><code class="docutils literal notranslate"><span class="pre">AppSettings.set_draw_analysis_group_mode()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get_batch_backtest_count"><code class="docutils literal notranslate"><span class="pre">AppSettings.get_batch_backtest_count()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set_batch_backtest_count"><code class="docutils literal notranslate"><span class="pre">AppSettings.set_batch_backtest_count()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get_batch_backtest_filter_threshold"><code class="docutils literal notranslate"><span class="pre">AppSettings.get_batch_backtest_filter_threshold()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set_batch_backtest_filter_threshold"><code class="docutils literal notranslate"><span class="pre">AppSettings.set_batch_backtest_filter_threshold()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.get_batch_backtest_filter_periods"><code class="docutils literal notranslate"><span class="pre">AppSettings.get_batch_backtest_filter_periods()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.set_batch_backtest_filter_periods"><code class="docutils literal notranslate"><span class="pre">AppSettings.set_batch_backtest_filter_periods()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.ssq_filter_compare_periods"><code class="docutils literal notranslate"><span class="pre">AppSettings.ssq_filter_compare_periods</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.ssq_filter_max_red_overlap"><code class="docutils literal notranslate"><span class="pre">AppSettings.ssq_filter_max_red_overlap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.ssq_filter_block_blue"><code class="docutils literal notranslate"><span class="pre">AppSettings.ssq_filter_block_blue</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_enabled"><code class="docutils literal notranslate"><span class="pre">AppSettings.fc3d_filter_enabled</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_compare_periods"><code class="docutils literal notranslate"><span class="pre">AppSettings.fc3d_filter_compare_periods</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_max_overlap"><code class="docutils literal notranslate"><span class="pre">AppSettings.fc3d_filter_max_overlap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_min_sum"><code class="docutils literal notranslate"><span class="pre">AppSettings.fc3d_filter_min_sum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_max_sum"><code class="docutils literal notranslate"><span class="pre">AppSettings.fc3d_filter_max_sum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.qlc_filter_enabled"><code class="docutils literal notranslate"><span class="pre">AppSettings.qlc_filter_enabled</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.qlc_filter_compare_periods"><code class="docutils literal notranslate"><span class="pre">AppSettings.qlc_filter_compare_periods</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.qlc_filter_max_overlap"><code class="docutils literal notranslate"><span class="pre">AppSettings.qlc_filter_max_overlap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.qlc_filter_min_sum"><code class="docutils literal notranslate"><span class="pre">AppSettings.qlc_filter_min_sum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.qlc_filter_max_sum"><code class="docutils literal notranslate"><span class="pre">AppSettings.qlc_filter_max_sum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_backtest_options"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_backtest_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_backtest_date"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_backtest_date</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_backtest_count"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_backtest_count</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.last_strategy_options"><code class="docutils literal notranslate"><span class="pre">AppSettings.last_strategy_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.settings.AppSettings.sync"><code class="docutils literal notranslate"><span class="pre">AppSettings.sync()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">settings</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/persistence/settings.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-caipiao.persistence.settings">
+<span id="settings"></span><h1>settings<a class="headerlink" href="#module-caipiao.persistence.settings" title="Link to this heading"></a></h1>
+<p>应用设置.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.persistence.settings.</span></span><span class="sig-name descname"><span class="pre">AppSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">organization</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CaipiaoApp'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Generator'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>封装 QSettings，提供类型安全的配置读写.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get" title="Link to this definition"></a></dt>
+<dd><p>读取设置项.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set" title="Link to this definition"></a></dt>
+<dd><p>写入设置项.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.default_count">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">default_count</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.default_count" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_strategy_id">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_strategy_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_strategy_id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.dark_theme">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dark_theme</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.dark_theme" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.plugin_dir">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">plugin_dir</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.plugin_dir" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.auto_update_on_start">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">auto_update_on_start</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.auto_update_on_start" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.auto_update_interval_days">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">auto_update_interval_days</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.auto_update_interval_days" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_data_update">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_data_update</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_data_update" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.boss_key">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">boss_key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.boss_key" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_history_count">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_history_count</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_history_count" title="Link to this definition"></a></dt>
+<dd><p>ML/历史策略上次使用的历史记录期数；-1 表示使用全部。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.draw_analysis_max_gap">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">draw_analysis_max_gap</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.draw_analysis_max_gap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.draw_analysis_filter_threshold">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">draw_analysis_filter_threshold</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.draw_analysis_filter_threshold" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get_draw_analysis_max_gap">
+<span class="sig-name descname"><span class="pre">get_draw_analysis_max_gap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get_draw_analysis_max_gap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get_draw_analysis_max_gap" title="Link to this definition"></a></dt>
+<dd><p>获取指定彩种的最大间隔期数，默认1.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set_draw_analysis_max_gap">
+<span class="sig-name descname"><span class="pre">set_draw_analysis_max_gap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set_draw_analysis_max_gap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set_draw_analysis_max_gap" title="Link to this definition"></a></dt>
+<dd><p>设置指定彩种的最大间隔期数.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get_draw_analysis_filter_threshold">
+<span class="sig-name descname"><span class="pre">get_draw_analysis_filter_threshold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get_draw_analysis_filter_threshold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get_draw_analysis_filter_threshold" title="Link to this definition"></a></dt>
+<dd><p>获取指定彩种的过滤阈值，默认1.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set_draw_analysis_filter_threshold">
+<span class="sig-name descname"><span class="pre">set_draw_analysis_filter_threshold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set_draw_analysis_filter_threshold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set_draw_analysis_filter_threshold" title="Link to this definition"></a></dt>
+<dd><p>设置指定彩种的过滤阈值.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get_draw_analysis_group_mode">
+<span class="sig-name descname"><span class="pre">get_draw_analysis_group_mode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get_draw_analysis_group_mode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get_draw_analysis_group_mode" title="Link to this definition"></a></dt>
+<dd><p>获取指定彩种的分组模式，默认’all’.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set_draw_analysis_group_mode">
+<span class="sig-name descname"><span class="pre">set_draw_analysis_group_mode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set_draw_analysis_group_mode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set_draw_analysis_group_mode" title="Link to this definition"></a></dt>
+<dd><p>设置指定彩种的分组模式.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get_batch_backtest_count">
+<span class="sig-name descname"><span class="pre">get_batch_backtest_count</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get_batch_backtest_count"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get_batch_backtest_count" title="Link to this definition"></a></dt>
+<dd><p>获取指定彩种的批量回测每期注数，默认5.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set_batch_backtest_count">
+<span class="sig-name descname"><span class="pre">set_batch_backtest_count</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set_batch_backtest_count"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set_batch_backtest_count" title="Link to this definition"></a></dt>
+<dd><p>设置指定彩种的批量回测每期注数.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get_batch_backtest_filter_threshold">
+<span class="sig-name descname"><span class="pre">get_batch_backtest_filter_threshold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get_batch_backtest_filter_threshold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get_batch_backtest_filter_threshold" title="Link to this definition"></a></dt>
+<dd><p>获取指定彩种的批量回测过滤阈值，默认1.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set_batch_backtest_filter_threshold">
+<span class="sig-name descname"><span class="pre">set_batch_backtest_filter_threshold</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set_batch_backtest_filter_threshold"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set_batch_backtest_filter_threshold" title="Link to this definition"></a></dt>
+<dd><p>设置指定彩种的批量回测过滤阈值.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.get_batch_backtest_filter_periods">
+<span class="sig-name descname"><span class="pre">get_batch_backtest_filter_periods</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.get_batch_backtest_filter_periods"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.get_batch_backtest_filter_periods" title="Link to this definition"></a></dt>
+<dd><p>获取指定彩种的批量回测比较期数，默认7.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.set_batch_backtest_filter_periods">
+<span class="sig-name descname"><span class="pre">set_batch_backtest_filter_periods</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">profile_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.set_batch_backtest_filter_periods"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.set_batch_backtest_filter_periods" title="Link to this definition"></a></dt>
+<dd><p>设置指定彩种的批量回测比较期数.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.ssq_filter_compare_periods">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ssq_filter_compare_periods</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.ssq_filter_compare_periods" title="Link to this definition"></a></dt>
+<dd><p>SSQ过滤：对比的历史期数，默认 1。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.ssq_filter_max_red_overlap">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ssq_filter_max_red_overlap</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.ssq_filter_max_red_overlap" title="Link to this definition"></a></dt>
+<dd><p>SSQ过滤：允许的红球最大重合数，默认 3。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.ssq_filter_block_blue">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ssq_filter_block_blue</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.ssq_filter_block_blue" title="Link to this definition"></a></dt>
+<dd><p>SSQ过滤：是否禁止蓝球与历史相同，默认 True。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.fc3d_filter_enabled">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fc3d_filter_enabled</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_enabled" title="Link to this definition"></a></dt>
+<dd><p>3D经验策略过滤：是否启用，默认 False（保持原有无过滤行为）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.fc3d_filter_compare_periods">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fc3d_filter_compare_periods</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_compare_periods" title="Link to this definition"></a></dt>
+<dd><p>3D经验策略过滤：向前比较的历史期数，默认 5。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.fc3d_filter_max_overlap">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fc3d_filter_max_overlap</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_max_overlap" title="Link to this definition"></a></dt>
+<dd><p>3D经验策略过滤：允许的相同号码最大个数，默认 1（超过则淘汰）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.fc3d_filter_min_sum">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fc3d_filter_min_sum</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_min_sum" title="Link to this definition"></a></dt>
+<dd><p>3D经验策略过滤：允许的最小和值，默认 0（不限制）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.fc3d_filter_max_sum">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">fc3d_filter_max_sum</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.fc3d_filter_max_sum" title="Link to this definition"></a></dt>
+<dd><p>3D经验策略过滤：允许的最大和值，默认 27（不限制）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.qlc_filter_enabled">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">qlc_filter_enabled</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.qlc_filter_enabled" title="Link to this definition"></a></dt>
+<dd><p>七乐彩经验策略过滤：是否启用，默认 False（保持原有无过滤行为）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.qlc_filter_compare_periods">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">qlc_filter_compare_periods</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.qlc_filter_compare_periods" title="Link to this definition"></a></dt>
+<dd><p>七乐彩经验策略过滤：向前比较的历史期数，默认 5。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.qlc_filter_max_overlap">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">qlc_filter_max_overlap</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.qlc_filter_max_overlap" title="Link to this definition"></a></dt>
+<dd><p>七乐彩经验策略过滤：允许的基本号最大重合个数，默认 2（超过则淘汰）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.qlc_filter_min_sum">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">qlc_filter_min_sum</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.qlc_filter_min_sum" title="Link to this definition"></a></dt>
+<dd><p>七乐彩经验策略过滤：允许的最小和值，默认 0（不限制）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.qlc_filter_max_sum">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">qlc_filter_max_sum</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.qlc_filter_max_sum" title="Link to this definition"></a></dt>
+<dd><p>七乐彩经验策略过滤：允许的最大和值，默认 210（不限制）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_backtest_options">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_backtest_options</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_backtest_options" title="Link to this definition"></a></dt>
+<dd><p>历史回测对话框上次使用的参数.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_backtest_date">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_backtest_date</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_backtest_date" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_backtest_count">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_backtest_count</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_backtest_count" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.last_strategy_options">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">last_strategy_options</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.last_strategy_options" title="Link to this definition"></a></dt>
+<dd><p>上次生成时使用的策略参数（JSON 字符串）。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.settings.AppSettings.sync">
+<span class="sig-name descname"><span class="pre">sync</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/settings.html#AppSettings.sync"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.settings.AppSettings.sync" title="Link to this definition"></a></dt>
+<dd><p>同步写入磁盘.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="history.html" class="btn btn-neutral float-left" title="history" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

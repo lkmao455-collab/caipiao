@@ -189,6 +189,45 @@ def is_model_current(
     return find_current_model(records, lookback, directory, prefix, options) is not None
 
 
+def needs_incremental_update(
+    records: List[DrawRecord],
+    lookback: int,
+    directory: Optional[Path] = None,
+    prefix: str = "xgboost",
+    options: Optional[Dict[str, Any]] = None,
+    max_incremental: int = 5,
+) -> tuple[bool, int]:
+    """检查是否需要增量更新。
+
+    Args:
+        records: 当前全部记录。
+        lookback: 回看期数。
+        directory: 模型目录。
+        prefix: 模型文件前缀。
+        options: 策略选项。
+        max_incremental: 最大增量更新次数（超过则需要全量训练）。
+
+    Returns:
+        (需要增量, 新增记录数)。如果不需要增量或无法增量，返回 (False, 0)。
+    """
+    model_path = find_current_model(records, lookback, directory, prefix, options)
+    if model_path is None:
+        return False, 0
+
+    meta = _model_meta(model_path)
+    record_count_in_model = meta.get("record_count", 0)
+    new_count = len(records) - record_count_in_model
+
+    if new_count <= 0:
+        return False, 0
+
+    if new_count > max_incremental:
+        logger.info("新增 %d 条记录超过阈值 %d，需要全量训练", new_count, max_incremental)
+        return False, 0
+
+    return True, new_count
+
+
 def model_info(model_path: Path) -> Dict[str, Any]:
     """读取模型的元数据信息摘要."""
     meta = _model_meta(model_path)

@@ -1,0 +1,393 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>caipiao.ml.model &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">caipiao.ml.model</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for caipiao.ml.model</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;XGBoost 模型训练与预测（顺序组合生成版）.</span>
+
+<span class="sd">为双色球红球建模为不放回顺序生成问题：</span>
+<span class="sd">给定历史窗口特征和已选红球，预测下一个红球号码。</span>
+<span class="sd">蓝球仍按 16 个二分类器建模（每期只开 1 个蓝球）。</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xgboost</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xgb</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.multioutput</span><span class="w"> </span><span class="kn">import</span> <span class="n">MultiOutputClassifier</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">LabelEncoder</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">RED_COUNT</span> <span class="o">=</span> <span class="mi">33</span>
+<span class="n">BLUE_COUNT</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="n">RED_PICK</span> <span class="o">=</span> <span class="mi">6</span>
+
+
+<div class="viewcode-block" id="LotteryXGBoostModel">
+<a class="viewcode-back" href="../../../ml/model.html#caipiao.ml.model.LotteryXGBoostModel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LotteryXGBoostModel</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;基于 XGBoost 的彩票号码分析模型.</span>
+
+<span class="sd">    红球：顺序生成模型，输入包含历史特征、已选红球 mask、当前步数。</span>
+<span class="sd">    蓝球：为每个蓝球训练二分类器，输出下一期出现的概率。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lookback</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span> <span class="n">temp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span> <span class="o">=</span> <span class="n">lookback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temp_dir</span> <span class="o">=</span> <span class="n">temp_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">xgb</span><span class="o">.</span><span class="n">XGBClassifier</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LabelEncoder</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MultiOutputClassifier</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_base_feature_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_classifier</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">positional</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">num_class</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">xgb</span><span class="o">.</span><span class="n">XGBClassifier</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;创建 XGBoost 分类器.&quot;&quot;&quot;</span>
+        <span class="n">clf</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">XGBClassifier</span><span class="p">(</span>
+            <span class="n">n_estimators</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">max_depth</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+            <span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">subsample</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+            <span class="n">colsample_bytree</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+            <span class="n">objective</span><span class="o">=</span><span class="s2">&quot;binary:logistic&quot;</span><span class="p">,</span>
+            <span class="n">eval_metric</span><span class="o">=</span><span class="s2">&quot;logloss&quot;</span><span class="p">,</span>
+            <span class="n">use_label_encoder</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">nthread</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
+            <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">positional</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">num_class</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;多分类类别数必须大于 1&quot;</span><span class="p">)</span>
+            <span class="n">clf</span><span class="o">.</span><span class="n">set_params</span><span class="p">(</span><span class="n">objective</span><span class="o">=</span><span class="s2">&quot;multi:softprob&quot;</span><span class="p">,</span> <span class="n">num_class</span><span class="o">=</span><span class="n">num_class</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">clf</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_sequence_input</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">base_x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">step</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;构造红球顺序生成模型的一个输入向量.&quot;&quot;&quot;</span>
+        <span class="n">step_norm</span> <span class="o">=</span> <span class="n">step</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">RED_PICK</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">base_x</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">mask</span><span class="p">,</span> <span class="p">[</span><span class="n">step_norm</span><span class="p">]])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_sequence_training_data</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">y_red</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">LabelEncoder</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;从 one-hot 红球标签构造顺序生成训练数据.&quot;&quot;&quot;</span>
+        <span class="n">X_seq</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">y_seq</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="p">[</span><span class="n">idx</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">y_red</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">if</span> <span class="n">val</span><span class="p">]</span>
+            <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">step</span><span class="p">,</span> <span class="n">num_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+                <span class="n">X_seq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_sequence_input</span><span class="p">(</span><span class="n">X</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">mask</span><span class="p">,</span> <span class="n">step</span><span class="p">))</span>
+                <span class="n">y_seq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">num_idx</span><span class="p">)</span>
+                <span class="n">mask</span><span class="p">[</span><span class="n">num_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="n">encoder</span> <span class="o">=</span> <span class="n">LabelEncoder</span><span class="p">()</span>
+        <span class="n">y_enc</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">y_seq</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">X_seq</span><span class="p">),</span> <span class="n">y_enc</span><span class="p">,</span> <span class="n">encoder</span>
+
+<div class="viewcode-block" id="LotteryXGBoostModel.fit">
+<a class="viewcode-back" href="../../../ml/model.html#caipiao.ml.model.LotteryXGBoostModel.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">y_red</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">y_blue</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">progress_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">incremental</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;训练模型.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: 特征矩阵</span>
+<span class="sd">            y_red: 红球标签</span>
+<span class="sd">            y_blue: 蓝球标签</span>
+<span class="sd">            progress_callback: 进度回调</span>
+<span class="sd">            incremental: 是否增量训练（使用已有模型继续训练）</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;训练数据为空&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">y_red</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">y_blue</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;y_red/y_blue 必须是二维数组&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_base_feature_dim</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">total</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># 红球顺序模型 + 蓝球多输出模型</span>
+
+        <span class="c1"># 训练红球顺序生成模型</span>
+        <span class="n">X_seq</span><span class="p">,</span> <span class="n">y_seq</span><span class="p">,</span> <span class="n">encoder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_sequence_training_data</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y_red</span><span class="p">)</span>
+        <span class="n">num_class</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">encoder</span><span class="o">.</span><span class="n">classes_</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">incremental</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span><span class="p">:</span>
+            <span class="c1"># 增量训练：使用已有模型继续训练</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_seq</span><span class="p">,</span> <span class="n">y_seq</span><span class="p">,</span> <span class="n">xgb_model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="o">.</span><span class="n">get_booster</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span> <span class="o">=</span> <span class="n">encoder</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># 全量训练：创建新模型</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_classifier</span><span class="p">(</span>
+                <span class="n">positional</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">num_class</span><span class="o">=</span><span class="n">num_class</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_seq</span><span class="p">,</span> <span class="n">y_seq</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span> <span class="o">=</span> <span class="n">encoder</span>
+
+        <span class="k">if</span> <span class="n">progress_callback</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">progress_callback</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">total</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;红球顺序生成模型训练完成&quot;</span><span class="p">)</span>
+
+        <span class="c1"># 训练蓝球多输出分类器</span>
+        <span class="k">if</span> <span class="n">incremental</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span><span class="p">:</span>
+            <span class="c1"># 增量训练：使用已有模型继续训练</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">estimator</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span><span class="o">.</span><span class="n">estimators_</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">&lt;</span> <span class="n">y_blue</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">estimator</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y_blue</span><span class="p">[:,</span> <span class="n">idx</span><span class="p">],</span> <span class="n">xgb_model</span><span class="o">=</span><span class="n">estimator</span><span class="o">.</span><span class="n">get_booster</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># 全量训练：创建新模型</span>
+            <span class="n">blue_clf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_classifier</span><span class="p">()</span><span class="o">.</span><span class="n">set_params</span><span class="p">(</span><span class="n">scale_pos_weight</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span> <span class="o">=</span> <span class="n">MultiOutputClassifier</span><span class="p">(</span><span class="n">blue_clf</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y_blue</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">progress_callback</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">progress_callback</span><span class="p">(</span><span class="n">total</span><span class="p">,</span> <span class="n">total</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;XGBoost 模型训练完成 (</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="s2">&quot;增量&quot;</span> <span class="k">if</span> <span class="n">incremental</span> <span class="k">else</span> <span class="s2">&quot;全量&quot;</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_predict_sequence_initial</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;预测 step=0 时各红球概率，用于展示.&quot;&quot;&quot;</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_sequence_input</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">encoder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span>
+        <span class="n">full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="mf">0.05</span> <span class="o">/</span> <span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">encoder</span><span class="o">.</span><span class="n">classes_</span><span class="p">):</span>
+            <span class="n">full</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="bp">cls</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">pred</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="n">full</span> <span class="o">=</span> <span class="n">full</span> <span class="o">/</span> <span class="n">full</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">full</span>
+
+<div class="viewcode-block" id="LotteryXGBoostModel.predict_proba">
+<a class="viewcode-back" href="../../../ml/model.html#caipiao.ml.model.LotteryXGBoostModel.predict_proba">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict_proba</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;预测下一期各号码出现概率.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            red_proba: 33 个红球初始概率（step=0）</span>
+<span class="sd">            blue_proba: 16 个蓝球概率</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;模型尚未训练&quot;</span><span class="p">)</span>
+
+        <span class="n">red_proba</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_predict_sequence_initial</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_binary_proba</span><span class="p">(</span><span class="n">est</span><span class="p">):</span>
+            <span class="n">probs</span> <span class="o">=</span> <span class="n">est</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">probs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">probs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">est</span><span class="o">.</span><span class="n">classes_</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">blue_proba</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">_binary_proba</span><span class="p">(</span><span class="n">est</span><span class="p">)</span> <span class="k">for</span> <span class="n">est</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span><span class="o">.</span><span class="n">estimators_</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">red_proba</span><span class="p">,</span> <span class="n">blue_proba</span></div>
+
+
+<div class="viewcode-block" id="LotteryXGBoostModel.sample_reds">
+<a class="viewcode-back" href="../../../ml/model.html#caipiao.ml.model.LotteryXGBoostModel.sample_reds">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_reds</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X_pred</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">rng</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;使用顺序生成模型采样 count 个不重复红球.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;模型尚未训练&quot;</span><span class="p">)</span>
+        <span class="n">encoder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span>
+        <span class="n">selected</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_sequence_input</span><span class="p">(</span><span class="n">X_pred</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="mf">0.05</span> <span class="o">/</span> <span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">encoder</span><span class="o">.</span><span class="n">classes_</span><span class="p">):</span>
+                <span class="n">full</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="bp">cls</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">pred</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">selected</span><span class="p">:</span>
+                <span class="n">full</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">full</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">s</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">remaining</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">selected</span><span class="p">]</span>
+                <span class="n">full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">remaining</span><span class="p">:</span>
+                    <span class="n">full</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">remaining</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">full</span> <span class="o">=</span> <span class="n">full</span> <span class="o">/</span> <span class="n">s</span>
+            <span class="n">next_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">RED_COUNT</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">full</span><span class="p">))</span>
+            <span class="n">selected</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">next_idx</span><span class="p">)</span>
+            <span class="n">mask</span><span class="p">[</span><span class="n">next_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">selected</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="LotteryXGBoostModel.save">
+<a class="viewcode-back" href="../../../ml/model.html#caipiao.ml.model.LotteryXGBoostModel.save">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;保存模型到文件.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;red_sequence_model&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span><span class="p">,</span>
+                    <span class="s2">&quot;red_sequence_encoder&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span><span class="p">,</span>
+                    <span class="s2">&quot;blue_model&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span><span class="p">,</span>
+                    <span class="s2">&quot;lookback&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">,</span>
+                    <span class="s2">&quot;is_trained&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span><span class="p">,</span>
+                    <span class="s2">&quot;base_feature_dim&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_base_feature_dim</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="n">f</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;模型已保存到 </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LotteryXGBoostModel.load">
+<a class="viewcode-back" href="../../../ml/model.html#caipiao.ml.model.LotteryXGBoostModel.load">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;从文件加载模型.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_model</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;red_sequence_model&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">red_sequence_encoder</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;red_sequence_encoder&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blue_model</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;blue_model&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;lookback&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_trained</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;is_trained&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_base_feature_dim</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;base_feature_dim&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;模型已从 </span><span class="si">%s</span><span class="s2"> 加载&quot;</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

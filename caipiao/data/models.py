@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 from ..core.profile import SSQ, LotteryProfile, get_profile
 
@@ -31,7 +31,7 @@ class DrawRecord:
         red_balls: Optional[List[int]] = None,
         blue_ball: Optional[int] = None,
         *,
-        profile: Union[LotteryProfile, str, None] = None,
+        profile: LotteryProfile | str | None = None,
         groups: Optional[Dict[str, List[int]]] = None,
     ) -> None:
         self.issue = issue

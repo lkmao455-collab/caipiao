@@ -1,0 +1,245 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>history &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="settings" href="settings.html" />
+    <link rel="prev" title="features" href="../ml/features.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/features.html">features</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">history</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager"><code class="docutils literal notranslate"><span class="pre">HistoryManager</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.save"><code class="docutils literal notranslate"><span class="pre">HistoryManager.save()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.add"><code class="docutils literal notranslate"><span class="pre">HistoryManager.add()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.add_many"><code class="docutils literal notranslate"><span class="pre">HistoryManager.add_many()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.get_all"><code class="docutils literal notranslate"><span class="pre">HistoryManager.get_all()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.get_recent"><code class="docutils literal notranslate"><span class="pre">HistoryManager.get_recent()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.clear"><code class="docutils literal notranslate"><span class="pre">HistoryManager.clear()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.delete"><code class="docutils literal notranslate"><span class="pre">HistoryManager.delete()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.export_csv"><code class="docutils literal notranslate"><span class="pre">HistoryManager.export_csv()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.export_txt"><code class="docutils literal notranslate"><span class="pre">HistoryManager.export_txt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.export_excel"><code class="docutils literal notranslate"><span class="pre">HistoryManager.export_excel()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.persistence.history.HistoryManager.import_from_json"><code class="docutils literal notranslate"><span class="pre">HistoryManager.import_from_json()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">history</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/persistence/history.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-caipiao.persistence.history">
+<span id="history"></span><h1>history<a class="headerlink" href="#module-caipiao.persistence.history" title="Link to this heading"></a></h1>
+<p>历史记录管理.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.persistence.history.</span></span><span class="sig-name descname"><span class="pre">HistoryManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">storage_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_entries</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>管理生成历史记录的增删改查与导入导出.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.save" title="Link to this definition"></a></dt>
+<dd><p>保存历史到文件.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticket</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../core/ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_duplicates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.add"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.add" title="Link to this definition"></a></dt>
+<dd><p>添加单条记录。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ticket</strong> – 要添加的投注单。</p></li>
+<li><p><strong>skip_duplicates</strong> – 为 True 时跳过与现有记录完全相同的票。</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>是否实际添加了新记录。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.add_many">
+<span class="sig-name descname"><span class="pre">add_many</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Iterable" title="(in Python v3.14)"><span class="pre">Iterable</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="../core/ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_duplicates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.add_many"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.add_many" title="Link to this definition"></a></dt>
+<dd><p>批量添加记录。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tickets</strong> – 要添加的投注单列表。</p></li>
+<li><p><strong>skip_duplicates</strong> – 为 True 时跳过已存在的记录。</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>实际新增的记录数量。</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.get_all">
+<span class="sig-name descname"><span class="pre">get_all</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="../core/ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.get_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.get_all" title="Link to this definition"></a></dt>
+<dd><p>获取全部记录.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.get_recent">
+<span class="sig-name descname"><span class="pre">get_recent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">days</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="../core/ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.get_recent"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.get_recent" title="Link to this definition"></a></dt>
+<dd><p>获取最近 N 天的记录.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.clear">
+<span class="sig-name descname"><span class="pre">clear</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.clear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.clear" title="Link to this definition"></a></dt>
+<dd><p>清空历史.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.delete">
+<span class="sig-name descname"><span class="pre">delete</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticket</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../core/ticket.html#caipiao.core.ticket.Ticket" title="caipiao.core.ticket.Ticket"><span class="pre">Ticket</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.delete"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.delete" title="Link to this definition"></a></dt>
+<dd><p>删除指定记录.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.export_csv">
+<span class="sig-name descname"><span class="pre">export_csv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.export_csv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.export_csv" title="Link to this definition"></a></dt>
+<dd><p>导出为 CSV.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.export_txt">
+<span class="sig-name descname"><span class="pre">export_txt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.export_txt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.export_txt" title="Link to this definition"></a></dt>
+<dd><p>导出为纯文本.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.export_excel">
+<span class="sig-name descname"><span class="pre">export_excel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.export_excel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.export_excel" title="Link to this definition"></a></dt>
+<dd><p>导出为 Excel (.xlsx)。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.persistence.history.HistoryManager.import_from_json">
+<span class="sig-name descname"><span class="pre">import_from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../_modules/caipiao/persistence/history.html#HistoryManager.import_from_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.persistence.history.HistoryManager.import_from_json" title="Link to this definition"></a></dt>
+<dd><p>从 JSON 导入历史记录.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../ml/features.html" class="btn btn-neutral float-left" title="features" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="settings.html" class="btn btn-neutral float-right" title="settings" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

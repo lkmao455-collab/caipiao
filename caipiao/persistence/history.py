@@ -150,6 +150,76 @@ class HistoryManager:
             for t in self._tickets:
                 f.write(t.format_compact() + "\n")
 
+    def export_excel(self, path: Path | str) -> None:
+        """导出为 Excel (.xlsx)。"""
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+
+        path = Path(path)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "历史记录"
+
+        # 表头样式
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+
+        # 动态列头
+        sample = self._tickets[0] if self._tickets else None
+        group_names = [rg.name for rg in sample.render_groups()] if sample else ["号码"]
+        headers = ["序号", "时间", "策略"] + group_names + ["紧凑格式", "依据"]
+
+        # 写表头
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # 写数据
+        for row_idx, t in enumerate(self._tickets, 2):
+            row_data = [
+                row_idx - 1,
+                t.generated_at.strftime("%Y-%m-%d %H:%M:%S") if t.generated_at else "-",
+                t.strategy_name,
+            ]
+            groups = list(t.render_groups())
+            if groups:
+                for rg in groups:
+                    row_data.append(" ".join(f"{n:0{rg.pad}d}" for n in rg.numbers))
+            else:
+                row_data.append("")
+            row_data.extend([t.format_compact(), t.basis])
+
+            for col, value in enumerate(row_data, 1):
+                cell = ws.cell(row=row_idx, column=col, value=value)
+                cell.border = thin_border
+                if col == 1:
+                    cell.alignment = Alignment(horizontal="center")
+
+        # 自动调整列宽
+        for col in range(1, len(headers) + 1):
+            max_length = max(
+                len(str(ws.cell(row=r, column=col).value or ""))
+                for r in range(1, len(self._tickets) + 2)
+            )
+            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = (
+                min(max_length + 4, 40)
+            )
+
+        # 冻结首行
+        ws.freeze_panes = "A2"
+
+        wb.save(path)
+
     def import_from_json(self, path: Path | str) -> int:
         """从 JSON 导入历史记录."""
         path = Path(path)

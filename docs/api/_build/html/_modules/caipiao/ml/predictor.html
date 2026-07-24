@@ -1,0 +1,368 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>caipiao.ml.predictor &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">caipiao.ml.predictor</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for caipiao.ml.predictor</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;机器学习预测器高层接口.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..data.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">DrawRecord</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.common.model_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">data_fingerprint</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.features</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_features</span><span class="p">,</span> <span class="n">build_prediction_features</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">LotteryXGBoostModel</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="MLPredictor">
+<a class="viewcode-back" href="../../../ml/predictor.html#caipiao.ml.predictor.MLPredictor">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MLPredictor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;基于历史数据的机器学习号码推荐器.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">],</span>
+        <span class="n">lookback</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span>
+        <span class="n">model_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">model_class</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">LotteryXGBoostModel</span><span class="p">,</span>
+        <span class="n">temp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">draw_date</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span> <span class="o">=</span> <span class="n">lookback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model_class</span><span class="p">(</span><span class="n">lookback</span><span class="o">=</span><span class="n">lookback</span><span class="p">,</span> <span class="n">temp_dir</span><span class="o">=</span><span class="n">temp_dir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span> <span class="o">=</span> <span class="n">model_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_needs_training</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_feature_count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">model_path</span> <span class="ow">and</span> <span class="n">model_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata_matches</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">model_path</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_needs_training</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;已加载与当前数据匹配的缓存模型&quot;</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;加载模型失败: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;本地缓存模型与当前数据不一致，将重新训练&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_data_fingerprint</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;基于记录数量和最新一期生成数据指纹.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">data_fingerprint</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_metadata_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Path</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">+</span> <span class="s2">&quot;.meta.json&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_metadata_matches</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;检查缓存模型元数据是否与当前数据一致.&quot;&quot;&quot;</span>
+        <span class="n">meta_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata_path</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">meta_path</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">meta_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">meta_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fingerprint&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_fingerprint</span><span class="p">():</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="c1"># 旧模型没有 feature_count 字段，按不一致处理（避免特征维度不匹配报错）</span>
+            <span class="k">if</span> <span class="s2">&quot;feature_count&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">meta</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;feature_count&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expected_feature_count</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_expected_feature_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;当前特征工程期望的特征维度（缓存）。&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_feature_count</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">build_prediction_features</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;历史数据不足，无法计算特征维度&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_feature_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_feature_count</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_save_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;保存模型元数据.&quot;&quot;&quot;</span>
+        <span class="n">meta_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata_path</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">meta_path</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;fingerprint&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_fingerprint</span><span class="p">(),</span>
+            <span class="s2">&quot;record_count&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">),</span>
+            <span class="s2">&quot;lookback&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">,</span>
+            <span class="s2">&quot;feature_count&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expected_feature_count</span><span class="p">(),</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">:</span>
+            <span class="n">latest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;last_issue&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">latest</span><span class="o">.</span><span class="n">issue</span>
+            <span class="n">meta</span><span class="p">[</span><span class="s2">&quot;last_draw_date&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">latest</span><span class="o">.</span><span class="n">draw_date</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span>
+        <span class="n">meta_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">meta_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MLPredictor.train">
+<a class="viewcode-back" href="../../../ml/predictor.html#caipiao.ml.predictor.MLPredictor.train">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">progress_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;使用全部历史数据训练模型.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            progress_callback: 可选进度回调 ``callback(current, total)``，</span>
+<span class="sd">                透传给底层模型用于界面进度展示。</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">X</span><span class="p">,</span> <span class="n">y_red</span><span class="p">,</span> <span class="n">y_blue</span> <span class="o">=</span> <span class="n">build_features</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;历史数据不足，无法训练模型&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y_red</span><span class="p">,</span> <span class="n">y_blue</span><span class="p">,</span> <span class="n">progress_callback</span><span class="o">=</span><span class="n">progress_callback</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_needs_training</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_metadata</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;模型已保存，数据指纹：</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_fingerprint</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="MLPredictor.train_incremental">
+<a class="viewcode-back" href="../../../ml/predictor.html#caipiao.ml.predictor.MLPredictor.train_incremental">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">train_incremental</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">new_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">progress_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;增量训练模型（仅使用新数据更新已有模型）。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            new_count: 新增记录数量。</span>
+<span class="sd">            progress_callback: 进度回调。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            是否成功增量训练。如果模型不存在或数据不足，返回 False（需全量训练）。</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;无已有模型，需要全量训练&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metadata_matches</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;模型元数据不匹配，需要全量训练&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;加载已有模型失败: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">is_trained</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">X_new</span><span class="p">,</span> <span class="n">y_red_new</span><span class="p">,</span> <span class="n">y_blue_new</span> <span class="o">=</span> <span class="n">build_incremental_features</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">,</span> <span class="n">new_count</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">X_new</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;无新数据需要训练&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
+            <span class="n">X_new</span><span class="p">,</span> <span class="n">y_red_new</span><span class="p">,</span> <span class="n">y_blue_new</span><span class="p">,</span>
+            <span class="n">progress_callback</span><span class="o">=</span><span class="n">progress_callback</span><span class="p">,</span>
+            <span class="n">incremental</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_needs_training</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_path</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_metadata</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;增量训练完成，新数据指纹：</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_fingerprint</span><span class="p">())</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="MLPredictor.predict">
+<a class="viewcode-back" href="../../../ml/predictor.html#caipiao.ml.predictor.MLPredictor.predict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;预测下一期各号码出现概率.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            red_proba: 33 个红球概率</span>
+<span class="sd">            blue_proba: 16 个蓝球概率</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_needs_training</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="n">build_prediction_features</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;历史数据不足，无法预测&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MLPredictor.recommend">
+<a class="viewcode-back" href="../../../ml/predictor.html#caipiao.ml.predictor.MLPredictor.recommend">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">recommend</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">red_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span>
+        <span class="n">blue_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">diversity_boost</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.3</span><span class="p">,</span>
+        <span class="n">rng</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;推荐号码组合.</span>
+
+<span class="sd">        红球使用顺序生成模型不放回采样；蓝球使用预测概率加权采样。</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">rng</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">red_count</span> <span class="o">&lt;=</span> <span class="mi">33</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;red_count 必须在 1..33 之间&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">blue_count</span> <span class="o">&lt;=</span> <span class="mi">16</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;blue_count 必须在 0..16 之间&quot;</span><span class="p">)</span>
+
+        <span class="n">red_proba</span><span class="p">,</span> <span class="n">blue_proba</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict</span><span class="p">()</span>
+        <span class="n">X_pred</span> <span class="o">=</span> <span class="n">build_prediction_features</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookback</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X_pred</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;历史数据不足，无法预测&quot;</span><span class="p">)</span>
+
+        <span class="n">selected_reds</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">sample_reds</span><span class="p">(</span><span class="n">X_pred</span><span class="p">,</span> <span class="n">red_count</span><span class="p">,</span> <span class="n">rng</span><span class="p">))</span>
+
+        <span class="n">blue_weights</span> <span class="o">=</span> <span class="n">blue_proba</span> <span class="o">+</span> <span class="mf">0.05</span>
+        <span class="n">blue_weights</span> <span class="o">=</span> <span class="n">blue_weights</span> <span class="o">/</span> <span class="n">blue_weights</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">selected_blues</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">blue_count</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">selected_blues</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+                <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">17</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="n">blue_count</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">blue_weights</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">selected_reds</span><span class="p">,</span> <span class="n">selected_blues</span></div>
+
+
+<div class="viewcode-block" id="MLPredictor.is_ready">
+<a class="viewcode-back" href="../../../ml/predictor.html#caipiao.ml.predictor.MLPredictor.is_ready">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_ready</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;模型是否已准备好.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">is_trained</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_needs_training</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

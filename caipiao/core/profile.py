@@ -368,6 +368,12 @@ def list_profiles() -> List[LotteryProfile]:
     return [SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC]
 
 
+# 主界面导航中隐藏的彩种 key：功能、数据与策略全部保留，
+# 仅不在彩种下拉框和「彩种」菜单中展示。
+# 七乐彩在广州无销售，按用户要求从导航移除。
+NAV_HIDDEN_PROFILE_KEYS = {"qlc"}
+
+
 def list_profiles_by_category() -> Dict[str, List[LotteryProfile]]:
     """按彩种大类（福利彩票/体育彩票）分组返回档案。"""
     result: Dict[str, List[LotteryProfile]] = {}

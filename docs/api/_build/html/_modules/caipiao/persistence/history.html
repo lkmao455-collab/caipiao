@@ -1,0 +1,397 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>caipiao.persistence.history &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">caipiao.persistence.history</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for caipiao.persistence.history</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;历史记录管理.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">List</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..core.ticket</span><span class="w"> </span><span class="kn">import</span> <span class="n">Ticket</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="HistoryManager">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">HistoryManager</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;管理生成历史记录的增删改查与导入导出.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">storage_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_entries</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">storage_path</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">max_entries</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_entries</span><span class="p">))</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">max_entries</span> <span class="o">=</span> <span class="mi">1000</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;从文件加载历史.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;JSON root must be a list&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="o">=</span> <span class="p">[</span><span class="n">Ticket</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;加载历史记录失败: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="o">=</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="HistoryManager.save">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.save">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;保存历史到文件.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">ticket</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">ticket</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">max_entries</span> <span class="p">:]]</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.add">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.add">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ticket</span><span class="p">:</span> <span class="n">Ticket</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">skip_duplicates</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;添加单条记录。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ticket: 要添加的投注单。</span>
+<span class="sd">            skip_duplicates: 为 True 时跳过与现有记录完全相同的票。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            是否实际添加了新记录。</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">skip_duplicates</span> <span class="ow">and</span> <span class="n">ticket</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ticket</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_trim</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.add_many">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.add_many">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_many</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">tickets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">skip_duplicates</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;批量添加记录。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tickets: 要添加的投注单列表。</span>
+<span class="sd">            skip_duplicates: 为 True 时跳过已存在的记录。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            实际新增的记录数量。</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">added</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">ticket</span> <span class="ow">in</span> <span class="n">tickets</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">skip_duplicates</span> <span class="ow">and</span> <span class="n">ticket</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ticket</span><span class="p">)</span>
+            <span class="n">added</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">added</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_trim</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">added</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_trim</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;限制记录数量.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_entries</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">max_entries</span> <span class="p">:]</span>
+
+<div class="viewcode-block" id="HistoryManager.get_all">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.get_all">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_all</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;获取全部记录.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[:]</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.get_recent">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.get_recent">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_recent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;获取最近 N 天的记录.&quot;&quot;&quot;</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">generated_at</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">generated_at</span><span class="o">.</span><span class="n">tzinfo</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="n">now</span><span class="o">.</span><span class="n">astimezone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">generated_at</span><span class="o">.</span><span class="n">tzinfo</span><span class="p">)</span>
+        <span class="n">cutoff</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">days</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">generated_at</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">generated_at</span> <span class="o">&gt;=</span> <span class="n">cutoff</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.clear">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.clear">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;清空历史.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.delete">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.delete">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ticket</span><span class="p">:</span> <span class="n">Ticket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;删除指定记录.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">ticket</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.export_csv">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.export_csv">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">export_csv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;导出为 CSV.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8-sig&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">writer</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="c1"># 动态列头：按第一个有号票的 render_groups 决定（全部票同彩种）</span>
+            <span class="n">sample</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">group_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">rg</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">rg</span> <span class="ow">in</span> <span class="n">sample</span><span class="o">.</span><span class="n">render_groups</span><span class="p">()]</span> <span class="k">if</span> <span class="n">sample</span> <span class="k">else</span> <span class="p">[</span><span class="s2">&quot;红球&quot;</span><span class="p">,</span> <span class="s2">&quot;蓝球&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">group_names</span><span class="p">:</span>
+                <span class="n">group_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;号码&quot;</span><span class="p">]</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span><span class="s2">&quot;时间&quot;</span><span class="p">,</span> <span class="s2">&quot;策略&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">group_names</span> <span class="o">+</span> <span class="p">[</span><span class="s2">&quot;紧凑格式&quot;</span><span class="p">,</span> <span class="s2">&quot;依据&quot;</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">:</span>
+                <span class="n">row</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">t</span><span class="o">.</span><span class="n">generated_at</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">generated_at</span> <span class="k">else</span> <span class="s2">&quot;-&quot;</span><span class="p">,</span>
+                    <span class="n">t</span><span class="o">.</span><span class="n">strategy_name</span><span class="p">,</span>
+                <span class="p">]</span>
+                <span class="n">groups</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">render_groups</span><span class="p">())</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">groups</span><span class="p">:</span>
+                    <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">rg</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+                        <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n</span><span class="si">:</span><span class="s2">0</span><span class="si">{</span><span class="n">rg</span><span class="o">.</span><span class="n">pad</span><span class="si">}</span><span class="s2">d</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">rg</span><span class="o">.</span><span class="n">numbers</span><span class="p">))</span>
+                <span class="n">row</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">t</span><span class="o">.</span><span class="n">format_compact</span><span class="p">(),</span> <span class="n">t</span><span class="o">.</span><span class="n">basis</span><span class="p">])</span>
+                <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">row</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.export_txt">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.export_txt">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">export_txt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;导出为纯文本.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">format_compact</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.export_excel">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.export_excel">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">export_excel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;导出为 Excel (.xlsx)。&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">openpyxl</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workbook</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">openpyxl.styles</span><span class="w"> </span><span class="kn">import</span> <span class="n">Alignment</span><span class="p">,</span> <span class="n">Font</span><span class="p">,</span> <span class="n">PatternFill</span><span class="p">,</span> <span class="n">Border</span><span class="p">,</span> <span class="n">Side</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">wb</span> <span class="o">=</span> <span class="n">Workbook</span><span class="p">()</span>
+        <span class="n">ws</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">active</span>
+        <span class="n">ws</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="s2">&quot;历史记录&quot;</span>
+
+        <span class="c1"># 表头样式</span>
+        <span class="n">header_font</span> <span class="o">=</span> <span class="n">Font</span><span class="p">(</span><span class="n">bold</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;FFFFFF&quot;</span><span class="p">)</span>
+        <span class="n">header_fill</span> <span class="o">=</span> <span class="n">PatternFill</span><span class="p">(</span><span class="n">start_color</span><span class="o">=</span><span class="s2">&quot;4472C4&quot;</span><span class="p">,</span> <span class="n">end_color</span><span class="o">=</span><span class="s2">&quot;4472C4&quot;</span><span class="p">,</span> <span class="n">fill_type</span><span class="o">=</span><span class="s2">&quot;solid&quot;</span><span class="p">)</span>
+        <span class="n">header_alignment</span> <span class="o">=</span> <span class="n">Alignment</span><span class="p">(</span><span class="n">horizontal</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">,</span> <span class="n">vertical</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">)</span>
+        <span class="n">thin_border</span> <span class="o">=</span> <span class="n">Border</span><span class="p">(</span>
+            <span class="n">left</span><span class="o">=</span><span class="n">Side</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="s2">&quot;thin&quot;</span><span class="p">),</span>
+            <span class="n">right</span><span class="o">=</span><span class="n">Side</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="s2">&quot;thin&quot;</span><span class="p">),</span>
+            <span class="n">top</span><span class="o">=</span><span class="n">Side</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="s2">&quot;thin&quot;</span><span class="p">),</span>
+            <span class="n">bottom</span><span class="o">=</span><span class="n">Side</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="s2">&quot;thin&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># 动态列头</span>
+        <span class="n">sample</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">group_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">rg</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">rg</span> <span class="ow">in</span> <span class="n">sample</span><span class="o">.</span><span class="n">render_groups</span><span class="p">()]</span> <span class="k">if</span> <span class="n">sample</span> <span class="k">else</span> <span class="p">[</span><span class="s2">&quot;号码&quot;</span><span class="p">]</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;序号&quot;</span><span class="p">,</span> <span class="s2">&quot;时间&quot;</span><span class="p">,</span> <span class="s2">&quot;策略&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">group_names</span> <span class="o">+</span> <span class="p">[</span><span class="s2">&quot;紧凑格式&quot;</span><span class="p">,</span> <span class="s2">&quot;依据&quot;</span><span class="p">]</span>
+
+        <span class="c1"># 写表头</span>
+        <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">header</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">headers</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">cell</span> <span class="o">=</span> <span class="n">ws</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+            <span class="n">cell</span><span class="o">.</span><span class="n">font</span> <span class="o">=</span> <span class="n">header_font</span>
+            <span class="n">cell</span><span class="o">.</span><span class="n">fill</span> <span class="o">=</span> <span class="n">header_fill</span>
+            <span class="n">cell</span><span class="o">.</span><span class="n">alignment</span> <span class="o">=</span> <span class="n">header_alignment</span>
+            <span class="n">cell</span><span class="o">.</span><span class="n">border</span> <span class="o">=</span> <span class="n">thin_border</span>
+
+        <span class="c1"># 写数据</span>
+        <span class="k">for</span> <span class="n">row_idx</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">row_data</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">row_idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="n">t</span><span class="o">.</span><span class="n">generated_at</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">generated_at</span> <span class="k">else</span> <span class="s2">&quot;-&quot;</span><span class="p">,</span>
+                <span class="n">t</span><span class="o">.</span><span class="n">strategy_name</span><span class="p">,</span>
+            <span class="p">]</span>
+            <span class="n">groups</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">render_groups</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">groups</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">rg</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+                    <span class="n">row_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n</span><span class="si">:</span><span class="s2">0</span><span class="si">{</span><span class="n">rg</span><span class="o">.</span><span class="n">pad</span><span class="si">}</span><span class="s2">d</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">rg</span><span class="o">.</span><span class="n">numbers</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">row_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="n">row_data</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">t</span><span class="o">.</span><span class="n">format_compact</span><span class="p">(),</span> <span class="n">t</span><span class="o">.</span><span class="n">basis</span><span class="p">])</span>
+
+            <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">row_data</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">cell</span> <span class="o">=</span> <span class="n">ws</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="n">row_idx</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">)</span>
+                <span class="n">cell</span><span class="o">.</span><span class="n">border</span> <span class="o">=</span> <span class="n">thin_border</span>
+                <span class="k">if</span> <span class="n">col</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">cell</span><span class="o">.</span><span class="n">alignment</span> <span class="o">=</span> <span class="n">Alignment</span><span class="p">(</span><span class="n">horizontal</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">)</span>
+
+        <span class="c1"># 自动调整列宽</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">max_length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ws</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="n">r</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tickets</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">ws</span><span class="o">.</span><span class="n">column_dimensions</span><span class="p">[</span><span class="n">ws</span><span class="o">.</span><span class="n">cell</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">column_letter</span><span class="p">]</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="nb">min</span><span class="p">(</span><span class="n">max_length</span> <span class="o">+</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">40</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="c1"># 冻结首行</span>
+        <span class="n">ws</span><span class="o">.</span><span class="n">freeze_panes</span> <span class="o">=</span> <span class="s2">&quot;A2&quot;</span>
+
+        <span class="n">wb</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="HistoryManager.import_from_json">
+<a class="viewcode-back" href="../../../persistence/history.html#caipiao.persistence.history.HistoryManager.import_from_json">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">import_from_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;从 JSON 导入历史记录.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;JSON root must be a list&quot;</span><span class="p">)</span>
+            <span class="n">imported</span> <span class="o">=</span> <span class="p">[</span><span class="n">Ticket</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;导入历史记录失败: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_many</span><span class="p">(</span><span class="n">imported</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">imported</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

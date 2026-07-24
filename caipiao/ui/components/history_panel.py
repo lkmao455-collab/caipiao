@@ -54,6 +54,9 @@ class HistoryPanel(QWidget):
         self.export_txt_btn = QPushButton("导出 TXT")
         self.export_txt_btn.setToolTip("将历史记录导出为纯文本文件。")
         self.export_txt_btn.clicked.connect(self._export_txt)
+        self.export_excel_btn = QPushButton("导出 Excel")
+        self.export_excel_btn.setToolTip("将历史记录导出为 Excel 表格文件。")
+        self.export_excel_btn.clicked.connect(self._export_excel)
         self.print_btn = QPushButton("打印历史")
         self.print_btn.setToolTip("打印历史记录（依赖系统打印机驱动）。")
         self.print_btn.clicked.connect(self._print_history)
@@ -70,6 +73,7 @@ class HistoryPanel(QWidget):
         btn_layout.addWidget(self.refresh_btn)
         btn_layout.addWidget(self.export_csv_btn)
         btn_layout.addWidget(self.export_txt_btn)
+        btn_layout.addWidget(self.export_excel_btn)
         btn_layout.addWidget(self.import_btn)
         btn_layout.addWidget(self.print_btn)
         btn_layout.addWidget(self.export_pdf_btn)
@@ -113,6 +117,22 @@ class HistoryPanel(QWidget):
         if path:
             self.history_manager.export_txt(Path(path))
             QMessageBox.information(self, "导出成功", f"已导出到: {path}")
+
+    def _export_excel(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出 Excel", "history.xlsx", "Excel 文件 (*.xlsx)"
+        )
+        if path:
+            try:
+                self.history_manager.export_excel(Path(path))
+                QMessageBox.information(self, "导出成功", f"已导出到: {path}")
+            except ImportError:
+                QMessageBox.warning(
+                    self, "缺少依赖",
+                    "需要安装 openpyxl 才能导出 Excel 文件。\n请运行: pip install openpyxl"
+                )
+            except Exception as exc:
+                QMessageBox.critical(self, "导出失败", f"导出 Excel 失败:\n{exc}")
 
     def _import_json(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

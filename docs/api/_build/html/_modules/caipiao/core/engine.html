@@ -1,0 +1,777 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>caipiao.core.engine &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">caipiao.core.engine</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for caipiao.core.engine</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;生成引擎.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">product</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">GenerationStrategy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ticket</span><span class="w"> </span><span class="kn">import</span> <span class="n">Ticket</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GenerationEngine">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.GenerationEngine">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GenerationEngine</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;号码生成引擎.</span>
+
+<span class="sd">    负责管理所有可用策略，并根据选中的策略生成投注单。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_strategies</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">GenerationStrategy</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="GenerationEngine.register">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.GenerationEngine.register">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="n">GenerationStrategy</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;注册一个生成策略.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_strategies</span><span class="p">[</span><span class="n">strategy</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">strategy</span></div>
+
+
+<div class="viewcode-block" id="GenerationEngine.unregister">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.GenerationEngine.unregister">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">unregister</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strategy_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;注销指定策略.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_strategies</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">strategy_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GenerationEngine.get">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.GenerationEngine.get">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strategy_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">GenerationStrategy</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;获取指定策略.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_strategies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">strategy_id</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GenerationEngine.list_strategies">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.GenerationEngine.list_strategies">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_strategies</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">GenerationStrategy</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;列出所有已注册策略.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strategies</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="GenerationEngine.generate">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.GenerationEngine.generate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">strategy_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">options</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;使用指定策略生成投注单.&quot;&quot;&quot;</span>
+        <span class="n">strategy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_strategies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">strategy_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">strategy</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;未找到策略: </span><span class="si">{</span><span class="n">strategy_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="n">options</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">strategy</span><span class="o">.</span><span class="n">validate_options</span><span class="p">(</span><span class="n">options</span><span class="p">)</span>
+        <span class="n">tickets</span> <span class="o">=</span> <span class="n">strategy</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">count</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tickets</span> <span class="ow">and</span> <span class="n">tickets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;3d&quot;</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.strategies.lotteries.fc3d.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">assign_fc3d_bet_modes</span>
+
+            <span class="n">assign_fc3d_bet_modes</span><span class="p">(</span><span class="n">tickets</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tickets</span></div>
+</div>
+
+
+
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+<span class="c1"># 双色球最后一层过滤：与历史开奖记录比对红球重合数和蓝球</span>
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+
+<div class="viewcode-block" id="filter_ssq_by_history">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.filter_ssq_by_history">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">filter_ssq_by_history</span><span class="p">(</span>
+    <span class="n">tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span>
+    <span class="n">max_red_overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="n">block_blue_match</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">blue_compare_periods</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;对双色球号码做最后一层过滤：与最近 N 期开奖记录比对。</span>
+
+<span class="sd">    规则：</span>
+<span class="sd">    - 红球：计算生成号码与历史开奖号码的交集个数，超过 max_red_overlap 则淘汰。</span>
+<span class="sd">    - 蓝球：若 block_blue_match 为 True，蓝球在 blue_compare_periods 期内与历史相同则淘汰。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tickets: 策略生成的候选号码列表。</span>
+<span class="sd">        draw_records: DrawRecord 列表（按时间升序）。</span>
+<span class="sd">        compare_periods: 向前比较的期数，默认 7。</span>
+<span class="sd">        max_red_overlap: 允许的红球最大重合数，默认 3。</span>
+<span class="sd">        block_blue_match: 是否禁止蓝球与历史相同，默认 False。</span>
+<span class="sd">        blue_compare_periods: 蓝球禁止重复的对比期数，默认 1。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        过滤后的号码列表。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tickets</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">draw_records</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tickets</span>
+
+    <span class="c1"># 红球比较期数</span>
+    <span class="k">if</span> <span class="n">compare_periods</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tickets</span>
+
+    <span class="n">recent</span> <span class="o">=</span> <span class="n">draw_records</span><span class="p">[</span><span class="o">-</span><span class="n">compare_periods</span><span class="p">:]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">draw_records</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">compare_periods</span> <span class="k">else</span> <span class="n">draw_records</span>
+    <span class="n">recent_data</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">recent</span><span class="p">:</span>
+        <span class="n">reds</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="n">blues</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">blue</span> <span class="o">=</span> <span class="n">blues</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">blues</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">reds</span> <span class="ow">and</span> <span class="n">blue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">recent_data</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">reds</span><span class="p">,</span> <span class="n">blue</span><span class="p">))</span>
+
+    <span class="c1"># 蓝球比较期数</span>
+    <span class="n">blue_recent</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">block_blue_match</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">blue_compare_periods</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">blue_data</span> <span class="o">=</span> <span class="n">draw_records</span><span class="p">[</span><span class="o">-</span><span class="n">blue_compare_periods</span><span class="p">:]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">draw_records</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">blue_compare_periods</span> <span class="k">else</span> <span class="n">draw_records</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">blue_data</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># blue_compare_periods=0 表示不过滤蓝球</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">blue_data</span><span class="p">:</span>
+            <span class="n">blues</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">blues</span><span class="p">:</span>
+                <span class="n">blue_recent</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">blues</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">recent_data</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">blue_recent</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tickets</span>
+
+    <span class="n">filtered</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">discarded</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">ticket</span> <span class="ow">in</span> <span class="n">tickets</span><span class="p">:</span>
+        <span class="n">ticket_reds</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">ticket</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="n">ticket_blues</span> <span class="o">=</span> <span class="n">ticket</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">ticket_blue</span> <span class="o">=</span> <span class="n">ticket_blues</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">ticket_blues</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="n">too_many</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># 红球检查</span>
+        <span class="k">for</span> <span class="n">hist_reds</span><span class="p">,</span> <span class="n">hist_blue</span> <span class="ow">in</span> <span class="n">recent_data</span><span class="p">:</span>
+            <span class="n">red_overlap</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ticket_reds</span> <span class="o">&amp;</span> <span class="n">hist_reds</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">red_overlap</span> <span class="o">&gt;</span> <span class="n">max_red_overlap</span><span class="p">:</span>
+                <span class="n">too_many</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+        <span class="c1"># 蓝球检查</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">too_many</span> <span class="ow">and</span> <span class="n">block_blue_match</span> <span class="ow">and</span> <span class="n">ticket_blue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">ticket_blue</span> <span class="ow">in</span> <span class="n">blue_recent</span><span class="p">:</span>
+                <span class="n">too_many</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">too_many</span><span class="p">:</span>
+            <span class="n">filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ticket</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">discarded</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">discarded</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;SSQ过滤：共 </span><span class="si">%d</span><span class="s2"> 个候选，淘汰 </span><span class="si">%d</span><span class="s2"> 个（红球重合上限 </span><span class="si">%d</span><span class="s2">，蓝球</span><span class="si">%s</span><span class="s2">，比较 </span><span class="si">%d</span><span class="s2"> 期），&quot;</span>
+            <span class="s2">&quot;剩余 </span><span class="si">%d</span><span class="s2"> 个&quot;</span><span class="p">,</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">tickets</span><span class="p">),</span> <span class="n">discarded</span><span class="p">,</span> <span class="n">max_red_overlap</span><span class="p">,</span>
+            <span class="s2">&quot;禁止相同&quot;</span> <span class="k">if</span> <span class="n">block_blue_match</span> <span class="k">else</span> <span class="s2">&quot;不限&quot;</span><span class="p">,</span>
+            <span class="n">compare_periods</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">filtered</span></div>
+
+
+
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+<span class="c1"># 通用经验策略过滤（和值范围 + 历史重合）</span>
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_filter_by_history</span><span class="p">(</span>
+    <span class="n">tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">group_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">sum_range_default</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+    <span class="n">use_multiset</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">log_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;通用经验策略过滤：和值范围 + 与最近 N 期开奖记录比对重合数。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tickets: 策略生成的候选号码列表。</span>
+<span class="sd">        draw_records: DrawRecord 列表（按时间升序）。</span>
+<span class="sd">        group_key: 号码组 key（如 &quot;pos&quot;、&quot;basic&quot;）。</span>
+<span class="sd">        compare_periods: 向前比较的期数；&lt;=0 表示不与历史比对。</span>
+<span class="sd">        max_overlap: 允许的重合最大个数；超过则淘汰。</span>
+<span class="sd">        min_sum: 允许的最小和值。</span>
+<span class="sd">        max_sum: 允许的最大和值。</span>
+<span class="sd">        sum_range_default: (默认最小和值, 默认最大和值)，用于判断是否启用和值过滤。</span>
+<span class="sd">        use_multiset: True 用 Counter（处理重复号码，如 3D），False 用 set。</span>
+<span class="sd">        log_label: 日志标签（如 &quot;3D经验策略过滤&quot;）。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        过滤后的号码列表。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tickets</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tickets</span>
+
+    <span class="c1"># 构建历史比对结构</span>
+    <span class="n">history</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">draw_records</span> <span class="ow">and</span> <span class="n">compare_periods</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">recent</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">draw_records</span><span class="p">[</span><span class="o">-</span><span class="n">compare_periods</span><span class="p">:]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">draw_records</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">compare_periods</span>
+            <span class="k">else</span> <span class="n">draw_records</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">recent</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group_key</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">:</span>
+                <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="k">if</span> <span class="n">use_multiset</span> <span class="k">else</span> <span class="nb">set</span><span class="p">(</span><span class="n">nums</span><span class="p">))</span>
+
+    <span class="n">no_sum_filter</span> <span class="o">=</span> <span class="n">min_sum</span> <span class="o">&lt;=</span> <span class="n">sum_range_default</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">max_sum</span> <span class="o">&gt;=</span> <span class="n">sum_range_default</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">history</span> <span class="ow">and</span> <span class="n">no_sum_filter</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tickets</span>
+
+    <span class="n">filtered</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">discarded</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">ticket</span> <span class="ow">in</span> <span class="n">tickets</span><span class="p">:</span>
+        <span class="n">nums</span> <span class="o">=</span> <span class="n">ticket</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group_key</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">sum_value</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sum_value</span> <span class="o">&lt;</span> <span class="n">min_sum</span> <span class="ow">or</span> <span class="n">sum_value</span> <span class="o">&gt;</span> <span class="n">max_sum</span><span class="p">:</span>
+            <span class="n">discarded</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+
+        <span class="n">ticket_struct</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="k">if</span> <span class="n">use_multiset</span> <span class="k">else</span> <span class="nb">set</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+        <span class="n">too_many</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">hist_struct</span> <span class="ow">in</span> <span class="n">history</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">use_multiset</span><span class="p">:</span>
+                <span class="c1"># 多集合交集：112 vs 123 -&gt; {1:1, 2:1} -&gt; 2 个相同</span>
+                <span class="n">overlap</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">((</span><span class="n">ticket_struct</span> <span class="o">&amp;</span> <span class="n">hist_struct</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">overlap</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ticket_struct</span> <span class="o">&amp;</span> <span class="n">hist_struct</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">overlap</span> <span class="o">&gt;</span> <span class="n">max_overlap</span><span class="p">:</span>
+                <span class="n">too_many</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">too_many</span><span class="p">:</span>
+            <span class="n">filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ticket</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">discarded</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">discarded</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">：共 </span><span class="si">%d</span><span class="s2"> 个候选，淘汰 </span><span class="si">%d</span><span class="s2"> 个（重合上限 </span><span class="si">%d</span><span class="s2">，比较 </span><span class="si">%d</span><span class="s2"> 期，&quot;</span>
+            <span class="s2">&quot;和值 </span><span class="si">%d</span><span class="s2">-</span><span class="si">%d</span><span class="s2">），剩余 </span><span class="si">%d</span><span class="s2"> 个&quot;</span><span class="p">,</span>
+            <span class="n">log_label</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tickets</span><span class="p">),</span> <span class="n">discarded</span><span class="p">,</span> <span class="n">max_overlap</span><span class="p">,</span> <span class="n">compare_periods</span><span class="p">,</span>
+            <span class="n">min_sum</span><span class="p">,</span> <span class="n">max_sum</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">filtered</span>
+
+
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+<span class="c1"># 福彩3D 经验策略过滤：与历史开奖记录比对相同号码数</span>
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+
+<div class="viewcode-block" id="filter_fc3d_by_history">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.filter_fc3d_by_history">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">filter_fc3d_by_history</span><span class="p">(</span>
+    <span class="n">tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">27</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;对福彩3D号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对相同号码数。</span>
+
+<span class="sd">    规则：</span>
+<span class="sd">    - 和值：三位数字之和 &lt; min_sum 或 &gt; max_sum 的号码直接淘汰。</span>
+<span class="sd">    - 将生成号码（3 位）与最近 compare_periods 期开奖号码逐一比对。</span>
+<span class="sd">    - 统计相同号码个数（使用多集合交集，正确处理 112 等含重复号码的情况）。</span>
+<span class="sd">    - 只要任一期的相同号码数 &gt; max_overlap，则淘汰该候选号码。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tickets: 策略生成的候选号码列表。</span>
+<span class="sd">        draw_records: DrawRecord 列表（按时间升序）。</span>
+<span class="sd">        compare_periods: 向前比较的期数，默认 5；&lt;=0 表示不与历史比对。</span>
+<span class="sd">        max_overlap: 允许的相同号码最大个数，默认 1；超过则淘汰。</span>
+<span class="sd">        min_sum: 允许的最小和值，默认 0（不限制）。</span>
+<span class="sd">        max_sum: 允许的最大和值，默认 27（不限制）。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        过滤后的号码列表。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_filter_by_history</span><span class="p">(</span>
+        <span class="n">tickets</span><span class="p">,</span> <span class="n">draw_records</span><span class="p">,</span>
+        <span class="n">group_key</span><span class="o">=</span><span class="s2">&quot;pos&quot;</span><span class="p">,</span>
+        <span class="n">compare_periods</span><span class="o">=</span><span class="n">compare_periods</span><span class="p">,</span>
+        <span class="n">max_overlap</span><span class="o">=</span><span class="n">max_overlap</span><span class="p">,</span>
+        <span class="n">min_sum</span><span class="o">=</span><span class="n">min_sum</span><span class="p">,</span>
+        <span class="n">max_sum</span><span class="o">=</span><span class="n">max_sum</span><span class="p">,</span>
+        <span class="n">sum_range_default</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">27</span><span class="p">),</span>
+        <span class="n">use_multiset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">log_label</span><span class="o">=</span><span class="s2">&quot;3D经验策略过滤&quot;</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="estimate_fc3d_pass_count">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.estimate_fc3d_pass_count">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">estimate_fc3d_pass_count</span><span class="p">(</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">27</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;枚举全部 1000 种3D直选组合，返回能通过经验策略过滤的数量（理论通过数）。</span>
+
+<span class="sd">    用于生成前估算过滤强度，从而自适应放大候选生成数量，避免过滤后候选不足。</span>
+<span class="sd">    与 ``filter_fc3d_by_history`` 使用完全相同的和值范围 + 多集合交集判定逻辑。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        draw_records: DrawRecord 列表（按时间升序）。</span>
+<span class="sd">        compare_periods: 向前比较的期数；&lt;=0 表示不与历史比对。</span>
+<span class="sd">        max_overlap: 允许的相同号码最大个数。</span>
+<span class="sd">        min_sum: 允许的最小和值。</span>
+<span class="sd">        max_sum: 允许的最大和值。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        通过过滤的组合数（0-1000）。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">recent_counters</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Counter</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">compare_periods</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">draw_records</span><span class="p">:</span>
+        <span class="n">recent</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">draw_records</span><span class="p">[</span><span class="o">-</span><span class="n">compare_periods</span><span class="p">:]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">draw_records</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">compare_periods</span>
+            <span class="k">else</span> <span class="n">draw_records</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">recent</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;pos&quot;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">:</span>
+                <span class="n">recent_counters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">nums</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">recent_counters</span> <span class="ow">and</span> <span class="n">min_sum</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">max_sum</span> <span class="o">&gt;=</span> <span class="mi">27</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1000</span>
+
+    <span class="n">passing</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">combo</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="n">repeat</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">sum_value</span> <span class="o">=</span> <span class="n">combo</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">combo</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">combo</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">sum_value</span> <span class="o">&lt;</span> <span class="n">min_sum</span> <span class="ow">or</span> <span class="n">sum_value</span> <span class="o">&gt;</span> <span class="n">max_sum</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">cc</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">combo</span><span class="p">)</span>
+        <span class="n">ok</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">hc</span> <span class="ow">in</span> <span class="n">recent_counters</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">sum</span><span class="p">((</span><span class="n">cc</span> <span class="o">&amp;</span> <span class="n">hc</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">&gt;</span> <span class="n">max_overlap</span><span class="p">:</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
+            <span class="n">passing</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">passing</span></div>
+
+
+
+<span class="c1"># 3D 经验策略过滤自适应候选倍数相关常量</span>
+<span class="c1"># 安全系数：补偿加权采样下实际通过率低于均匀理论值的情况（实测最低约理论的 0.48 倍）</span>
+<span class="n">FC3D_FILTER_SAFETY</span> <span class="o">=</span> <span class="mf">2.5</span>
+<span class="c1"># 候选生成数量上限：3D 直选全空间为 1000，再大也无意义</span>
+<span class="n">FC3D_FILTER_MAX_CANDIDATES</span> <span class="o">=</span> <span class="mi">1000</span>
+
+
+<div class="viewcode-block" id="fc3d_filtered_gen_count">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.fc3d_filtered_gen_count">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fc3d_filtered_gen_count</span><span class="p">(</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">27</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;计算 3D 经验过滤场景下的候选生成数量。</span>
+
+<span class="sd">    按理论通过率自适应放大，避免过滤后候选不足。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``(gen_count, pass_count)``，pass_count 为理论通过数（0-1000）。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">pass_count</span> <span class="o">=</span> <span class="n">estimate_fc3d_pass_count</span><span class="p">(</span>
+        <span class="n">draw_records</span><span class="p">,</span> <span class="n">compare_periods</span><span class="p">,</span> <span class="n">max_overlap</span><span class="p">,</span> <span class="n">min_sum</span><span class="p">,</span> <span class="n">max_sum</span>
+    <span class="p">)</span>
+    <span class="c1"># 通过率下限 0.05，避免极端严格参数导致除以过小值</span>
+    <span class="n">pass_ratio</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">pass_count</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)</span>
+    <span class="n">gen_count</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">count</span> <span class="o">/</span> <span class="n">pass_ratio</span> <span class="o">*</span> <span class="n">FC3D_FILTER_SAFETY</span><span class="p">)</span>
+    <span class="n">gen_count</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">count</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">FC3D_FILTER_MAX_CANDIDATES</span><span class="p">,</span> <span class="n">gen_count</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">gen_count</span><span class="p">,</span> <span class="n">pass_count</span></div>
+
+
+
+<div class="viewcode-block" id="apply_fc3d_experience_filter">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.apply_fc3d_experience_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_fc3d_experience_filter</span><span class="p">(</span>
+    <span class="n">tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">pass_count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">27</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;3D 经验策略过滤的完整后处理：过滤 → 截断 → 重新分配投注方式。</span>
+
+<span class="sd">    主界面生成与批量历史回测共用，保证两条路径行为一致。</span>
+<span class="sd">    截断后必须重新调用 ``assign_fc3d_bet_modes``：放大候选时 bet_mode 是在</span>
+<span class="sd">    放大后的列表上分配的（前一半全为组选），直接截断会导致最终号码几乎全为</span>
+<span class="sd">    组选，重新分配可恢复直选/组选 1:1 配比。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tickets: 放大后生成的候选号码（已在 engine.generate 内分配过 bet_mode）。</span>
+<span class="sd">        draw_records: 用于比对的开奖记录（回测场景须为目标期之前的记录）。</span>
+<span class="sd">        count: 最终需要的注数。</span>
+<span class="sd">        compare_periods: 向前比较的期数。</span>
+<span class="sd">        max_overlap: 允许的相同号码最大个数。</span>
+<span class="sd">        pass_count: 理论通过数，仅用于告警信息。</span>
+<span class="sd">        min_sum: 允许的最小和值。</span>
+<span class="sd">        max_sum: 允许的最大和值。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">tickets</span><span class="p">:</span>
+        <span class="n">filtered</span> <span class="o">=</span> <span class="n">filter_fc3d_by_history</span><span class="p">(</span>
+            <span class="n">tickets</span><span class="p">,</span>
+            <span class="n">draw_records</span><span class="p">,</span>
+            <span class="n">compare_periods</span><span class="o">=</span><span class="n">compare_periods</span><span class="p">,</span>
+            <span class="n">max_overlap</span><span class="o">=</span><span class="n">max_overlap</span><span class="p">,</span>
+            <span class="n">min_sum</span><span class="o">=</span><span class="n">min_sum</span><span class="p">,</span>
+            <span class="n">max_sum</span><span class="o">=</span><span class="n">max_sum</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">count</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;3D经验策略过滤：生成 </span><span class="si">%d</span><span class="s2"> 候选，过滤后仅剩 </span><span class="si">%d</span><span class="s2">，&quot;</span>
+                <span class="s2">&quot;不足 </span><span class="si">%d</span><span class="s2"> 注（理论通过 </span><span class="si">%d</span><span class="s2">/1000，建议放宽过滤参数）&quot;</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">tickets</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">),</span> <span class="n">count</span><span class="p">,</span>
+                <span class="n">pass_count</span> <span class="k">if</span> <span class="n">pass_count</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">tickets</span> <span class="o">=</span> <span class="n">filtered</span><span class="p">[:</span><span class="n">count</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">tickets</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.strategies.lotteries.fc3d.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">assign_fc3d_bet_modes</span>
+
+        <span class="n">assign_fc3d_bet_modes</span><span class="p">(</span><span class="n">tickets</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tickets</span></div>
+
+
+
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+<span class="c1"># 七乐彩经验策略过滤：和值范围 + 与最近 N 期开奖记录比对基本号重合数</span>
+<span class="c1"># （参照福彩3D实现；基本号 1-30 选 7 且不重复，用普通集合交集即可）</span>
+<span class="c1"># --------------------------------------------------------------------------- #</span>
+
+<span class="c1"># 七乐彩基本号和值的理论范围：1+2+...+7 = 28，24+25+...+30 = 189；</span>
+<span class="c1"># 设置项放宽到 0-210，默认值即&quot;不限制&quot;</span>
+<span class="n">QLC_SUM_MIN</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">QLC_SUM_MAX</span> <span class="o">=</span> <span class="mi">210</span>
+
+
+<div class="viewcode-block" id="filter_qlc_by_history">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.filter_qlc_by_history">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">filter_qlc_by_history</span><span class="p">(</span>
+    <span class="n">tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MIN</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MAX</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;对七乐彩号码做经验策略过滤：和值范围 + 与最近 N 期开奖比对基本号重合数。</span>
+
+<span class="sd">    规则：</span>
+<span class="sd">    - 和值：7 个基本号之和 &lt; min_sum 或 &gt; max_sum 的号码直接淘汰。</span>
+<span class="sd">    - 将生成号码与最近 compare_periods 期开奖基本号逐一比对（集合交集）。</span>
+<span class="sd">    - 只要任一期的重合号码数 &gt; max_overlap，则淘汰该候选号码。</span>
+<span class="sd">    - 特别号为开奖专用（draw_only），不参与投注，不纳入比对。</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tickets: 策略生成的候选号码列表（groups[&quot;basic&quot;] 为 7 个基本号）。</span>
+<span class="sd">        draw_records: DrawRecord 列表（按时间升序）。</span>
+<span class="sd">        compare_periods: 向前比较的期数，默认 5；&lt;=0 表示不与历史比对。</span>
+<span class="sd">        max_overlap: 允许的基本号最大重合个数，默认 2；超过则淘汰。</span>
+<span class="sd">        min_sum: 允许的最小和值，默认 0（不限制）。</span>
+<span class="sd">        max_sum: 允许的最大和值，默认 210（不限制）。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        过滤后的号码列表。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_filter_by_history</span><span class="p">(</span>
+        <span class="n">tickets</span><span class="p">,</span> <span class="n">draw_records</span><span class="p">,</span>
+        <span class="n">group_key</span><span class="o">=</span><span class="s2">&quot;basic&quot;</span><span class="p">,</span>
+        <span class="n">compare_periods</span><span class="o">=</span><span class="n">compare_periods</span><span class="p">,</span>
+        <span class="n">max_overlap</span><span class="o">=</span><span class="n">max_overlap</span><span class="p">,</span>
+        <span class="n">min_sum</span><span class="o">=</span><span class="n">min_sum</span><span class="p">,</span>
+        <span class="n">max_sum</span><span class="o">=</span><span class="n">max_sum</span><span class="p">,</span>
+        <span class="n">sum_range_default</span><span class="o">=</span><span class="p">(</span><span class="n">QLC_SUM_MIN</span><span class="p">,</span> <span class="n">QLC_SUM_MAX</span><span class="p">),</span>
+        <span class="n">use_multiset</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">log_label</span><span class="o">=</span><span class="s2">&quot;七乐彩经验策略过滤&quot;</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="c1"># 七乐彩号码空间 C(30,7) ≈ 203 万，全枚举不现实，用固定种子采样估算通过率</span>
+<span class="n">_QLC_PASS_ESTIMATE_SAMPLES</span> <span class="o">=</span> <span class="mi">3000</span>
+<span class="n">_QLC_PASS_ESTIMATE_SEED</span> <span class="o">=</span> <span class="mi">20260713</span>
+
+
+<div class="viewcode-block" id="estimate_qlc_pass_ratio">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.estimate_qlc_pass_ratio">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">estimate_qlc_pass_ratio</span><span class="p">(</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MIN</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MAX</span><span class="p">,</span>
+    <span class="n">samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_QLC_PASS_ESTIMATE_SAMPLES</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;采样估算七乐彩号码通过经验策略过滤的比例（0-1）。</span>
+
+<span class="sd">    号码空间约 203 万种组合，无法像福彩3D那样全枚举，</span>
+<span class="sd">    改用固定种子的均匀采样保证结果确定且可复现。</span>
+<span class="sd">    判定逻辑与 ``filter_qlc_by_history`` 完全一致。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">recent_sets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">set</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">compare_periods</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">draw_records</span><span class="p">:</span>
+        <span class="n">recent</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">draw_records</span><span class="p">[</span><span class="o">-</span><span class="n">compare_periods</span><span class="p">:]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">draw_records</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">compare_periods</span>
+            <span class="k">else</span> <span class="n">draw_records</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">recent</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;basic&quot;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">:</span>
+                <span class="n">recent_sets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">nums</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">recent_sets</span> <span class="ow">and</span> <span class="n">min_sum</span> <span class="o">&lt;=</span> <span class="n">QLC_SUM_MIN</span> <span class="ow">and</span> <span class="n">max_sum</span> <span class="o">&gt;=</span> <span class="n">QLC_SUM_MAX</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">1.0</span>
+
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">_QLC_PASS_ESTIMATE_SEED</span><span class="p">)</span>
+    <span class="n">passing</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">combo</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">31</span><span class="p">),</span> <span class="mi">7</span><span class="p">)</span>
+        <span class="n">sum_value</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">combo</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sum_value</span> <span class="o">&lt;</span> <span class="n">min_sum</span> <span class="ow">or</span> <span class="n">sum_value</span> <span class="o">&gt;</span> <span class="n">max_sum</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">combo_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">combo</span><span class="p">)</span>
+        <span class="n">ok</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">hs</span> <span class="ow">in</span> <span class="n">recent_sets</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">combo_set</span> <span class="o">&amp;</span> <span class="n">hs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">max_overlap</span><span class="p">:</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
+            <span class="n">passing</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">passing</span> <span class="o">/</span> <span class="n">samples</span></div>
+
+
+
+<span class="c1"># 七乐彩经验策略过滤自适应候选倍数相关常量</span>
+<span class="n">QLC_FILTER_SAFETY</span> <span class="o">=</span> <span class="mf">2.5</span>
+<span class="n">QLC_FILTER_MAX_CANDIDATES</span> <span class="o">=</span> <span class="mi">5000</span>
+<span class="c1"># 通过率下限，避免极端严格参数导致除以过小值</span>
+<span class="n">_QLC_MIN_PASS_RATIO</span> <span class="o">=</span> <span class="mf">0.02</span>
+
+
+<div class="viewcode-block" id="qlc_filtered_gen_count">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.qlc_filtered_gen_count">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">qlc_filtered_gen_count</span><span class="p">(</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MIN</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MAX</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;计算七乐彩经验过滤场景下的候选生成数量。</span>
+
+<span class="sd">    按采样估算的通过率自适应放大，避免过滤后候选不足。</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``(gen_count, pass_ratio)``，pass_ratio 为采样估算通过率（0-1）。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">pass_ratio</span> <span class="o">=</span> <span class="n">estimate_qlc_pass_ratio</span><span class="p">(</span>
+        <span class="n">draw_records</span><span class="p">,</span> <span class="n">compare_periods</span><span class="p">,</span> <span class="n">max_overlap</span><span class="p">,</span> <span class="n">min_sum</span><span class="p">,</span> <span class="n">max_sum</span>
+    <span class="p">)</span>
+    <span class="n">pass_ratio</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">pass_ratio</span><span class="p">,</span> <span class="n">_QLC_MIN_PASS_RATIO</span><span class="p">)</span>
+    <span class="n">gen_count</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">count</span> <span class="o">/</span> <span class="n">pass_ratio</span> <span class="o">*</span> <span class="n">QLC_FILTER_SAFETY</span><span class="p">)</span>
+    <span class="n">gen_count</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">count</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">QLC_FILTER_MAX_CANDIDATES</span><span class="p">,</span> <span class="n">gen_count</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">gen_count</span><span class="p">,</span> <span class="n">pass_ratio</span></div>
+
+
+
+<div class="viewcode-block" id="apply_qlc_experience_filter">
+<a class="viewcode-back" href="../../../core/engine.html#caipiao.core.engine.apply_qlc_experience_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_qlc_experience_filter</span><span class="p">(</span>
+    <span class="n">tickets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">],</span>
+    <span class="n">draw_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">compare_periods</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_overlap</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">pass_ratio</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">min_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MIN</span><span class="p">,</span>
+    <span class="n">max_sum</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">QLC_SUM_MAX</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Ticket</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;七乐彩经验策略过滤的完整后处理：过滤 → 截断。</span>
+
+<span class="sd">    主界面生成与批量历史回测共用，保证两条路径行为一致。</span>
+<span class="sd">    （七乐彩没有直选/组选之分，无需重新分配投注方式。）</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        tickets: 放大后生成的候选号码。</span>
+<span class="sd">        draw_records: 用于比对的开奖记录（回测场景须为目标期之前的记录）。</span>
+<span class="sd">        count: 最终需要的注数。</span>
+<span class="sd">        compare_periods: 向前比较的期数。</span>
+<span class="sd">        max_overlap: 允许的基本号最大重合个数。</span>
+<span class="sd">        pass_ratio: 采样估算通过率，仅用于告警信息。</span>
+<span class="sd">        min_sum: 允许的最小和值。</span>
+<span class="sd">        max_sum: 允许的最大和值。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">tickets</span><span class="p">:</span>
+        <span class="n">filtered</span> <span class="o">=</span> <span class="n">filter_qlc_by_history</span><span class="p">(</span>
+            <span class="n">tickets</span><span class="p">,</span>
+            <span class="n">draw_records</span><span class="p">,</span>
+            <span class="n">compare_periods</span><span class="o">=</span><span class="n">compare_periods</span><span class="p">,</span>
+            <span class="n">max_overlap</span><span class="o">=</span><span class="n">max_overlap</span><span class="p">,</span>
+            <span class="n">min_sum</span><span class="o">=</span><span class="n">min_sum</span><span class="p">,</span>
+            <span class="n">max_sum</span><span class="o">=</span><span class="n">max_sum</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">count</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;七乐彩经验策略过滤：生成 </span><span class="si">%d</span><span class="s2"> 候选，过滤后仅剩 </span><span class="si">%d</span><span class="s2">，&quot;</span>
+                <span class="s2">&quot;不足 </span><span class="si">%d</span><span class="s2"> 注（估算通过率 </span><span class="si">%.1f%%</span><span class="s2">，建议放宽过滤参数）&quot;</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">tickets</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered</span><span class="p">),</span> <span class="n">count</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">pass_ratio</span> <span class="k">if</span> <span class="n">pass_ratio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">tickets</span> <span class="o">=</span> <span class="n">filtered</span><span class="p">[:</span><span class="n">count</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">tickets</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

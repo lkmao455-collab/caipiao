@@ -1,0 +1,670 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>profile &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="engine" href="engine.html" />
+    <link rel="prev" title="ticket" href="ticket.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="ticket.html">ticket</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">profile</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.RenderGroup"><code class="docutils literal notranslate"><span class="pre">RenderGroup</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.RenderGroup.name"><code class="docutils literal notranslate"><span class="pre">RenderGroup.name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.RenderGroup.numbers"><code class="docutils literal notranslate"><span class="pre">RenderGroup.numbers</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.RenderGroup.color"><code class="docutils literal notranslate"><span class="pre">RenderGroup.color</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.RenderGroup.pad"><code class="docutils literal notranslate"><span class="pre">RenderGroup.pad</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">RenderGroup.name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">RenderGroup.numbers</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">RenderGroup.color</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">RenderGroup.pad</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.NumberGroup"><code class="docutils literal notranslate"><span class="pre">NumberGroup</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.key"><code class="docutils literal notranslate"><span class="pre">NumberGroup.key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.name"><code class="docutils literal notranslate"><span class="pre">NumberGroup.name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.lo"><code class="docutils literal notranslate"><span class="pre">NumberGroup.lo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.hi"><code class="docutils literal notranslate"><span class="pre">NumberGroup.hi</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.count"><code class="docutils literal notranslate"><span class="pre">NumberGroup.count</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.pick_min"><code class="docutils literal notranslate"><span class="pre">NumberGroup.pick_min</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.pick_max"><code class="docutils literal notranslate"><span class="pre">NumberGroup.pick_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.positional"><code class="docutils literal notranslate"><span class="pre">NumberGroup.positional</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.allow_repeat"><code class="docutils literal notranslate"><span class="pre">NumberGroup.allow_repeat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.color"><code class="docutils literal notranslate"><span class="pre">NumberGroup.color</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.pad"><code class="docutils literal notranslate"><span class="pre">NumberGroup.pad</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.is_primary"><code class="docutils literal notranslate"><span class="pre">NumberGroup.is_primary</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.draw_only"><code class="docutils literal notranslate"><span class="pre">NumberGroup.draw_only</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id4"><code class="docutils literal notranslate"><span class="pre">NumberGroup.key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id5"><code class="docutils literal notranslate"><span class="pre">NumberGroup.name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6"><code class="docutils literal notranslate"><span class="pre">NumberGroup.lo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7"><code class="docutils literal notranslate"><span class="pre">NumberGroup.hi</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id8"><code class="docutils literal notranslate"><span class="pre">NumberGroup.count</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id9"><code class="docutils literal notranslate"><span class="pre">NumberGroup.pick_min</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id10"><code class="docutils literal notranslate"><span class="pre">NumberGroup.pick_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id11"><code class="docutils literal notranslate"><span class="pre">NumberGroup.positional</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id12"><code class="docutils literal notranslate"><span class="pre">NumberGroup.allow_repeat</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id13"><code class="docutils literal notranslate"><span class="pre">NumberGroup.color</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id14"><code class="docutils literal notranslate"><span class="pre">NumberGroup.pad</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id15"><code class="docutils literal notranslate"><span class="pre">NumberGroup.is_primary</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id16"><code class="docutils literal notranslate"><span class="pre">NumberGroup.draw_only</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.size"><code class="docutils literal notranslate"><span class="pre">NumberGroup.size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.values"><code class="docutils literal notranslate"><span class="pre">NumberGroup.values</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.effective_pick_min"><code class="docutils literal notranslate"><span class="pre">NumberGroup.effective_pick_min</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.effective_pick_max"><code class="docutils literal notranslate"><span class="pre">NumberGroup.effective_pick_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.variable_pick"><code class="docutils literal notranslate"><span class="pre">NumberGroup.variable_pick</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.high_low_border"><code class="docutils literal notranslate"><span class="pre">NumberGroup.high_low_border</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.NumberGroup.validate_numbers"><code class="docutils literal notranslate"><span class="pre">NumberGroup.validate_numbers()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile"><code class="docutils literal notranslate"><span class="pre">LotteryProfile</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.key"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.name"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.groups"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.groups</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.data_url"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.data_url</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.parser_key"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.parser_key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.draw_weekdays"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.draw_weekdays</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.storage_file"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.storage_file</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.model_prefix"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.model_prefix</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.subtitle"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.subtitle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.category"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.category</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.group"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.group()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.group_keys"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.group_keys</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.pick_groups"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.pick_groups</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.primary_group"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.primary_group</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.is_daily"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.is_daily</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.xgboost_prefix"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.xgboost_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.lightgbm_prefix"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.lightgbm_prefix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile.catboost_prefix"><code class="docutils literal notranslate"><span class="pre">LotteryProfile.catboost_prefix()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.profile_keys"><code class="docutils literal notranslate"><span class="pre">profile_keys()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.get_profile"><code class="docutils literal notranslate"><span class="pre">get_profile()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.list_profiles"><code class="docutils literal notranslate"><span class="pre">list_profiles()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.list_profiles_by_category"><code class="docutils literal notranslate"><span class="pre">list_profiles_by_category()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caipiao.core.profile.category_label"><code class="docutils literal notranslate"><span class="pre">category_label()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../core.html">Core 模块</a></li>
+      <li class="breadcrumb-item active">profile</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core/profile.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-caipiao.core.profile">
+<span id="profile"></span><h1>profile<a class="headerlink" href="#module-caipiao.core.profile" title="Link to this heading"></a></h1>
+<p>彩种档案（Profile）与号码组（NumberGroup）定义.</p>
+<p>本模块是「多彩种统一引擎」的核心抽象。每一个彩种由若干「号码组」组成，
+每个号码组描述一段号池（范围、抽取数量、是否可重复、是否按位等）。</p>
+<p>双色球（ssq）在此体系下就是「红球组 + 蓝球组」两个号码组，
+福彩3D / 七乐彩 / 快乐8 各自用不同的号码组组合表达。</p>
+<p>设计原则：本模块**不依赖** ticket / models / analyzer 等上层模块，
+以避免循环引用；上层模块反过来依赖本模块。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.core.profile.RenderGroup">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">RenderGroup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">numbers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/core/profile.html#RenderGroup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.RenderGroup" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>用于界面/打印统一渲染的一组号码。</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.RenderGroup.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#caipiao.core.profile.RenderGroup.name" title="Link to this definition"></a></dt>
+<dd><p>组名（如 “红球”）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.RenderGroup.numbers">
+<span class="sig-name descname"><span class="pre">numbers</span></span><a class="headerlink" href="#caipiao.core.profile.RenderGroup.numbers" title="Link to this definition"></a></dt>
+<dd><p>号码列表（已按展示顺序排列）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.RenderGroup.color">
+<span class="sig-name descname"><span class="pre">color</span></span><a class="headerlink" href="#caipiao.core.profile.RenderGroup.color" title="Link to this definition"></a></dt>
+<dd><p>小球颜色（十六进制）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.RenderGroup.pad">
+<span class="sig-name descname"><span class="pre">pad</span></span><a class="headerlink" href="#caipiao.core.profile.RenderGroup.pad" title="Link to this definition"></a></dt>
+<dd><p>补零宽度。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">numbers</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#id1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">color</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#id2" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">pad</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#id3" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">NumberGroup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">lo</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">hi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pick_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pick_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positional</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_repeat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'#D32F2F'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_primary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_only</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/core/profile.html#NumberGroup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.NumberGroup" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>一个号码组的定义.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.key">
+<span class="sig-name descname"><span class="pre">key</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.key" title="Link to this definition"></a></dt>
+<dd><p>组标识（如 “red”、”blue”、”basic”、”special”、”main”、”pos”）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.name" title="Link to this definition"></a></dt>
+<dd><p>组中文名（用于界面/打印展示）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.lo">
+<span class="sig-name descname"><span class="pre">lo</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.lo" title="Link to this definition"></a></dt>
+<dd><p>号池下界（含）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.hi">
+<span class="sig-name descname"><span class="pre">hi</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.hi" title="Link to this definition"></a></dt>
+<dd><p>号池上界（含）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.count">
+<span class="sig-name descname"><span class="pre">count</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.count" title="Link to this definition"></a></dt>
+<dd><p>一期开奖中该组开出的号码个数（3D 为位数=3）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.pick_min">
+<span class="sig-name descname"><span class="pre">pick_min</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.pick_min" title="Link to this definition"></a></dt>
+<dd><p>玩家投注时该组最少选号个数，默认等于 count。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a> | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.pick_max">
+<span class="sig-name descname"><span class="pre">pick_max</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.pick_max" title="Link to this definition"></a></dt>
+<dd><p>玩家投注时该组最多选号个数，默认等于 count。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a> | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.positional">
+<span class="sig-name descname"><span class="pre">positional</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.positional" title="Link to this definition"></a></dt>
+<dd><p>是否按位（3D：每一位独立，顺序有意义）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.allow_repeat">
+<span class="sig-name descname"><span class="pre">allow_repeat</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.allow_repeat" title="Link to this definition"></a></dt>
+<dd><p>组内号码是否可重复（3D 可重复）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.color">
+<span class="sig-name descname"><span class="pre">color</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.color" title="Link to this definition"></a></dt>
+<dd><p>界面/打印中该组小球的颜色。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.pad">
+<span class="sig-name descname"><span class="pre">pad</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.pad" title="Link to this definition"></a></dt>
+<dd><p>展示时的补零宽度（3D 用 1，其余用 2）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.is_primary">
+<span class="sig-name descname"><span class="pre">is_primary</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.is_primary" title="Link to this definition"></a></dt>
+<dd><p>是否为该彩种做整体统计（和值/奇偶/大小）的主号码组。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.draw_only">
+<span class="sig-name descname"><span class="pre">draw_only</span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.draw_only" title="Link to this definition"></a></dt>
+<dd><p>该组只在开奖记录/统计中出现，不参与玩家生成（七乐彩特别号）。</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)">bool</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#id4" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#id5" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">lo</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#id6" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">hi</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#id7" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">count</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#id8" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">pick_min</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#id9" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">pick_max</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#id10" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">positional</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#id11" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">allow_repeat</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#id12" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">color</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'#D32F2F'</span></span><a class="headerlink" href="#id13" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">pad</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#id14" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id15">
+<span class="sig-name descname"><span class="pre">is_primary</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#id15" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id16">
+<span class="sig-name descname"><span class="pre">draw_only</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#id16" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.size">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.size" title="Link to this definition"></a></dt>
+<dd><p>号池大小（可取值个数）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.values">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">values</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.values" title="Link to this definition"></a></dt>
+<dd><p>号池全部可取值（升序）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.effective_pick_min">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">effective_pick_min</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.effective_pick_min" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.effective_pick_max">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">effective_pick_max</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.effective_pick_max" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.variable_pick">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">variable_pick</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.variable_pick" title="Link to this definition"></a></dt>
+<dd><p>玩家可选号个数是否可变（快乐8）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.high_low_border">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">high_low_border</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#caipiao.core.profile.NumberGroup.high_low_border" title="Link to this definition"></a></dt>
+<dd><p>大小号分界：&gt;= 该值视为大号（双色球红球恰为 17）。</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.profile.NumberGroup.validate_numbers">
+<span class="sig-name descname"><span class="pre">validate_numbers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">numbers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#NumberGroup.validate_numbers"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.NumberGroup.validate_numbers" title="Link to this definition"></a></dt>
+<dd><p>校验一组号码是否符合本组约束（用于开奖记录/投注单校验）。</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">LotteryProfile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">groups</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#caipiao.core.profile.NumberGroup" title="caipiao.core.profile.NumberGroup"><span class="pre">NumberGroup</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">parser_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw_weekdays</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">storage_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_prefix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtitle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">category</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'welfare'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/caipiao/core/profile.html#LotteryProfile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.LotteryProfile" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>一个彩种的完整档案。</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.key">
+<span class="sig-name descname"><span class="pre">key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.key" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.name" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.groups">
+<span class="sig-name descname"><span class="pre">groups</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#caipiao.core.profile.NumberGroup" title="caipiao.core.profile.NumberGroup"><span class="pre">NumberGroup</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.groups" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.data_url">
+<span class="sig-name descname"><span class="pre">data_url</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.data_url" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.parser_key">
+<span class="sig-name descname"><span class="pre">parser_key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.parser_key" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.draw_weekdays">
+<span class="sig-name descname"><span class="pre">draw_weekdays</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.14)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.draw_weekdays" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.storage_file">
+<span class="sig-name descname"><span class="pre">storage_file</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.storage_file" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.model_prefix">
+<span class="sig-name descname"><span class="pre">model_prefix</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.model_prefix" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.subtitle">
+<span class="sig-name descname"><span class="pre">subtitle</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">''</span></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.subtitle" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.category">
+<span class="sig-name descname"><span class="pre">category</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'welfare'</span></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.category" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.group">
+<span class="sig-name descname"><span class="pre">group</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#caipiao.core.profile.NumberGroup" title="caipiao.core.profile.NumberGroup"><span class="pre">NumberGroup</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#LotteryProfile.group"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.group" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.group_keys">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">group_keys</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.group_keys" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.pick_groups">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">pick_groups</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#caipiao.core.profile.NumberGroup" title="caipiao.core.profile.NumberGroup"><span class="pre">NumberGroup</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.pick_groups" title="Link to this definition"></a></dt>
+<dd><p>参与玩家生成的号码组（排除 draw_only）。</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.primary_group">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">primary_group</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#caipiao.core.profile.NumberGroup" title="caipiao.core.profile.NumberGroup"><span class="pre">NumberGroup</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.primary_group" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.is_daily">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">is_daily</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.is_daily" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.xgboost_prefix">
+<span class="sig-name descname"><span class="pre">xgboost_prefix</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#LotteryProfile.xgboost_prefix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.xgboost_prefix" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.lightgbm_prefix">
+<span class="sig-name descname"><span class="pre">lightgbm_prefix</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#LotteryProfile.lightgbm_prefix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.lightgbm_prefix" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="caipiao.core.profile.LotteryProfile.catboost_prefix">
+<span class="sig-name descname"><span class="pre">catboost_prefix</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#LotteryProfile.catboost_prefix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.LotteryProfile.catboost_prefix" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.profile.profile_keys">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">profile_keys</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#profile_keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.profile_keys" title="Link to this definition"></a></dt>
+<dd><p>返回全部已注册彩种 key。</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.profile.get_profile">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">get_profile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#caipiao.core.profile.LotteryProfile" title="caipiao.core.profile.LotteryProfile"><span class="pre">LotteryProfile</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#get_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.get_profile" title="Link to this definition"></a></dt>
+<dd><p>按 key 获取彩种档案；未知 key 返回默认（双色球）。</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.profile.list_profiles">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">list_profiles</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#caipiao.core.profile.LotteryProfile" title="caipiao.core.profile.LotteryProfile"><span class="pre">LotteryProfile</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#list_profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.list_profiles" title="Link to this definition"></a></dt>
+<dd><p>按固定顺序返回全部彩种档案。</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.profile.list_profiles_by_category">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">list_profiles_by_category</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.14)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.14)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#caipiao.core.profile.LotteryProfile" title="caipiao.core.profile.LotteryProfile"><span class="pre">LotteryProfile</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#list_profiles_by_category"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.list_profiles_by_category" title="Link to this definition"></a></dt>
+<dd><p>按彩种大类（福利彩票/体育彩票）分组返回档案。</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="caipiao.core.profile.category_label">
+<span class="sig-prename descclassname"><span class="pre">caipiao.core.profile.</span></span><span class="sig-name descname"><span class="pre">category_label</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">category</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/caipiao/core/profile.html#category_label"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#caipiao.core.profile.category_label" title="Link to this definition"></a></dt>
+<dd><p>返回彩种大类的中文名称。</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="ticket.html" class="btn btn-neutral float-left" title="ticket" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="engine.html" class="btn btn-neutral float-right" title="engine" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

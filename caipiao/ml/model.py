@@ -95,8 +95,17 @@ class LotteryXGBoostModel:
         y_red: np.ndarray,
         y_blue: np.ndarray,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        incremental: bool = False,
     ) -> None:
-        """训练模型."""
+        """训练模型.
+
+        Args:
+            X: 特征矩阵
+            y_red: 红球标签
+            y_blue: 蓝球标签
+            progress_callback: 进度回调
+            incremental: 是否增量训练（使用已有模型继续训练）
+        """
         if X.shape[0] == 0:
             raise ValueError("训练数据为空")
         if y_red.ndim != 2 or y_blue.ndim != 2:
@@ -108,24 +117,40 @@ class LotteryXGBoostModel:
         # 训练红球顺序生成模型
         X_seq, y_seq, encoder = self._build_sequence_training_data(X, y_red)
         num_class = len(encoder.classes_)
-        self.red_sequence_model = self._create_classifier(
-            positional=True, num_class=num_class
-        )
-        self.red_sequence_model.fit(X_seq, y_seq)
-        self.red_sequence_encoder = encoder
+
+        if incremental and self.red_sequence_model is not None and self.is_trained:
+            # 增量训练：使用已有模型继续训练
+            self.red_sequence_model.fit(X_seq, y_seq, xgb_model=self.red_sequence_model.get_booster())
+            self.red_sequence_encoder = encoder
+        else:
+            # 全量训练：创建新模型
+            self.red_sequence_model = self._create_classifier(
+                positional=True, num_class=num_class
+            )
+            self.red_sequence_model.fit(X_seq, y_seq)
+            self.red_sequence_encoder = encoder
+
         if progress_callback is not None:
             progress_callback(1, total)
         logger.debug("红球顺序生成模型训练完成")
 
         # 训练蓝球多输出分类器
-        blue_clf = self._create_classifier().set_params(scale_pos_weight=5.0)
-        self.blue_model = MultiOutputClassifier(blue_clf, n_jobs=1)
-        self.blue_model.fit(X, y_blue)
+        if incremental and self.blue_model is not None and self.is_trained:
+            # 增量训练：使用已有模型继续训练
+            for idx, estimator in enumerate(self.blue_model.estimators_):
+                if idx < y_blue.shape[1]:
+                    estimator.fit(X, y_blue[:, idx], xgb_model=estimator.get_booster())
+        else:
+            # 全量训练：创建新模型
+            blue_clf = self._create_classifier().set_params(scale_pos_weight=5.0)
+            self.blue_model = MultiOutputClassifier(blue_clf, n_jobs=1)
+            self.blue_model.fit(X, y_blue)
+
         if progress_callback is not None:
             progress_callback(total, total)
 
         self.is_trained = True
-        logger.info("XGBoost 模型训练完成")
+        logger.info("XGBoost 模型训练完成 (%s)", "增量" if incremental else "全量")
 
     def _predict_sequence_initial(self, X: np.ndarray) -> np.ndarray:
         """预测 step=0 时各红球概率，用于展示."""

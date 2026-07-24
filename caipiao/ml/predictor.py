@@ -120,6 +120,56 @@ class MLPredictor:
             self._save_metadata()
             logger.info("模型已保存，数据指纹：%s", self._data_fingerprint())
 
+    def train_incremental(
+        self,
+        new_count: int = 1,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> bool:
+        """增量训练模型（仅使用新数据更新已有模型）。
+
+        Args:
+            new_count: 新增记录数量。
+            progress_callback: 进度回调。
+
+        Returns:
+            是否成功增量训练。如果模型不存在或数据不足，返回 False（需全量训练）。
+        """
+        if not self.model_path or not self.model_path.exists():
+            logger.info("无已有模型，需要全量训练")
+            return False
+
+        if not self._metadata_matches():
+            logger.info("模型元数据不匹配，需要全量训练")
+            return False
+
+        try:
+            self.model.load(self.model_path)
+        except Exception as exc:
+            logger.warning("加载已有模型失败: %s", exc)
+            return False
+
+        if not self.model.is_trained:
+            return False
+
+        X_new, y_red_new, y_blue_new = build_incremental_features(
+            self.records, self.lookback, new_count
+        )
+        if X_new.shape[0] == 0:
+            logger.info("无新数据需要训练")
+            return False
+
+        self.model.fit(
+            X_new, y_red_new, y_blue_new,
+            progress_callback=progress_callback,
+            incremental=True,
+        )
+        self._needs_training = False
+        if self.model_path:
+            self.model.save(self.model_path)
+            self._save_metadata()
+            logger.info("增量训练完成，新数据指纹：%s", self._data_fingerprint())
+        return True
+
     def predict(self) -> Tuple[np.ndarray, np.ndarray]:
         """预测下一期各号码出现概率.
 

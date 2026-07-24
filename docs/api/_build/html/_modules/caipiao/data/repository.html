@@ -1,0 +1,339 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>caipiao.data.repository &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">caipiao.data.repository</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for caipiao.data.repository</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;历史数据仓库（多彩种统一）.</span>
+
+<span class="sd">``DrawRepository`` 按彩种档案管理本地开奖数据。</span>
+<span class="sd">旧类 ``DataRepository`` 保留为双色球专用别名，API 完全兼容。</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">TypedDict</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..core.profile</span><span class="w"> </span><span class="kn">import</span> <span class="n">SSQ</span><span class="p">,</span> <span class="n">LotteryProfile</span><span class="p">,</span> <span class="n">get_profile</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">DrawRecord</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="NextPeriodInfo">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.NextPeriodInfo">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NextPeriodInfo</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;下一期开奖信息。&quot;&quot;&quot;</span>
+
+    <span class="n">base_issue</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">base_date</span><span class="p">:</span> <span class="n">datetime</span>
+    <span class="n">next_issue</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">next_date</span><span class="p">:</span> <span class="n">datetime</span></div>
+
+
+
+<div class="viewcode-block" id="DrawRepository">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DrawRepository</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;管理单彩种本地开奖数据的加载、保存与查询.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">storage_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">profile</span><span class="p">:</span> <span class="n">LotteryProfile</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span> <span class="ow">or</span> <span class="n">SSQ</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">storage_path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="n">records</span> <span class="o">=</span> <span class="p">[</span><span class="n">DrawRecord</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_and_dedup</span><span class="p">(</span><span class="n">records</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;已清理 </span><span class="si">%d</span><span class="s2"> 条重复记录&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;已加载 </span><span class="si">%d</span><span class="s2"> 条 </span><span class="si">%s</span><span class="s2"> 本地记录&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;加载本地数据失败: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_records</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_normalize_issue</span><span class="p">(</span><span class="n">record</span><span class="p">:</span> <span class="n">DrawRecord</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DrawRecord</span><span class="p">:</span>
+        <span class="n">issue</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">issue</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">issue</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">record</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">sequence</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">issue</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:])</span>
+            <span class="n">normalized</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">record</span><span class="o">.</span><span class="n">draw_date</span><span class="o">.</span><span class="n">year</span><span class="si">}{</span><span class="n">sequence</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">if</span> <span class="n">normalized</span> <span class="o">!=</span> <span class="n">issue</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">DrawRecord</span><span class="p">(</span>
+                    <span class="n">issue</span><span class="o">=</span><span class="n">normalized</span><span class="p">,</span>
+                    <span class="n">draw_date</span><span class="o">=</span><span class="n">record</span><span class="o">.</span><span class="n">draw_date</span><span class="p">,</span>
+                    <span class="n">profile</span><span class="o">=</span><span class="n">record</span><span class="o">.</span><span class="n">profile</span><span class="p">,</span>
+                    <span class="n">groups</span><span class="o">=</span><span class="n">record</span><span class="o">.</span><span class="n">groups</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="n">record</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_normalize_and_dedup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_normalize_issue</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span><span class="p">]</span>
+        <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">result</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">normalized</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">issue</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">issue</span><span class="p">)</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">draw_date</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+<div class="viewcode-block" id="DrawRepository.save">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.save">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">record</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">]</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.update">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.update">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">normalized_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_and_dedup</span><span class="p">(</span><span class="n">records</span><span class="p">)</span>
+        <span class="n">existing_issues</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">issue</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">}</span>
+        <span class="n">new_records</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">normalized_new</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">issue</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing_issues</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">new_records</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">draw_date</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_records</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.get_all">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_all">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_all</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">[:]</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.get_recent">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_recent">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_recent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">[</span><span class="o">-</span><span class="n">count</span><span class="p">:]</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.get_count">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.get_latest">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_latest">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_latest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span> <span class="k">else</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.next_period_info">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.next_period_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">next_period_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">NextPeriodInfo</span><span class="p">]:</span>
+        <span class="n">latest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_latest</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">latest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">next_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_draw_date</span><span class="p">(</span><span class="n">latest</span><span class="o">.</span><span class="n">draw_date</span><span class="p">)</span>
+        <span class="n">next_issue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_issue</span><span class="p">(</span><span class="n">latest</span><span class="o">.</span><span class="n">issue</span><span class="p">,</span> <span class="n">next_date</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">NextPeriodInfo</span><span class="p">(</span>
+            <span class="n">base_issue</span><span class="o">=</span><span class="n">latest</span><span class="o">.</span><span class="n">issue</span><span class="p">,</span>
+            <span class="n">base_date</span><span class="o">=</span><span class="n">latest</span><span class="o">.</span><span class="n">draw_date</span><span class="p">,</span>
+            <span class="n">next_issue</span><span class="o">=</span><span class="n">next_issue</span><span class="p">,</span>
+            <span class="n">next_date</span><span class="o">=</span><span class="n">next_date</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_next_draw_date</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_date</span><span class="p">:</span> <span class="n">datetime</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">datetime</span><span class="p">:</span>
+        <span class="n">nxt</span> <span class="o">=</span> <span class="n">last_date</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">is_daily</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">nxt</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">draw_weekdays</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;draw_weekdays must not be empty for non-daily profile&quot;</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">nxt</span><span class="o">.</span><span class="n">weekday</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">draw_weekdays</span><span class="p">:</span>
+            <span class="n">nxt</span> <span class="o">+=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">nxt</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_next_issue</span><span class="p">(</span><span class="n">latest_issue</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">next_date</span><span class="p">:</span> <span class="n">datetime</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">issue</span> <span class="o">=</span> <span class="n">latest_issue</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">issue</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">4</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">issue</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">year</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">issue</span><span class="p">[:</span><span class="mi">4</span><span class="p">])</span>
+            <span class="n">sequence</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">issue</span><span class="p">[</span><span class="mi">4</span><span class="p">:])</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">next_date</span><span class="o">.</span><span class="n">year</span> <span class="o">!=</span> <span class="n">year</span><span class="p">:</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">next_date</span><span class="o">.</span><span class="n">year</span><span class="si">}</span><span class="s2">001&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">year</span><span class="si">}{</span><span class="n">sequence</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<div class="viewcode-block" id="DrawRepository.get_date_range">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_date_range">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">datetime</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">datetime</span><span class="p">]]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">draw_date</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">draw_date</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.get_records_before">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_records_before">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_records_before</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutoff</span><span class="p">:</span> <span class="n">datetime</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">draw_date</span> <span class="o">&lt;</span> <span class="n">cutoff</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.get_record_by_date">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.get_record_by_date">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_record_by_date</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">draw_date</span><span class="p">:</span> <span class="n">datetime</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">draw_date</span><span class="o">.</span><span class="n">date</span><span class="p">()</span> <span class="o">==</span> <span class="n">draw_date</span><span class="o">.</span><span class="n">date</span><span class="p">():</span>
+                <span class="k">return</span> <span class="n">r</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="DrawRepository.clear">
+<a class="viewcode-back" href="../../../data/repository.html#caipiao.data.repository.DrawRepository.clear">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_records</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span></div>
+</div>
+
+
+
+<span class="c1"># 旧的双色球仓库别名：保持现有代码与测试完全兼容</span>
+<span class="n">DataRepository</span> <span class="o">=</span> <span class="n">DrawRepository</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

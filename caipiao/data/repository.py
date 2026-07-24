@@ -10,12 +10,21 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 from ..core.profile import SSQ, LotteryProfile, get_profile
 from .models import DrawRecord
 
 logger = logging.getLogger(__name__)
+
+
+class NextPeriodInfo(TypedDict):
+    """下一期开奖信息。"""
+
+    base_issue: str
+    base_date: datetime
+    next_issue: str
+    next_date: datetime
 
 
 class DrawRepository:
@@ -43,7 +52,7 @@ class DrawRepository:
                 logger.info("已清理 %d 条重复记录", len(records) - len(self._records))
                 self.save()
             logger.info("已加载 %d 条 %s 本地记录", len(self._records), self.profile.name)
-        except Exception as exc:  # noqa: BLE001
+        except (OSError, json.JSONDecodeError, ValueError, KeyError) as exc:
             logger.error("加载本地数据失败: %s", exc)
             self._records = []
 
@@ -106,18 +115,18 @@ class DrawRepository:
     def get_latest(self) -> Optional[DrawRecord]:
         return self._records[-1] if self._records else None
 
-    def next_period_info(self) -> Optional[dict]:
+    def next_period_info(self) -> Optional[NextPeriodInfo]:
         latest = self.get_latest()
         if latest is None:
             return None
         next_date = self._next_draw_date(latest.draw_date)
         next_issue = self._next_issue(latest.issue, next_date)
-        return {
-            "base_issue": latest.issue,
-            "base_date": latest.draw_date,
-            "next_issue": next_issue,
-            "next_date": next_date,
-        }
+        return NextPeriodInfo(
+            base_issue=latest.issue,
+            base_date=latest.draw_date,
+            next_issue=next_issue,
+            next_date=next_date,
+        )
 
     def _next_draw_date(self, last_date: datetime) -> datetime:
         nxt = last_date + timedelta(days=1)

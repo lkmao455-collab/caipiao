@@ -60,6 +60,60 @@ def build_features(
     return np.array(X), np.array(y_red), np.array(y_blue)
 
 
+def build_incremental_features(
+    records: List[DrawRecord], lookback: int = 50, new_count: int = 1
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """构建增量训练特征（仅支持双色球）。
+
+    只为最近 new_count 期构建特征，用于增量训练。
+
+    Args:
+        records: 按时间排序的全部开奖记录。
+        lookback: 回看期数。
+        new_count: 需要构建特征的新记录数量。
+
+    Returns:
+        X_new: 新特征矩阵
+        y_red_new: 新红球标签
+        y_blue_new: 新蓝球标签
+    """
+    if any(r.profile.key != "ssq" for r in records):
+        raise ValueError("features.build_incremental_features 仅支持双色球记录")
+    if lookback <= 0:
+        raise ValueError("lookback 必须大于 0")
+    if len(records) <= lookback:
+        return np.array([]), np.array([]), np.array([])
+    new_count = min(new_count, len(records) - lookback)
+    if new_count <= 0:
+        return np.array([]), np.array([]), np.array([])
+
+    start_idx = len(records) - new_count
+    X = []
+    y_red = []
+    y_blue = []
+
+    for i in range(start_idx, len(records)):
+        window = records[i - lookback : i]
+        next_record = records[i]
+
+        features = _extract_window_features(window)
+        X.append(features)
+
+        red_label = np.zeros(RED_COUNT, dtype=np.int32)
+        for n in next_record.red_balls:
+            if 1 <= n <= RED_COUNT:
+                red_label[n - 1] = 1
+        y_red.append(red_label)
+
+        blue_label = np.zeros(BLUE_COUNT, dtype=np.int32)
+        blue = next_record.blue_ball
+        if blue is not None and 1 <= blue <= BLUE_COUNT:
+            blue_label[blue - 1] = 1
+        y_blue.append(blue_label)
+
+    return np.array(X), np.array(y_red), np.array(y_blue)
+
+
 def build_prediction_features(
     records: List[DrawRecord], lookback: int = 50
 ) -> np.ndarray:

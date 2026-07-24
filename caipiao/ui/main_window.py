@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.profile import (
+    NAV_HIDDEN_PROFILE_KEYS,
     category_label,
     list_profiles,
     list_profiles_by_category,
@@ -165,8 +166,8 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _validated_current_key(key: str) -> str:
-        """校验并规范化当前彩种 key，非法时回退到双色球。"""
-        if key in profile_keys():
+        """校验并规范化当前彩种 key，非法或已从导航隐藏时回退到双色球。"""
+        if key in profile_keys() and key not in NAV_HIDDEN_PROFILE_KEYS:
             return key
         return "ssq"
 
@@ -303,12 +304,15 @@ class MainWindow(QMainWindow):
         self.lottery_combo.clear()
         first = True
         for category, profiles in list_profiles_by_category().items():
+            visible = [p for p in profiles if p.key not in NAV_HIDDEN_PROFILE_KEYS]
+            if not visible:
+                continue
             if not first:
                 self.lottery_combo.insertSeparator(self.lottery_combo.count())
             first = False
             # 分组标题（仅展示，不可选）
             self.lottery_combo.addItem(f"[{category_label(category)}]")
-            for p in profiles:
+            for p in visible:
                 self.lottery_combo.addItem(f"  {p.name} ({p.subtitle})", p.key)
 
     def _category_text(self) -> str:
@@ -353,43 +357,28 @@ class MainWindow(QMainWindow):
             self._on_recommend_parameters
         )
         self._restore_last_strategy()
-        left_layout.addWidget(self.strategy_panel)
+        left_layout.addWidget(self.strategy_panel, 1)  # stretch=1 占满剩余空间
 
-        left_layout.addStretch()
         layout.addWidget(left_panel, 1)
 
         # 右侧结果面板
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(6)
 
-        # 使用splitter分割生成结果和可编辑列表
-        result_splitter = QSplitter(Qt.Orientation.Vertical)
-        result_splitter.setHandleWidth(6)
-
-        # 上方：生成结果
-        result_widget = QWidget()
-        result_inner_layout = QVBoxLayout(result_widget)
-        result_inner_layout.setContentsMargins(0, 0, 0, 0)
-
-        result_inner_layout.addWidget(QLabel("生成结果:"))
-
+        # 信息区（目标期+概率，紧凑展示）
         self.target_label = QLabel("")
         self.target_label.setWordWrap(True)
-        self.target_label.setStyleSheet("color:#333;")
+        self.target_label.setStyleSheet("color:#333; padding:2px;")
         self.target_label.setVisible(False)
         right_layout.addWidget(self.target_label)
 
         self.probability_label = QLabel("")
         self.probability_label.setWordWrap(True)
-        self.probability_label.setStyleSheet("color:#D32F2F;font-weight:bold;font-size:14px;")
+        self.probability_label.setStyleSheet("color:#D32F2F;font-weight:bold;font-size:12px; padding:2px;")
         self.probability_label.setVisible(False)
         right_layout.addWidget(self.probability_label)
-
-        self.result_text = QTextEdit()
-        self.result_text.setReadOnly(True)
-        self.result_text.setPlaceholderText("点击“立即生成”获取号码...")
-        right_layout.addWidget(self.result_text, 1)
 
         self.chart_btn = QPushButton("查看概率折线图")
         self.chart_btn.setToolTip("在独立窗口中查看更大的概率折线图")
@@ -397,23 +386,32 @@ class MainWindow(QMainWindow):
         self.chart_btn.clicked.connect(self._show_probability_chart)
         right_layout.addWidget(self.chart_btn)
 
+        # 上半区：球号可视化 + 可编辑列表（左右排列）
+        top_splitter = QSplitter(Qt.Orientation.Horizontal)
+        top_splitter.setHandleWidth(6)
+
+        # 左：球号可视化展示
         self.result_area = QScrollArea()
         self.result_area.setWidgetResizable(True)
+        self.result_area.setFrameShape(QScrollArea.Shape.NoFrame)
         self.result_container = QWidget()
         self.result_container_layout = QVBoxLayout(self.result_container)
-        self.result_container_layout.setSpacing(6)
+        self.result_container_layout.setSpacing(4)
+        self.result_container_layout.setContentsMargins(4, 4, 4, 4)
         self.result_container_layout.addStretch()
         self.result_area.setWidget(self.result_container)
-        result_inner_layout.addWidget(self.result_area, 1)
+        top_splitter.addWidget(self.result_area)
 
-        result_splitter.addWidget(result_widget)
-
-        # 下方：可编辑号码列表（仅福彩3D显示）
+        # 右：可编辑号码列表（所有彩种通用）
         self.editable_numbers_group = QGroupBox("可编辑号码列表")
         editable_layout = QVBoxLayout(self.editable_numbers_group)
+        editable_layout.setContentsMargins(8, 16, 8, 8)
+        editable_layout.setSpacing(6)
 
-        # 筛选复选框
-        filter_layout = QHBoxLayout()
+        # 筛选行（福彩3D 专用筛选）
+        self.filter_layout_container = QWidget()
+        filter_layout = QHBoxLayout(self.filter_layout_container)
+        filter_layout.setContentsMargins(0, 0, 0, 0)
         filter_layout.addWidget(QLabel("显示筛选:"))
         self.filter_zu6_check = QCheckBox("组选6")
         self.filter_zu6_check.setChecked(True)
@@ -431,42 +429,55 @@ class MainWindow(QMainWindow):
         self.filter_count_label = QLabel("共 0 注")
         self.filter_count_label.setStyleSheet("font-weight: bold;")
         filter_layout.addWidget(self.filter_count_label)
-        editable_layout.addLayout(filter_layout)
+        editable_layout.addWidget(self.filter_layout_container)
 
         self.editable_numbers_table = QTableWidget()
         self.editable_numbers_table.setColumnCount(4)
         self.editable_numbers_table.setHorizontalHeaderLabels(["序号", "号码", "类型", "操作"])
-        # 自适应列宽
-        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.editable_numbers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.editable_numbers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.editable_numbers_table.setColumnWidth(0, 50)
+        self.editable_numbers_table.setColumnWidth(3, 70)
         self.editable_numbers_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.editable_numbers_table.verticalHeader().setVisible(False)
         editable_layout.addWidget(self.editable_numbers_table)
 
-        # 添加号码控件
+        # 底部输入控件
         add_layout = QHBoxLayout()
         self.add_number_input = QLineEdit()
-        self.add_number_input.setPlaceholderText("输入3位数字（如 123）")
-        self.add_number_input.setMaxLength(3)
+        self.add_number_input.setPlaceholderText("输入号码")
         add_layout.addWidget(self.add_number_input)
-        self.add_number_btn = QPushButton("添加号码")
+        self.add_number_btn = QPushButton("添加")
         self.add_number_btn.clicked.connect(self._add_custom_number)
         add_layout.addWidget(self.add_number_btn)
         self.add_random_btn = QPushButton("随机添加")
-        self.add_random_btn.setToolTip("随机生成一个符合过滤规则的号码并添加到列表")
+        self.add_random_btn.setToolTip("随机生成一个号码并添加到列表")
         self.add_random_btn.clicked.connect(self._add_random_number)
         add_layout.addWidget(self.add_random_btn)
         editable_layout.addLayout(add_layout)
 
         self.editable_numbers_group.setVisible(False)
-        result_splitter.addWidget(self.editable_numbers_group)
+        top_splitter.addWidget(self.editable_numbers_group)
 
-        # 设置splitter初始比例（生成结果60%，可编辑列表40%）
-        result_splitter.setSizes([600, 400])
+        # 设置左右比例（球号60%，可编辑列表40%）
+        top_splitter.setSizes([600, 400])
 
-        right_layout.addWidget(result_splitter, 1)
+        right_layout.addWidget(top_splitter, 3)
+
+        # 下半区：生成摘要（文本）
+        summary_group = QGroupBox("生成摘要")
+        summary_layout = QVBoxLayout(summary_group)
+        summary_layout.setContentsMargins(8, 16, 8, 8)
+        summary_layout.setSpacing(4)
+        self.result_text = QTextEdit()
+        self.result_text.setReadOnly(True)
+        self.result_text.setPlaceholderText("点击“立即生成”获取号码...")
+        self.result_text.setMaximumHeight(140)
+        self.result_text.setStyleSheet("font-size:9pt; color:#555;")
+        summary_layout.addWidget(self.result_text)
+        right_layout.addWidget(summary_group, 1)
 
         layout.addWidget(right_panel, 2)
 
@@ -601,6 +612,136 @@ class MainWindow(QMainWindow):
         self.boss_key_hint.setWordWrap(True)
         self.boss_key_hint.setStyleSheet("color: #666; font-size: 9pt;")
         layout.addWidget(self.boss_key_hint)
+
+        # ---- 双色球过滤设置 ----
+        from PySide6.QtWidgets import QGroupBox
+
+        ssq_group = QGroupBox("双色球过滤")
+        ssq_group.setToolTip("配置双色球号码生成后的过滤规则。")
+        ssq_layout = QVBoxLayout(ssq_group)
+
+        ssq_compare_layout = QHBoxLayout()
+        ssq_compare_layout.addWidget(QLabel("比较期数:"))
+        self.ssq_filter_compare_spin = QSpinBox()
+        self.ssq_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。0=不比较。")
+        self.ssq_filter_compare_spin.setRange(0, 50)
+        self.ssq_filter_compare_spin.setValue(self.settings.ssq_filter_compare_periods)
+        ssq_compare_layout.addWidget(self.ssq_filter_compare_spin)
+        ssq_compare_layout.addStretch()
+        ssq_layout.addLayout(ssq_compare_layout)
+
+        ssq_overlap_layout = QHBoxLayout()
+        ssq_overlap_layout.addWidget(QLabel("红球重合上限:"))
+        self.ssq_filter_overlap_spin = QSpinBox()
+        self.ssq_filter_overlap_spin.setToolTip("允许与历史开奖红球重合的最大个数。超过则淘汰。")
+        self.ssq_filter_overlap_spin.setRange(0, 6)
+        self.ssq_filter_overlap_spin.setValue(self.settings.ssq_filter_max_red_overlap)
+        ssq_overlap_layout.addWidget(self.ssq_filter_overlap_spin)
+        ssq_overlap_layout.addStretch()
+        ssq_layout.addLayout(ssq_overlap_layout)
+
+        self.ssq_filter_block_blue_check = QCheckBox("禁止蓝球与历史相同")
+        self.ssq_filter_block_blue_check.setToolTip("开启后，蓝球与最近一期历史蓝球相同则淘汰。")
+        self.ssq_filter_block_blue_check.setChecked(self.settings.ssq_filter_block_blue)
+        ssq_layout.addWidget(self.ssq_filter_block_blue_check)
+
+        layout.addWidget(ssq_group)
+
+        # ---- 福彩3D过滤设置 ----
+        fc3d_group = QGroupBox("福彩3D过滤")
+        fc3d_group.setToolTip("配置福彩3D号码生成后的过滤规则。")
+        fc3d_layout = QVBoxLayout(fc3d_group)
+
+        self.fc3d_filter_enabled_check = QCheckBox("启用经验策略过滤")
+        self.fc3d_filter_enabled_check.setToolTip("开启后，生成的3D号码将经过经验策略过滤。")
+        self.fc3d_filter_enabled_check.setChecked(self.settings.fc3d_filter_enabled)
+        fc3d_layout.addWidget(self.fc3d_filter_enabled_check)
+
+        fc3d_compare_layout = QHBoxLayout()
+        fc3d_compare_layout.addWidget(QLabel("比较期数:"))
+        self.fc3d_filter_compare_spin = QSpinBox()
+        self.fc3d_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。")
+        self.fc3d_filter_compare_spin.setRange(0, 50)
+        self.fc3d_filter_compare_spin.setValue(self.settings.fc3d_filter_compare_periods)
+        fc3d_compare_layout.addWidget(self.fc3d_filter_compare_spin)
+        fc3d_compare_layout.addStretch()
+        fc3d_layout.addLayout(fc3d_compare_layout)
+
+        fc3d_overlap_layout = QHBoxLayout()
+        fc3d_overlap_layout.addWidget(QLabel("相同号码上限:"))
+        self.fc3d_filter_overlap_spin = QSpinBox()
+        self.fc3d_filter_overlap_spin.setToolTip("允许与历史开奖相同号码的最大个数。超过则淘汰。")
+        self.fc3d_filter_overlap_spin.setRange(0, 3)
+        self.fc3d_filter_overlap_spin.setValue(self.settings.fc3d_filter_max_overlap)
+        fc3d_overlap_layout.addWidget(self.fc3d_filter_overlap_spin)
+        fc3d_overlap_layout.addStretch()
+        fc3d_layout.addLayout(fc3d_overlap_layout)
+
+        fc3d_sum_layout = QHBoxLayout()
+        fc3d_sum_layout.addWidget(QLabel("和值范围:"))
+        self.fc3d_filter_min_sum_spin = QSpinBox()
+        self.fc3d_filter_min_sum_spin.setToolTip("允许的最小和值。")
+        self.fc3d_filter_min_sum_spin.setRange(0, 27)
+        self.fc3d_filter_min_sum_spin.setValue(self.settings.fc3d_filter_min_sum)
+        fc3d_sum_layout.addWidget(self.fc3d_filter_min_sum_spin)
+        fc3d_sum_layout.addWidget(QLabel("-"))
+        self.fc3d_filter_max_sum_spin = QSpinBox()
+        self.fc3d_filter_max_sum_spin.setToolTip("允许的最大和值。")
+        self.fc3d_filter_max_sum_spin.setRange(0, 27)
+        self.fc3d_filter_max_sum_spin.setValue(self.settings.fc3d_filter_max_sum)
+        fc3d_sum_layout.addWidget(self.fc3d_filter_max_sum_spin)
+        fc3d_sum_layout.addStretch()
+        fc3d_layout.addLayout(fc3d_sum_layout)
+
+        layout.addWidget(fc3d_group)
+
+        # ---- 七乐彩过滤设置 ----
+        qlc_group = QGroupBox("七乐彩过滤")
+        qlc_group.setToolTip("配置七乐彩号码生成后的过滤规则。")
+        qlc_layout = QVBoxLayout(qlc_group)
+
+        self.qlc_filter_enabled_check = QCheckBox("启用经验策略过滤")
+        self.qlc_filter_enabled_check.setToolTip("开启后，生成的七乐彩号码将经过经验策略过滤。")
+        self.qlc_filter_enabled_check.setChecked(self.settings.qlc_filter_enabled)
+        qlc_layout.addWidget(self.qlc_filter_enabled_check)
+
+        qlc_compare_layout = QHBoxLayout()
+        qlc_compare_layout.addWidget(QLabel("比较期数:"))
+        self.qlc_filter_compare_spin = QSpinBox()
+        self.qlc_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。")
+        self.qlc_filter_compare_spin.setRange(0, 50)
+        self.qlc_filter_compare_spin.setValue(self.settings.qlc_filter_compare_periods)
+        qlc_compare_layout.addWidget(self.qlc_filter_compare_spin)
+        qlc_compare_layout.addStretch()
+        qlc_layout.addLayout(qlc_compare_layout)
+
+        qlc_overlap_layout = QHBoxLayout()
+        qlc_overlap_layout.addWidget(QLabel("基本号重合上限:"))
+        self.qlc_filter_overlap_spin = QSpinBox()
+        self.qlc_filter_overlap_spin.setToolTip("允许与历史开奖基本号重合的最大个数。超过则淘汰。")
+        self.qlc_filter_overlap_spin.setRange(0, 7)
+        self.qlc_filter_overlap_spin.setValue(self.settings.qlc_filter_max_overlap)
+        qlc_overlap_layout.addWidget(self.qlc_filter_overlap_spin)
+        qlc_overlap_layout.addStretch()
+        qlc_layout.addLayout(qlc_overlap_layout)
+
+        qlc_sum_layout = QHBoxLayout()
+        qlc_sum_layout.addWidget(QLabel("和值范围:"))
+        self.qlc_filter_min_sum_spin = QSpinBox()
+        self.qlc_filter_min_sum_spin.setToolTip("允许的最小和值。")
+        self.qlc_filter_min_sum_spin.setRange(0, 210)
+        self.qlc_filter_min_sum_spin.setValue(self.settings.qlc_filter_min_sum)
+        qlc_sum_layout.addWidget(self.qlc_filter_min_sum_spin)
+        qlc_sum_layout.addWidget(QLabel("-"))
+        self.qlc_filter_max_sum_spin = QSpinBox()
+        self.qlc_filter_max_sum_spin.setToolTip("允许的最大和值。")
+        self.qlc_filter_max_sum_spin.setRange(0, 210)
+        self.qlc_filter_max_sum_spin.setValue(self.settings.qlc_filter_max_sum)
+        qlc_sum_layout.addWidget(self.qlc_filter_max_sum_spin)
+        qlc_sum_layout.addStretch()
+        qlc_layout.addLayout(qlc_sum_layout)
+
+        layout.addWidget(qlc_group)
 
         # 保存按钮
         self.save_settings_btn = QPushButton("保存设置")
@@ -790,6 +931,9 @@ class MainWindow(QMainWindow):
             item = self.result_container_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        # 清空可编辑列表
+        self.editable_numbers_group.setVisible(False)
+        self._editable_tickets = []
 
     # ------------------------------------------------------------------ #
     # 数据页
@@ -1037,12 +1181,28 @@ class MainWindow(QMainWindow):
         if dialog is not None:
             dialog.set_stage("正在训练模型…")
 
+        # 检查是否可以增量训练
+        incremental = False
+        new_count = 0
+        if self.current.profile.key == "ssq":
+            from ..ml.common.model_store import needs_incremental_update
+            can_incremental, new_count = needs_incremental_update(
+                records, lookback, prefix=prefix, options=strategy_options
+            )
+            if can_incremental and new_count > 0:
+                incremental = True
+                if dialog is not None:
+                    dialog.set_stage(f"增量训练中（{new_count} 条新数据）…")
+                logger.info("使用增量训练，新增 %d 条记录", new_count)
+
         kwargs: dict = {
             "records": records,
             "lookback": lookback,
             "model_path": model_path,
             "prefix": prefix,
             "parent": self,
+            "incremental": incremental,
+            "new_count": new_count,
         }
         if self.current.profile.key == "ssq":
             kwargs["model_class"] = model_class or LotteryXGBoostModel
@@ -1284,13 +1444,14 @@ class MainWindow(QMainWindow):
         # 彩种菜单：按福利彩票/体育彩票分组，当前均为福利彩票
         lottery_menu = menubar.addMenu("彩种")
         for category, profiles in list_profiles_by_category().items():
+            visible = [p for p in profiles if p.key not in NAV_HIDDEN_PROFILE_KEYS]
             category_menu = lottery_menu.addMenu(category_label(category))
-            if not profiles:
+            if not visible:
                 placeholder = QAction("暂无", self)
                 placeholder.setEnabled(False)
                 category_menu.addAction(placeholder)
                 continue
-            for p in profiles:
+            for p in visible:
                 action = QAction(p.name, self)
                 action.setToolTip(f"切换到{p.name} ({p.subtitle})")
                 action.triggered.connect(
@@ -1410,6 +1571,7 @@ class MainWindow(QMainWindow):
         # 保存用户设置
         user_options = {k: v for k, v in options.items() if k != "history"}
         self.settings.last_strategy_id = strategy_id
+        options["_strategy_id"] = strategy_id  # 传递策略ID供过滤判断
         self.settings.default_count = count
         self.settings.last_strategy_options = user_options
         history_count = options.get("history_count", -1)
@@ -1449,6 +1611,18 @@ class MainWindow(QMainWindow):
                 options["_fc3d_filter_enabled"] = self.settings.fc3d_filter_enabled
                 options["_fc3d_filter_compare_periods"] = self.settings.fc3d_filter_compare_periods
                 options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
+                options["_fc3d_filter_min_sum"] = self.settings.fc3d_filter_min_sum
+                options["_fc3d_filter_max_sum"] = self.settings.fc3d_filter_max_sum
+        elif profile_key == "qlc":
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                options["_qlc_filter_enabled"] = self.settings.qlc_filter_enabled
+                options["_qlc_filter_compare_periods"] = self.settings.qlc_filter_compare_periods
+                options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
+                options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
+                options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
 
         self._generate_single_strategy(strategy_id, count, options)
 
@@ -1671,6 +1845,18 @@ class MainWindow(QMainWindow):
                 options["_fc3d_filter_enabled"] = self.settings.fc3d_filter_enabled
                 options["_fc3d_filter_compare_periods"] = self.settings.fc3d_filter_compare_periods
                 options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
+                options["_fc3d_filter_min_sum"] = self.settings.fc3d_filter_min_sum
+                options["_fc3d_filter_max_sum"] = self.settings.fc3d_filter_max_sum
+        elif profile_key == "qlc":
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                options["_qlc_filter_enabled"] = self.settings.qlc_filter_enabled
+                options["_qlc_filter_compare_periods"] = self.settings.qlc_filter_compare_periods
+                options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
+                options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
+                options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
 
         # 使用新的生成接口，指定回调以继续队列
         self._generate_single_strategy(
@@ -2038,43 +2224,89 @@ class MainWindow(QMainWindow):
     # 福彩3D可编辑号码列表
     # ------------------------------------------------------------------ #
     def _populate_editable_numbers(self, tickets: list) -> None:
-        """将生成的号码填充到可编辑列表（仅福彩3D）."""
-        if not tickets or tickets[0].profile.key != "3d":
+        """将生成的号码填充到可编辑列表（所有彩种通用）."""
+        if not tickets:
             self.editable_numbers_group.setVisible(False)
             return
 
         self.editable_numbers_group.setVisible(True)
         self._editable_tickets = list(tickets)
+
+        # 福彩3D/排列3/排列5/7星彩 显示筛选复选框
+        is_fc3d = tickets[0].profile.key in ("3d", "pl3", "pl5", "qxc")
+        self.filter_layout_container.setVisible(is_fc3d)
+
+        # 更新输入框占位符
+        profile = tickets[0].profile
+        if profile.key in ("3d", "pl3"):
+            self.add_number_input.setPlaceholderText("输入3位数字（如 123）")
+            self.add_number_input.setMaxLength(3)
+        elif profile.key == "pl5":
+            self.add_number_input.setPlaceholderText("输入5位数字（如 12345）")
+            self.add_number_input.setMaxLength(5)
+        elif profile.key == "qxc":
+            self.add_number_input.setPlaceholderText("输入7位数字（如 1234567）")
+            self.add_number_input.setMaxLength(7)
+        elif profile.key == "ssq":
+            self.add_number_input.setPlaceholderText("红球:1,2,3,4,5,6 蓝球:1")
+            self.add_number_input.setMaxLength(30)
+        elif profile.key == "dlt":
+            self.add_number_input.setPlaceholderText("前区:1,2,3,4,5 后区:1,2")
+            self.add_number_input.setMaxLength(30)
+        elif profile.key == "qlc":
+            self.add_number_input.setPlaceholderText("基本号:1,2,3,4,5,6,7")
+            self.add_number_input.setMaxLength(30)
+        elif profile.key == "kl8":
+            self.add_number_input.setPlaceholderText("号码:1,2,3,...,10（1-10个）")
+            self.add_number_input.setMaxLength(30)
+        else:
+            self.add_number_input.setPlaceholderText("输入号码")
+            self.add_number_input.setMaxLength(30)
+
         self._refresh_editable_table()
 
     def _refresh_editable_table(self) -> None:
-        """刷新可编辑号码表格（根据筛选条件显示）."""
-        # 根据筛选条件过滤
-        show_zu6 = self.filter_zu6_check.isChecked()
-        show_zu3 = self.filter_zu3_check.isChecked()
-        show_baozi = self.filter_baozi_check.isChecked()
+        """刷新可编辑号码表格（所有彩种通用）."""
+        if not hasattr(self, "_editable_tickets"):
+            return
 
-        filtered_tickets = []
-        for ticket in self._editable_tickets:
-            nums = ticket.groups.get("pos", [])
-            bet_type = fc3d_bet_type(nums)
-            if bet_type == "组选6" and show_zu6:
-                filtered_tickets.append(ticket)
-            elif bet_type == "组选3" and show_zu3:
-                filtered_tickets.append(ticket)
-            elif bet_type == "豹子号" and show_baozi:
-                filtered_tickets.append(ticket)
+        # 断开旧信号避免重复触发
+        try:
+            self.editable_numbers_table.cellChanged.disconnect(self._on_number_edited)
+        except (TypeError, RuntimeError):
+            pass
 
-        # 更新计数
-        self.filter_count_label.setText(f"共 {len(filtered_tickets)} 注")
+        profile_key = self._editable_tickets[0].profile.key if self._editable_tickets else ""
+
+        # 根据筛选条件过滤（仅FC3D/PL3/PL5/QXC）
+        if profile_key in ("3d", "pl3", "pl5", "qxc"):
+            show_zu6 = self.filter_zu6_check.isChecked()
+            show_zu3 = self.filter_zu3_check.isChecked()
+            show_baozi = self.filter_baozi_check.isChecked()
+
+            filtered_tickets = []
+            for ticket in self._editable_tickets:
+                nums = ticket.groups.get("pos", [])
+                bet_type = fc3d_bet_type(nums)
+                if bet_type == "组选6" and show_zu6:
+                    filtered_tickets.append(ticket)
+                elif bet_type == "组选3" and show_zu3:
+                    filtered_tickets.append(ticket)
+                elif bet_type == "豹子号" and show_baozi:
+                    filtered_tickets.append(ticket)
+            self.filter_count_label.setText(f"共 {len(filtered_tickets)} 注")
+        else:
+            filtered_tickets = self._editable_tickets
+            self.filter_count_label.setText(f"共 {len(filtered_tickets)} 注")
 
         # 填充表格
         self.editable_numbers_table.setRowCount(len(filtered_tickets))
         for idx, ticket in enumerate(filtered_tickets):
-            nums = ticket.groups.get("pos", [])
-            # 3D 为按位有序组，保持原始顺序显示（直选位置有意义）
-            num_str = "".join(str(n) for n in nums)
-            bet_type = MainWindow._fc3d_display_label(ticket)
+            # 格式化号码显示
+            num_str = self._format_ticket_display(ticket)
+
+            # 类型标签
+            bet_type = self._get_ticket_type_label(ticket)
 
             # 序号
             item_idx = QTableWidgetItem(str(idx + 1))
@@ -2099,35 +2331,126 @@ class MainWindow(QMainWindow):
             del_btn.clicked.connect(lambda checked, row=idx: self._delete_number(row))
             self.editable_numbers_table.setCellWidget(idx, 3, del_btn)
 
-        # 监听号码编辑
+        # 重新连接信号
         self.editable_numbers_table.cellChanged.connect(self._on_number_edited)
+
+    def _format_ticket_display(self, ticket) -> str:
+        """格式化ticket的号码显示（通用）."""
+        profile_key = ticket.profile.key
+        if profile_key in ("3d", "pl3", "pl5", "qxc"):
+            nums = ticket.groups.get("pos", [])
+            return "".join(str(n) for n in nums)
+        elif profile_key == "ssq":
+            reds = ticket.groups.get("red", [])
+            blues = ticket.groups.get("blue", [])
+            red_str = ",".join(f"{n:02d}" for n in reds)
+            blue_str = ",".join(f"{n:02d}" for n in blues)
+            return f"红{red_str} 蓝{blue_str}"
+        elif profile_key == "dlt":
+            fronts = ticket.groups.get("front", [])
+            backs = ticket.groups.get("back", [])
+            front_str = ",".join(f"{n:02d}" for n in fronts)
+            back_str = ",".join(f"{n:02d}" for n in backs)
+            return f"前{front_str} 后{back_str}"
+        elif profile_key == "qlc":
+            basics = ticket.groups.get("basic", [])
+            return ",".join(f"{n:02d}" for n in basics)
+        elif profile_key == "kl8":
+            mains = ticket.groups.get("main", [])
+            return ",".join(f"{n:02d}" for n in mains)
+        return ticket.format_compact()
+
+    def _get_ticket_type_label(self, ticket) -> str:
+        """获取ticket的类型标签（通用）."""
+        profile_key = ticket.profile.key
+        if profile_key in ("3d", "pl3", "pl5", "qxc"):
+            return MainWindow._fc3d_display_label(ticket)
+        elif profile_key == "ssq":
+            return "红+蓝"
+        elif profile_key == "dlt":
+            return "前+后"
+        elif profile_key == "qlc":
+            return "基本号"
+        elif profile_key == "kl8":
+            return "选号"
+        return ""
 
     def _on_filter_changed(self) -> None:
         """筛选复选框变化时刷新表格."""
         self._refresh_editable_table()
 
     def _on_number_edited(self, row: int, col: int) -> None:
-        """号码编辑完成后的处理."""
+        """号码编辑完成后的处理（通用）."""
         if col != 1:  # 只处理号码列
             return
         item = self.editable_numbers_table.item(row, 1)
         if item is None:
             return
         new_num = item.text().strip()
-        # 验证输入
-        if len(new_num) != 3 or not new_num.isdigit():
-            QMessageBox.warning(self, "输入错误", "请输入3位数字（0-9）")
+        if 0 > row or row >= len(self._editable_tickets):
+            return
+
+        ticket = self._editable_tickets[row]
+        profile_key = ticket.profile.key
+
+        # 解析输入并更新
+        try:
+            if profile_key in ("3d", "pl3", "pl5", "qxc"):
+                if not new_num.isdigit():
+                    raise ValueError
+                nums = [int(c) for c in new_num]
+                expected = ticket.profile.group("pos").count
+                if len(nums) != expected:
+                    QMessageBox.warning(self, "输入错误", f"请输入{expected}位数字（0-9）")
+                    self._refresh_editable_table()
+                    return
+                ticket.groups["pos"] = nums
+            elif profile_key == "ssq":
+                parts = new_num.replace("红", "").replace("蓝", "").split()
+                reds = [int(x) for x in parts[0].split(",") if x.strip()]
+                blues = [int(x) for x in parts[1].split(",") if x.strip()] if len(parts) > 1 else []
+                if len(reds) != 6 or len(blues) != 1:
+                    QMessageBox.warning(self, "输入错误", "格式: 红1,2,3,4,5,6 蓝1")
+                    self._refresh_editable_table()
+                    return
+                ticket.groups["red"] = reds
+                ticket.groups["blue"] = blues
+            elif profile_key == "dlt":
+                parts = new_num.replace("前", "").replace("后", "").split()
+                fronts = [int(x) for x in parts[0].split(",") if x.strip()]
+                backs = [int(x) for x in parts[1].split(",") if x.strip()] if len(parts) > 1 else []
+                if len(fronts) != 5 or len(backs) != 2:
+                    QMessageBox.warning(self, "输入错误", "格式: 前1,2,3,4,5 后1,2")
+                    self._refresh_editable_table()
+                    return
+                ticket.groups["front"] = fronts
+                ticket.groups["back"] = backs
+            elif profile_key == "qlc":
+                nums = [int(x) for x in new_num.split(",") if x.strip()]
+                if len(nums) != 7:
+                    QMessageBox.warning(self, "输入错误", "请输入7个号码（1-30）")
+                    self._refresh_editable_table()
+                    return
+                ticket.groups["basic"] = nums
+            elif profile_key == "kl8":
+                nums = [int(x) for x in new_num.split(",") if x.strip()]
+                if len(nums) < 1 or len(nums) > 10:
+                    QMessageBox.warning(self, "输入错误", "请输入1-10个号码（1-80）")
+                    self._refresh_editable_table()
+                    return
+                ticket.groups["main"] = nums
+            else:
+                QMessageBox.warning(self, "输入错误", "不支持的彩种")
+                self._refresh_editable_table()
+                return
+        except ValueError:
+            QMessageBox.warning(self, "输入错误", "请输入有效的数字")
             self._refresh_editable_table()
             return
 
-        # 更新ticket（3D 为按位有序组，保持用户输入顺序）
-        if 0 <= row < len(self._editable_tickets):
-            nums = [int(c) for c in new_num]
-            self._editable_tickets[row].groups["pos"] = nums
-            # 刷新表格显示
-            self._refresh_editable_table()
-            # 更新显示文本
-            self._update_result_text()
+        # 刷新显示
+        self._refresh_editable_table()
+        self._update_result_text()
 
     def _delete_number(self, row: int) -> None:
         """删除指定行的号码."""
@@ -2137,18 +2460,62 @@ class MainWindow(QMainWindow):
             self._update_result_text()
 
     def _add_custom_number(self) -> None:
-        """添加自定义号码."""
+        """添加自定义号码（通用）."""
+        from ..core.ticket import Ticket
+
         num_str = self.add_number_input.text().strip()
-        if len(num_str) != 3 or not num_str.isdigit():
-            QMessageBox.warning(self, "输入错误", "请输入3位数字（0-9）")
+        if not num_str:
             return
 
-        nums = [int(c) for c in num_str]  # 按位有序，保持输入顺序
-        # 创建新ticket
-        from ..core.ticket import Ticket
+        profile = self.current.profile
+        profile_key = profile.key
+        groups = {}
+
+        try:
+            if profile_key in ("3d", "pl3", "pl5", "qxc"):
+                expected = profile.group("pos").count
+                if len(num_str) != expected or not num_str.isdigit():
+                    QMessageBox.warning(self, "输入错误", f"请输入{expected}位数字")
+                    return
+                groups = {"pos": [int(c) for c in num_str]}
+            elif profile_key == "ssq":
+                parts = num_str.replace("红", "").replace("蓝", "").split()
+                reds = sorted(int(x) for x in parts[0].split(",") if x.strip())
+                blues = sorted(int(x) for x in parts[1].split(",") if x.strip()) if len(parts) > 1 else []
+                if len(reds) != 6 or len(blues) != 1:
+                    QMessageBox.warning(self, "输入错误", "格式: 红1,2,3,4,5,6 蓝1")
+                    return
+                groups = {"red": reds, "blue": blues}
+            elif profile_key == "dlt":
+                parts = num_str.replace("前", "").replace("后", "").split()
+                fronts = sorted(int(x) for x in parts[0].split(",") if x.strip())
+                backs = sorted(int(x) for x in parts[1].split(",") if x.strip()) if len(parts) > 1 else []
+                if len(fronts) != 5 or len(backs) != 2:
+                    QMessageBox.warning(self, "输入错误", "格式: 前1,2,3,4,5 后1,2")
+                    return
+                groups = {"front": fronts, "back": backs}
+            elif profile_key == "qlc":
+                nums = sorted(int(x) for x in num_str.split(",") if x.strip())
+                if len(nums) != 7:
+                    QMessageBox.warning(self, "输入错误", "请输入7个号码（1-30）")
+                    return
+                groups = {"basic": nums}
+            elif profile_key == "kl8":
+                nums = sorted(int(x) for x in num_str.split(",") if x.strip())
+                if len(nums) < 1 or len(nums) > 10:
+                    QMessageBox.warning(self, "输入错误", "请输入1-10个号码（1-80）")
+                    return
+                groups = {"main": nums}
+            else:
+                QMessageBox.warning(self, "输入错误", "不支持的彩种")
+                return
+        except ValueError:
+            QMessageBox.warning(self, "输入错误", "请输入有效的数字")
+            return
+
         new_ticket = Ticket(
-            profile=self.current.profile,
-            groups={"pos": nums},
+            profile=profile,
+            groups=groups,
             strategy_name="用户添加",
             validate=False,
         )
@@ -2158,42 +2525,45 @@ class MainWindow(QMainWindow):
         self.add_number_input.clear()
 
     def _add_random_number(self) -> None:
-        """随机添加一个符合过滤规则的号码."""
+        """随机添加一个号码（通用）."""
         import random
-
-        # 获取过滤参数
-        threshold = self.settings.get_draw_analysis_filter_threshold(self.current_key)
-        compare_periods = self.settings.get_draw_analysis_max_gap(self.current_key)
-        if compare_periods <= 0:
-            compare_periods = 7
-
-        # 获取历史记录
-        records = self.current.data_repository.get_all()
-        if len(records) < compare_periods:
-            compare_periods = len(records)
-        recent = records[-compare_periods:] if compare_periods > 0 else []
-
-        # 生成符合过滤规则的号码
-        max_attempts = 1000
-        for _ in range(max_attempts):
-            nums = [random.randint(0, 9) for _ in range(3)]
-            # 检查是否符合过滤规则
-            is_valid = True
-            for record in recent:
-                hist_nums = record.groups.get("pos", [])
-                if len(hist_nums) == 3:
-                    same_count = sum(1 for a, b in zip(nums, hist_nums) if a == b)
-                    if same_count > threshold:
-                        is_valid = False
-                        break
-            if is_valid:
-                break
-
-        # 按位有序，保持生成顺序
         from ..core.ticket import Ticket
+
+        profile = self.current.profile
+        profile_key = profile.key
+        groups = {}
+
+        if profile_key in ("3d", "pl3", "pl5", "qxc"):
+            grp = profile.group("pos")
+            nums = [random.randint(grp.lo, grp.hi) for _ in range(grp.count)]
+            groups = {"pos": nums}
+        elif profile_key == "ssq":
+            red_grp = profile.group("red")
+            blue_grp = profile.group("blue")
+            reds = sorted(random.sample(range(red_grp.lo, red_grp.hi + 1), red_grp.count))
+            blues = [random.randint(blue_grp.lo, blue_grp.hi)]
+            groups = {"red": reds, "blue": blues}
+        elif profile_key == "dlt":
+            front_grp = profile.group("front")
+            back_grp = profile.group("back")
+            fronts = sorted(random.sample(range(front_grp.lo, front_grp.hi + 1), front_grp.count))
+            backs = sorted(random.sample(range(back_grp.lo, back_grp.hi + 1), back_grp.count))
+            groups = {"front": fronts, "back": backs}
+        elif profile_key == "qlc":
+            grp = profile.group("basic")
+            nums = sorted(random.sample(range(grp.lo, grp.hi + 1), grp.count))
+            groups = {"basic": nums}
+        elif profile_key == "kl8":
+            grp = profile.group("main")
+            pick_count = random.randint(grp.effective_pick_min, grp.effective_pick_max)
+            nums = sorted(random.sample(range(grp.lo, grp.hi + 1), pick_count))
+            groups = {"main": nums}
+        else:
+            return
+
         new_ticket = Ticket(
-            profile=self.current.profile,
-            groups={"pos": nums},
+            profile=profile,
+            groups=groups,
             strategy_name="随机添加",
             validate=False,
         )
@@ -2202,13 +2572,15 @@ class MainWindow(QMainWindow):
         self._update_result_text()
 
     def _update_result_text(self) -> None:
-        """更新结果文本显示."""
+        """更新结果文本显示（通用）."""
         if not hasattr(self, "_editable_tickets"):
             return
         text_lines = []
         for idx, ticket in enumerate(self._editable_tickets, start=1):
             line = f"{idx:02d}. {ticket.format_compact()}"
-            line += f"  [{MainWindow._fc3d_display_label(ticket)}]"
+            type_label = self._get_ticket_type_label(ticket)
+            if type_label:
+                line += f"  [{type_label}]"
             if ticket.basis:
                 line += f"  [{ticket.basis}]"
             text_lines.append(line)
@@ -2243,7 +2615,8 @@ class MainWindow(QMainWindow):
             return
 
         html = self._build_print_html(tickets, title)
-        document = QTextEdit()
+        from PySide6.QtGui import QTextDocument
+        document = QTextDocument()
         document.setHtml(html)
         try:
             document.print_(printer)
@@ -2251,6 +2624,9 @@ class MainWindow(QMainWindow):
             self._show_print_error_once(str(exc))
 
     def _export_tickets_to_pdf(self, tickets: list, title: str) -> None:
+        from PySide6.QtGui import QPainter, QFont, QColor, QPen
+        from PySide6.QtCore import Qt, QRectF, QPointF
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         default_name = f"caipiao_{self.current.profile.key}_result_{timestamp}.pdf"
         path, _ = QFileDialog.getSaveFileName(
@@ -2261,11 +2637,119 @@ class MainWindow(QMainWindow):
 
         writer = QPdfWriter(path)
         writer.setPageSize(QPageSize.A4)
-        html = self._build_print_html(tickets, title)
-        document = QTextEdit()
-        document.setHtml(html)
+        painter = QPainter(writer)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # QPdfWriter 默认 1200 DPI，坐标单位是像素
+        # 1pt = 1200/72 ≈ 16.67 px
+        PX = 1200 / 72  # pt -> px 换算系数
+
+        page_w = writer.width()   # 9582 px
+        page_h = writer.height()  # 13699 px
+
+        # 边距和尺寸（用pt定义，再转px）
+        margin_l = int(30 * PX)
+        margin_r = int(30 * PX)
+        margin_t = int(30 * PX)
+        margin_b = int(25 * PX)
+        content_w = page_w - margin_l - margin_r
+
+        y = margin_t
+
+        # === 标题 ===
+        font_title = QFont("Microsoft YaHei", int(20 * PX / 16), QFont.Weight.Bold)
+        painter.setFont(font_title)
+        painter.setPen(QColor("#D32F2F"))
+        title_h = int(32 * PX)
+        painter.drawText(QRectF(margin_l, y, content_w, title_h),
+                         Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, title)
+        y += title_h + int(6 * PX)
+
+        # === 时间 ===
+        font_meta = QFont("Microsoft YaHei", int(10 * PX / 16))
+        painter.setFont(font_meta)
+        painter.setPen(QColor("#666"))
+        meta_h = int(18 * PX)
+        painter.drawText(QRectF(margin_l, y, content_w, meta_h),
+                         Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+                         f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        y += meta_h + int(4 * PX)
+
+        # === 分隔线 ===
+        painter.setPen(QPen(QColor("#ccc"), max(1, int(1.2 * PX / 16))))
+        painter.drawLine(QPointF(margin_l, y), QPointF(page_w - margin_r, y))
+        y += int(8 * PX)
+
+        # === 球参数（pt -> px）===
+        BALL_D = int(38 * PX)     # 球直径 ~38pt
+        BALL_GAP = int(6 * PX)    # 球间距
+        PLUS_W = int(18 * PX)     # "+" 宽度
+        IDX_W = int(32 * PX)      # 序号列宽
+        ROW_H = BALL_D + int(12 * PX)  # 行高
+
+        # 字号（QFont 用 pt，QPainter 会自动转 px）
+        font_num = QFont("Arial", 13, QFont.Weight.Bold)
+        font_idx = QFont("Microsoft YaHei", 12, QFont.Weight.Bold)
+        font_plus = QFont("Arial", 13, QFont.Weight.Bold)
+
+        for idx, ticket in enumerate(tickets, 1):
+            render_groups = ticket.render_groups()
+
+            # 换页检查
+            if y + ROW_H > page_h - margin_b:
+                writer.newPage()
+                y = margin_t
+
+            # === 画序号 ===
+            painter.setFont(font_idx)
+            painter.setPen(QColor("#888"))
+            painter.drawText(QRectF(margin_l, y, IDX_W, ROW_H),
+                             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                             f"{idx:02d}.")
+
+            # === 画球 ===
+            x = float(margin_l + IDX_W + int(6 * PX))
+            ball_cy = y + ROW_H / 2.0  # 球中心y
+
+            for gi, rg in enumerate(render_groups):
+                if gi > 0:
+                    painter.setFont(font_plus)
+                    painter.setPen(QColor("#999"))
+                    painter.drawText(QRectF(x, ball_cy - BALL_D / 2, PLUS_W, BALL_D),
+                                     Qt.AlignmentFlag.AlignCenter, "+")
+                    x += PLUS_W
+
+                for n in rg.numbers:
+                    cx = x + BALL_D / 2.0  # 球中心x
+                    # 画圆
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.setBrush(QColor(rg.color))
+                    painter.drawEllipse(QPointF(cx, ball_cy), BALL_D / 2.0, BALL_D / 2.0)
+                    # 画数字
+                    painter.setFont(font_num)
+                    painter.setPen(QColor("white"))
+                    painter.drawText(QRectF(x, ball_cy - BALL_D / 2, BALL_D, BALL_D),
+                                     Qt.AlignmentFlag.AlignCenter, f"{n:0{rg.pad}d}")
+                    x += BALL_D + BALL_GAP
+
+            y += ROW_H
+
+            # 行分隔线
+            lw = max(1, int(0.5 * PX / 16))
+            painter.setPen(QPen(QColor("#eee"), lw))
+            painter.drawLine(QPointF(margin_l, y - int(3 * PX)), QPointF(page_w - margin_r, y - int(3 * PX)))
+
+        # === 页脚 ===
+        font_footer = QFont("Microsoft YaHei", 9)
+        painter.setFont(font_footer)
+        painter.setPen(QColor("#bbb"))
+        painter.drawText(QRectF(margin_l, page_h - margin_b, content_w, int(14 * PX)),
+                         Qt.AlignmentFlag.AlignCenter,
+                         "本结果由彩票号码生成器生成，仅供娱乐参考。")
+
+        painter.end()
+
         try:
-            document.print_(writer)
             QMessageBox.information(self, "导出成功", f"已导出到: {path}")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "导出失败", str(exc))
@@ -2291,32 +2775,25 @@ class MainWindow(QMainWindow):
     def _build_print_html(tickets: list, title: str) -> str:
         rows = []
         for idx, ticket in enumerate(tickets, start=1):
-            balls_html = []
-            for gi, rg in enumerate(ticket.render_groups()):
+            render_groups = ticket.render_groups()
+
+            # 构建号码球HTML
+            balls_parts = []
+            for gi, rg in enumerate(render_groups):
                 if gi > 0:
-                    balls_html.append('<span style="margin:0 6px;color:#999;font-weight:bold;">+</span>')
-                for n in rg.numbers:
-                    balls_html.append(
-                        f'<span style="display:inline-block;width:28px;height:28px;line-height:28px;'
-                        f'text-align:center;border-radius:14px;background:{rg.color};color:#fff;'
-                        f'margin:2px;font-weight:bold;">{n:0{rg.pad}d}</span>'
+                    balls_parts.append(
+                        '<span style="color:#999;font-weight:bold;font-size:16pt;margin:0 8pt;">+</span>'
                     )
-            compact = ticket.format_compact()
-            if ticket.profile.key == "3d":
-                compact += f"  [{MainWindow._fc3d_display_label(ticket)}]"
+                for n in rg.numbers:
+                    balls_parts.append(
+                        f'<span style="background-color:{rg.color};color:#fff;'
+                        f'font-weight:bold;font-size:14pt;padding:4pt 8pt;margin:2pt 3pt;">{n:0{rg.pad}d}</span>'
+                    )
+
             rows.append(
-                f"<tr><td style='padding:8px;border-bottom:1px solid #ddd;'>"
-                f"<b>{idx:02d}.</b></td>"
-                f"<td style='padding:8px;border-bottom:1px solid #ddd;'>{''.join(balls_html)}</td>"
-                f"<td style='padding:8px;border-bottom:1px solid #ddd;color:#666;'>"
-                f"{compact}</td></tr>"
+                f"<div style='page-break-inside:avoid;border-bottom:1pt solid #ddd;padding:8pt 0;'>"
+                f"{idx:02d}. {''.join(balls_parts)}</div>"
             )
-            if ticket.basis:
-                rows.append(
-                    f"<tr><td></td>"
-                    f"<td colspan='2' style='padding:0 8px 8px 8px;color:#888;font-size:12px;'>"
-                    f"生成依据：{ticket.basis}</td></tr>"
-                )
 
         details_html = ""
         if tickets:
@@ -2330,8 +2807,8 @@ class MainWindow(QMainWindow):
             if target_lines:
                 color = "#D32F2F" if tickets[0].details.get("stale") else "#333"
                 target_html = (
-                    f'<p style="text-align:center;color:{color};font-weight:bold;">'
-                    f'{"<br>".join(target_lines)}</p>'
+                    f'<p style="text-align:center;color:{color};font-weight:bold;font-size:14pt;margin:8pt 0;">'
+                    f'{" &nbsp;|&nbsp; ".join(target_lines)}</p>'
                 )
 
         return f"""
@@ -2339,27 +2816,23 @@ class MainWindow(QMainWindow):
         <head>
             <meta charset="utf-8">
             <style>
-                body {{ font-family: "Microsoft YaHei", sans-serif; margin: 40px; }}
-                h1 {{ color: #D32F2F; text-align: center; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-                th {{ background: #f5f5f5; padding: 10px; text-align: left; }}
-                td {{ vertical-align: middle; }}
-                .footer {{ margin-top: 30px; text-align: center; color: #999; font-size: 12px; }}
+                body {{ font-family: "Microsoft YaHei", "Segoe UI", sans-serif; margin: 36pt; font-size: 14pt; color: #333; }}
+                h1 {{ color: #D32F2F; text-align: center; font-size: 22pt; margin: 0 0 10pt 0; }}
+                .meta {{ text-align: center; color: #666; font-size: 12pt; margin-bottom: 16pt; }}
+                .footer {{ margin-top: 24pt; text-align: center; color: #aaa; font-size: 10pt; }}
+                @media print {{
+                    body {{ margin: 24pt; }}
+                }}
             </style>
         </head>
         <body>
             <h1>{title}</h1>
-            <p style="text-align:center;color:#666;">生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p class="meta">生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             {target_html}
             {details_html}
-            <table>
-                <tr>
-                    <th style="width:60px;">序号</th>
-                    <th>号码</th>
-                    <th style="width:140px;">紧凑格式</th>
-                </tr>
+            <div style="border:1pt solid #999;border-radius:4pt;">
                 {''.join(rows)}
-            </table>
+            </div>
             <p class="footer">本结果由彩票号码生成器生成，仅供娱乐参考。</p>
         </body>
         </html>
@@ -2443,6 +2916,20 @@ class MainWindow(QMainWindow):
                 self._register_boss_key()
             else:
                 return
+            # 保存过滤设置
+            self.settings.ssq_filter_compare_periods = self.ssq_filter_compare_spin.value()
+            self.settings.ssq_filter_max_red_overlap = self.ssq_filter_overlap_spin.value()
+            self.settings.ssq_filter_block_blue = self.ssq_filter_block_blue_check.isChecked()
+            self.settings.fc3d_filter_enabled = self.fc3d_filter_enabled_check.isChecked()
+            self.settings.fc3d_filter_compare_periods = self.fc3d_filter_compare_spin.value()
+            self.settings.fc3d_filter_max_overlap = self.fc3d_filter_overlap_spin.value()
+            self.settings.fc3d_filter_min_sum = self.fc3d_filter_min_sum_spin.value()
+            self.settings.fc3d_filter_max_sum = self.fc3d_filter_max_sum_spin.value()
+            self.settings.qlc_filter_enabled = self.qlc_filter_enabled_check.isChecked()
+            self.settings.qlc_filter_compare_periods = self.qlc_filter_compare_spin.value()
+            self.settings.qlc_filter_max_overlap = self.qlc_filter_overlap_spin.value()
+            self.settings.qlc_filter_min_sum = self.qlc_filter_min_sum_spin.value()
+            self.settings.qlc_filter_max_sum = self.qlc_filter_max_sum_spin.value()
             self.settings.sync()
             QMessageBox.information(self, "设置已保存", "设置已保存并生效")
         except Exception as exc:  # noqa: BLE001

@@ -1,0 +1,428 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>caipiao.data.analyzer &mdash; 彩票号码生成器 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=51b770b3"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            彩票号码生成器
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">目录</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core.html">Core 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data.html">Data 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml.html">ML 模块</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence.html">Persistence 模块</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/ticket.html">ticket</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/profile.html">profile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/engine.html">engine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/strategy.html">strategy</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/repository.html">repository</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/analyzer.html">analyzer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../data/fetcher.html">fetcher</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/predictor.html">predictor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/model.html">model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ml/features.html">features</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/history.html">history</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../persistence/settings.html">settings</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">彩票号码生成器</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">caipiao.data.analyzer</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for caipiao.data.analyzer</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;历史数据分析器（多彩种统一）.</span>
+
+<span class="sd">``DrawAnalyzer`` 基于 ``LotteryProfile`` 对任意彩种做统计分析。</span>
+<span class="sd">``LotteryAnalyzer`` 保留为双色球专用别名，方法签名与行为完全兼容。</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..core.profile</span><span class="w"> </span><span class="kn">import</span> <span class="n">SSQ</span><span class="p">,</span> <span class="n">LotteryProfile</span><span class="p">,</span> <span class="n">NumberGroup</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">DrawRecord</span>
+
+
+<div class="viewcode-block" id="DrawAnalyzer">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DrawAnalyzer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;基于历史开奖数据进行统计分析（彩种无关）.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">],</span> <span class="n">profile</span><span class="p">:</span> <span class="n">LotteryProfile</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span> <span class="ow">or</span> <span class="p">(</span><span class="n">records</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">profile</span> <span class="k">if</span> <span class="n">records</span> <span class="k">else</span> <span class="n">SSQ</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">draw_date</span><span class="p">)</span>
+
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="c1"># 按组频率 / 热冷 / 遗漏</span>
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+<div class="viewcode-block" id="DrawAnalyzer.frequency">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.frequency">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">counter</span><span class="p">:</span> <span class="n">Counter</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="n">counter</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group_key</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">counter</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.hot">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.hot">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">top_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">freq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frequency</span><span class="p">(</span><span class="n">group_key</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">Counter</span><span class="p">(</span><span class="n">freq</span><span class="p">)</span><span class="o">.</span><span class="n">most_common</span><span class="p">(</span><span class="n">top_n</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.cold">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.cold">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">top_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">freq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frequency</span><span class="p">(</span><span class="n">group_key</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">group_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">group_keys</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Group </span><span class="si">{</span><span class="n">group_key</span><span class="si">}</span><span class="s2"> not found in profile </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">group</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="n">group_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">group</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="n">freq</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">0</span><span class="p">))[:</span><span class="n">top_n</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.missing">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.missing">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">missing</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">group_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">group_keys</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Group </span><span class="si">{</span><span class="n">group_key</span><span class="si">}</span><span class="s2"> not found in profile </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">group</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="n">group_key</span><span class="p">)</span>
+        <span class="n">missing</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">n</span><span class="p">:</span> <span class="n">last_n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">group</span><span class="o">.</span><span class="n">values</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">records</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">ball</span> <span class="ow">in</span> <span class="n">record</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">group_key</span><span class="p">,</span> <span class="p">[]):</span>
+                <span class="k">if</span> <span class="n">ball</span> <span class="ow">in</span> <span class="n">missing</span> <span class="ow">and</span> <span class="n">missing</span><span class="p">[</span><span class="n">ball</span><span class="p">]</span> <span class="o">==</span> <span class="n">last_n</span><span class="p">:</span>
+                    <span class="n">missing</span><span class="p">[</span><span class="n">ball</span><span class="p">]</span> <span class="o">=</span> <span class="n">idx</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">missing</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="c1"># 主号码组综合统计（奇偶、大小、和值、连号、常见组合）</span>
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_primary_numbers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">:</span> <span class="n">DrawRecord</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;取出用于整体统计的号码（默认主组，3D 取 pos 组全部，kl8 取 main 组全部）。&quot;&quot;&quot;</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">primary_group</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="p">[]))</span>
+
+<div class="viewcode-block" id="DrawAnalyzer.odd_even_ratio">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.odd_even_ratio">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">odd_even_ratio</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">odd</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">if</span> <span class="n">b</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">even</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">if</span> <span class="n">b</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">odd</span> <span class="o">+</span> <span class="n">even</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span>
+        <span class="k">return</span> <span class="n">odd</span> <span class="o">/</span> <span class="n">total</span><span class="p">,</span> <span class="n">even</span> <span class="o">/</span> <span class="n">total</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.high_low_ratio">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.high_low_ratio">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">high_low_ratio</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">border</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">primary_group</span><span class="o">.</span><span class="n">high_low_border</span>
+        <span class="n">high</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">if</span> <span class="n">b</span> <span class="o">&gt;=</span> <span class="n">border</span><span class="p">)</span>
+        <span class="n">low</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">if</span> <span class="n">b</span> <span class="o">&lt;</span> <span class="n">border</span><span class="p">)</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">high</span> <span class="o">+</span> <span class="n">low</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span>
+        <span class="k">return</span> <span class="n">high</span> <span class="o">/</span> <span class="n">total</span><span class="p">,</span> <span class="n">low</span> <span class="o">/</span> <span class="n">total</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.sum_statistics">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.sum_statistics">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sum_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">sums</span> <span class="o">=</span> <span class="p">[</span><span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">r</span><span class="p">))</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sums</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;avg&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">sums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">sums</span><span class="p">)</span>
+        <span class="n">median</span> <span class="o">=</span> <span class="n">sums</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="k">else</span> <span class="p">(</span><span class="n">sums</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">sums</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">])</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">sums</span><span class="p">),</span>
+            <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">sums</span><span class="p">),</span>
+            <span class="s2">&quot;avg&quot;</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">sums</span><span class="p">)</span> <span class="o">/</span> <span class="n">n</span><span class="p">,</span>
+            <span class="s2">&quot;median&quot;</span><span class="p">:</span> <span class="n">median</span><span class="p">,</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.consecutive_frequency">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.consecutive_frequency">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">consecutive_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">record</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">break</span>
+        <span class="k">return</span> <span class="n">count</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.consecutive_count_distribution">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.consecutive_count_distribution">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">consecutive_count_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;返回每注连号对数的分布 {连号对数: 概率}。&quot;&quot;&quot;</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}</span>
+        <span class="n">counter</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">record</span><span class="p">))</span>
+            <span class="n">pairs</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">counter</span><span class="p">[</span><span class="n">pairs</span><span class="p">]</span> <span class="o">=</span> <span class="n">counter</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pairs</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="o">/</span> <span class="n">total</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">counter</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.zone_distribution">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.zone_distribution">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">zone_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;返回三区分布比例: {zone1(1-11): 比例, zone2(12-22): 比例, zone3(23-33): 比例}。&quot;&quot;&quot;</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;zone1&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;zone2&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;zone3&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">}</span>
+        <span class="n">zone1</span> <span class="o">=</span> <span class="n">zone2</span> <span class="o">=</span> <span class="n">zone3</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">record</span><span class="p">):</span>
+                <span class="k">if</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">11</span><span class="p">:</span>
+                    <span class="n">zone1</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">elif</span> <span class="mi">12</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">22</span><span class="p">:</span>
+                    <span class="n">zone2</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">elif</span> <span class="mi">23</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">33</span><span class="p">:</span>
+                    <span class="n">zone3</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">zone1</span> <span class="o">+</span> <span class="n">zone2</span> <span class="o">+</span> <span class="n">zone3</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;zone1&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;zone2&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;zone3&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;zone1&quot;</span><span class="p">:</span> <span class="n">zone1</span> <span class="o">/</span> <span class="n">total</span><span class="p">,</span> <span class="s2">&quot;zone2&quot;</span><span class="p">:</span> <span class="n">zone2</span> <span class="o">/</span> <span class="n">total</span><span class="p">,</span> <span class="s2">&quot;zone3&quot;</span><span class="p">:</span> <span class="n">zone3</span> <span class="o">/</span> <span class="n">total</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.common_pairs">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.common_pairs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">common_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">top_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">int</span><span class="p">]]:</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">pair_counter</span><span class="p">:</span> <span class="n">Counter</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">record</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)):</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)):</span>
+                    <span class="n">pair</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="n">j</span><span class="p">]]))</span>
+                    <span class="n">pair_counter</span><span class="p">[</span><span class="n">pair</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">pair_counter</span><span class="o">.</span><span class="n">most_common</span><span class="p">(</span><span class="n">top_n</span><span class="p">)</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="c1"># 按位组（3D）辅助统计</span>
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+<div class="viewcode-block" id="DrawAnalyzer.positional_frequency">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.positional_frequency">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">positional_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;返回按位的频率，如 {0: {0:12, 1:15...}, ...}，仅对 positional 彩种有意义。&quot;&quot;&quot;</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Counter</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">primary_group</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nums</span><span class="p">):</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">Counter</span><span class="p">())[</span><span class="n">n</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">idx</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="n">counter</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">counter</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span></div>
+
+
+<div class="viewcode-block" id="DrawAnalyzer.span">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.span">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">span</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;跨度统计（仅对按位/有主组号码的彩种）：每期最大号-最小号。&quot;&quot;&quot;</span>
+        <span class="n">records</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slice</span><span class="p">(</span><span class="n">last_n</span><span class="p">)</span>
+        <span class="n">spans</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_primary_numbers</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">nums</span><span class="p">:</span>
+                <span class="n">spans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="nb">min</span><span class="p">(</span><span class="n">nums</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">spans</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;avg&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">spans</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">spans</span><span class="p">)</span>
+        <span class="n">median</span> <span class="o">=</span> <span class="n">spans</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="k">else</span> <span class="p">(</span><span class="n">spans</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">spans</span><span class="p">[</span><span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">])</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">spans</span><span class="p">),</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">spans</span><span class="p">),</span> <span class="s2">&quot;avg&quot;</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">spans</span><span class="p">)</span> <span class="o">/</span> <span class="n">n</span><span class="p">,</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span> <span class="n">median</span><span class="p">}</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="c1"># 工具</span>
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+<div class="viewcode-block" id="DrawAnalyzer.last_draw">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.last_draw">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">last_draw</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span> <span class="k">else</span> <span class="kc">None</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">last_n</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">last_n</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span>
+        <span class="k">if</span> <span class="n">last_n</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">[</span><span class="o">-</span><span class="n">last_n</span><span class="p">:]</span>
+
+<div class="viewcode-block" id="DrawAnalyzer.summary">
+<a class="viewcode-back" href="../../../data/analyzer.html#caipiao.data.analyzer.DrawAnalyzer.summary">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;返回综合统计摘要（尽量与原 LotteryAnalyzer.summary 字段一致）。&quot;&quot;&quot;</span>
+        <span class="n">primary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">primary_group</span><span class="o">.</span><span class="n">key</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;total_records&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">records</span><span class="p">),</span>
+            <span class="s2">&quot;hot_30&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">hot</span><span class="p">(</span><span class="n">primary</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+            <span class="s2">&quot;cold_30&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cold</span><span class="p">(</span><span class="n">primary</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+            <span class="s2">&quot;missing_50&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">missing</span><span class="p">(</span><span class="n">primary</span><span class="p">,</span> <span class="mi">50</span><span class="p">)[:</span><span class="mi">10</span><span class="p">],</span>
+            <span class="s2">&quot;odd_even_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">odd_even_ratio</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
+            <span class="s2">&quot;high_low_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">high_low_ratio</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
+            <span class="s2">&quot;sum_stats&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum_statistics</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
+            <span class="s2">&quot;consecutive_ratio&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">consecutive_frequency</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="c1"># 双色球额外保留旧字段名，便于 UI 兼容</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="o">.</span><span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;ssq&quot;</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s2">&quot;hot_reds_30&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;hot_30&quot;</span><span class="p">],</span>
+                <span class="s2">&quot;cold_reds_30&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;cold_30&quot;</span><span class="p">],</span>
+                <span class="s2">&quot;missing_reds_50&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;missing_50&quot;</span><span class="p">],</span>
+                <span class="s2">&quot;hot_blues_30&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">hot</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+            <span class="p">})</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+</div>
+
+
+
+<span class="c1"># -------------------------------------------------------------------------- #</span>
+<span class="c1"># 双色球兼容别名</span>
+<span class="c1"># -------------------------------------------------------------------------- #</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_LegacyLotteryAnalyzer</span><span class="p">(</span><span class="n">DrawAnalyzer</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;完全兼容原 ``LotteryAnalyzer`` 的双色球分析器.</span>
+
+<span class="sd">    原方法 ``red_frequency`` / ``hot_reds`` / ``missing_reds`` 等全部保留，</span>
+<span class="sd">    内部委托到 :class:`DrawAnalyzer` 的通用实现。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">records</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">DrawRecord</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">SSQ</span><span class="p">)</span>
+
+    <span class="c1"># 原 SSQ 专用方法</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">red_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">frequency</span><span class="p">(</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">blue_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">frequency</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">hot_reds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">top_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hot</span><span class="p">(</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">top_n</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">cold_reds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">top_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cold</span><span class="p">(</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">top_n</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">hot_blues</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">top_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hot</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="n">top_n</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">missing_reds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">missing</span><span class="p">(</span><span class="s2">&quot;red&quot;</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">missing_blues</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">last_n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">missing</span><span class="p">(</span><span class="s2">&quot;blue&quot;</span><span class="p">,</span> <span class="n">last_n</span><span class="p">)</span>
+
+
+<span class="n">LotteryAnalyzer</span> <span class="o">=</span> <span class="n">_LegacyLotteryAnalyzer</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, CaipiaoApp.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

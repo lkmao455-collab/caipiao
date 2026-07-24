@@ -1,0 +1,119 @@
+# API Design
+
+## Core Interfaces
+
+### GenerationStrategy (ABC)
+
+```python
+class GenerationStrategy(ABC):
+    is_ml: bool = False
+
+    @property
+    @abstractmethod
+    def metadata(self) -> StrategyMetadata: ...
+
+    @abstractmethod
+    def generate(self, count: int = 1, options: Optional[Dict[str, Any]] = None) -> List[Ticket]: ...
+
+    def get_config_schema(self) -> Optional[Dict[str, Any]]: ...
+    def validate_options(self, options: Dict[str, Any]) -> None: ...
+```
+
+### GenerationEngine
+
+```python
+class GenerationEngine:
+    def register(self, strategy: GenerationStrategy) -> None: ...
+    def unregister(self, strategy_id: str) -> None: ...
+    def get(self, strategy_id: str) -> Optional[GenerationStrategy]: ...
+    def list_strategies(self) -> List[GenerationStrategy]: ...
+    def generate(self, strategy_id: str, count: int = 1, options: Optional[Dict] = None) -> List[Ticket]: ...
+```
+
+### LotteryProfile
+
+```python
+@dataclass(frozen=True)
+class LotteryProfile:
+    key: str                          # "ssq", "3d", "qlc", ...
+    name: str                         # "双色球"
+    groups: Tuple[NumberGroup, ...]   # 号码组定义
+    data_url: str                     # 数据源 URL
+    parser_key: str                   # 解析器标识
+    draw_weekdays: Tuple[int, ...]    # 开奖日（空=每日）
+    storage_file: str                 # 本地存储文件名
+    model_prefix: str                 # ML 模型文件前缀
+```
+
+### NumberGroup
+
+```python
+@dataclass(frozen=True)
+class NumberGroup:
+    key: str              # "red", "blue", "pos", "basic", ...
+    name: str             # "红球", "蓝球", ...
+    lo: int               # 号池下界
+    hi: int               # 号池上界
+    count: int            # 开奖号码个数
+    positional: bool      # 是否按位
+    allow_repeat: bool    # 是否可重复
+    is_primary: bool      # 是否主统计组
+    draw_only: bool       # 是否仅开奖用
+```
+
+## Data APIs
+
+### DrawRepository
+
+```python
+class DrawRepository:
+    def __init__(self, storage_path: Path, profile: LotteryProfile): ...
+    def get_all(self) -> List[DrawRecord]: ...
+    def get_recent(self, count: int = 100) -> List[DrawRecord]: ...
+    def get_latest(self) -> Optional[DrawRecord]: ...
+    def update(self, records: List[DrawRecord]) -> int: ...  # 返回新增数量
+    def save(self) -> None: ...
+```
+
+### DrawAnalyzer
+
+```python
+class DrawAnalyzer:
+    def __init__(self, records: List[DrawRecord], profile: LotteryProfile): ...
+    def frequency(self, group_key: str, last_n: Optional[int] = None) -> Dict[int, int]: ...
+    def hot(self, group_key: str, top_n: int = 10, last_n: Optional[int] = None) -> List[int]: ...
+    def cold(self, group_key: str, top_n: int = 10, last_n: Optional[int] = None) -> List[int]: ...
+    def missing(self, group_key: str, last_n: int = 50) -> List[Tuple[int, int]]: ...
+    def odd_even_ratio(self, last_n: Optional[int] = None) -> Tuple[float, float]: ...
+    def high_low_ratio(self, last_n: Optional[int] = None) -> Tuple[float, float]: ...
+    def sum_statistics(self, last_n: Optional[int] = None) -> Dict[str, float]: ...
+    def summary(self) -> Dict: ...
+```
+
+### LotteryDataFetcher
+
+```python
+class LotteryDataFetcher:
+    def __init__(self, profile: LotteryProfile, timeout: int = 60, max_retries: int = 3): ...
+    def fetch_all(self) -> List[DrawRecord]: ...
+    def fetch_latest(self) -> Optional[DrawRecord]: ...
+```
+
+## Filter APIs (engine.py)
+
+```python
+def filter_ssq_by_history(tickets, draw_records, compare_periods=7, max_red_overlap=3, ...) -> List[Ticket]: ...
+def filter_fc3d_by_history(tickets, draw_records, compare_periods=5, max_overlap=1, ...) -> List[Ticket]: ...
+def filter_qlc_by_history(tickets, draw_records, compare_periods=5, max_overlap=2, ...) -> List[Ticket]: ...
+```
+
+## ML APIs
+
+```python
+class MLPredictor:
+    def __init__(self, records, lookback=50, model_path=None, model_class=LotteryXGBoostModel): ...
+    def train(self, progress_callback=None) -> None: ...
+    def predict(self) -> Tuple[np.ndarray, np.ndarray]: ...  # (red_proba, blue_proba)
+    def recommend(self, red_count=6, blue_count=1, ...) -> Tuple[List[int], List[int]]: ...
+    def is_ready(self) -> bool: ...
+```

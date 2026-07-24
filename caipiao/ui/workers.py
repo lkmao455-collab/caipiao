@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,21 +10,17 @@ from PySide6.QtCore import QThread, Signal
 
 from ..core.engine import (
     GenerationEngine,
-    estimate_fc3d_pass_count,
-    filter_fc3d_by_history,
+    apply_fc3d_experience_filter,
+    apply_qlc_experience_filter,
+    fc3d_filtered_gen_count,
     filter_ssq_by_history,
+    qlc_filtered_gen_count,
 )
 from ..core.profile import LotteryProfile, SSQ
 from ..data.fetcher import LotteryDataFetcher
 from ..utils import app_data_dir
 
 logger = logging.getLogger(__name__)
-
-# 3D 经验策略过滤自适应候选倍数相关常量
-# 安全系数：补偿加权采样下实际通过率低于均匀理论值的情况（实测最低约理论的 0.48 倍）
-_FC3D_FILTER_SAFETY = 2.5
-# 候选生成数量上限：3D 直选全空间为 1000，再大也无意义
-_FC3D_FILTER_MAX_CANDIDATES = 1000
 
 
 class FetchAllDataThread(QThread):
@@ -126,29 +121,43 @@ class GenerateTicketsThread(QThread):
         try:
             profile_key = self.options.get("_profile_key")
             has_records = bool(self.options.get("_draw_records"))
-            need_filter = has_records and profile_key == "ssq"
+            # 双色球：仅智能冷热号策略启用过滤，历史均衡不过滤
+            strategy_id = self.options.get("_strategy_id", "")
+            need_filter = has_records and profile_key == "ssq" and strategy_id != "balanced"
             need_3d_filter = (
                 has_records
                 and profile_key == "3d"
                 and bool(self.options.get("_fc3d_filter_enabled", False))
             )
+            need_qlc_filter = (
+                has_records
+                and profile_key == "qlc"
+                and bool(self.options.get("_qlc_filter_enabled", False))
+            )
 
             # 计算候选生成数量：
-            # - 3D 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
+            # - 3D/七乐彩 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
             # - 双色球过滤：固定 3 倍
             cp = mo = pass_count = None
+            min_sum = max_sum = None
+            qlc_pass_ratio = None
             if need_3d_filter:
                 cp = int(self.options.get("_fc3d_filter_compare_periods", 5))
                 mo = int(self.options.get("_fc3d_filter_max_overlap", 1))
-                pass_count = estimate_fc3d_pass_count(
-                    self.options["_draw_records"], cp, mo
+                min_sum = int(self.options.get("_fc3d_filter_min_sum", 0))
+                max_sum = int(self.options.get("_fc3d_filter_max_sum", 27))
+                gen_count, pass_count = fc3d_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum,
                 )
-                # 通过率下限 0.05，避免极端严格参数导致除以过小值
-                pass_ratio = max(pass_count / 1000.0, 0.05)
-                gen_count = math.ceil(self.count / pass_ratio * _FC3D_FILTER_SAFETY)
-                gen_count = max(
-                    self.count * 3,
-                    min(_FC3D_FILTER_MAX_CANDIDATES, gen_count),
+            elif need_qlc_filter:
+                cp = int(self.options.get("_qlc_filter_compare_periods", 5))
+                mo = int(self.options.get("_qlc_filter_max_overlap", 2))
+                min_sum = int(self.options.get("_qlc_filter_min_sum", 0))
+                max_sum = int(self.options.get("_qlc_filter_max_sum", 210))
+                gen_count, qlc_pass_ratio = qlc_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum,
                 )
             elif need_filter:
                 gen_count = self.count * 3
@@ -171,27 +180,35 @@ class GenerateTicketsThread(QThread):
                         compare_periods=self.options.get("_ssq_compare_periods", 7),
                         max_red_overlap=self.options.get("_ssq_max_red_overlap", 3),
                         block_blue_match=self.options.get("_ssq_block_blue", False),
-                        blue_compare_periods=self.options.get("_ssq_blue_periods", 0),
+                        blue_compare_periods=self.options.get("_ssq_blue_periods", 1),
                     )
                 tickets = tickets[:self.count]
 
             # 最后一层过滤（福彩3D 经验策略）
             if need_3d_filter and profile_key == "3d":
-                if tickets:
-                    filtered = filter_fc3d_by_history(
-                        tickets,
-                        self.options["_draw_records"],
-                        compare_periods=cp,
-                        max_overlap=mo,
-                    )
-                    if len(filtered) < self.count:
-                        logger.warning(
-                            "3D经验策略过滤：生成 %d 候选，过滤后仅剩 %d，"
-                            "不足 %d 注（理论通过 %d/1000，建议放宽过滤参数）",
-                            len(tickets), len(filtered), self.count,
-                            pass_count if pass_count is not None else 0,
-                        )
-                    tickets = filtered[:self.count]
+                tickets = apply_fc3d_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_count=pass_count,
+                    min_sum=min_sum,
+                    max_sum=max_sum,
+                )
+
+            # 最后一层过滤（七乐彩 经验策略）
+            if need_qlc_filter and profile_key == "qlc":
+                tickets = apply_qlc_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_ratio=qlc_pass_ratio,
+                    min_sum=min_sum,
+                    max_sum=max_sum,
+                )
 
             if self.isInterruptionRequested():
                 return
@@ -205,6 +222,7 @@ class TrainModelThread(QThread):
 
     支持双色球（使用 ``MLPredictor``）和新增的通用彩种（使用 ``GenericMLPredictor``）。
     通过 ``profile`` 与 ``backend`` 参数指定通用彩种；不传则保持原有双色球行为。
+    支持增量训练：当 ``incremental=True`` 时，仅使用新数据更新已有模型。
     """
 
     result_ready = Signal(object, object)
@@ -220,6 +238,8 @@ class TrainModelThread(QThread):
         profile: Optional[LotteryProfile] = None,
         backend: str = "xgboost",
         parent=None,
+        incremental: bool = False,
+        new_count: int = 0,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("TrainModelThread")
@@ -230,6 +250,8 @@ class TrainModelThread(QThread):
         self.prefix = prefix
         self.profile = profile
         self.backend = backend
+        self.incremental = incremental
+        self.new_count = new_count
 
     def run(self) -> None:
         try:
@@ -256,7 +278,17 @@ class TrainModelThread(QThread):
                     kwargs["model_class"] = self.model_class
                 predictor = MLPredictor(self.records, **kwargs)
 
-            predictor.train(progress_callback=self._emit_progress)
+            if self.incremental and self.new_count > 0:
+                success = predictor.train_incremental(
+                    new_count=self.new_count,
+                    progress_callback=self._emit_progress,
+                )
+                if not success:
+                    # 增量训练失败，回退到全量训练
+                    predictor.train(progress_callback=self._emit_progress)
+            else:
+                predictor.train(progress_callback=self._emit_progress)
+
             if self.isInterruptionRequested():
                 return
             self.result_ready.emit(True, None)

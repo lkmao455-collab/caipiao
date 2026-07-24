@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional
 
 from .ball import Ball
 from .profile import SSQ, LotteryProfile, RenderGroup, get_profile
@@ -27,14 +27,14 @@ class Ticket:
 
     def __init__(
         self,
-        red_balls: Union[Iterable[int], Iterable[Ball], None] = None,
-        blue_ball: Union[int, Ball, None] = None,
+        red_balls: Iterable[int] | Iterable[Ball] | None = None,
+        blue_ball: int | Ball | None = None,
         generated_at: datetime | None = None,
         strategy_name: str = "",
         basis: str = "",
         details: Dict[str, Any] | None = None,
         *,
-        profile: Union[LotteryProfile, str, None] = None,
+        profile: LotteryProfile | str | None = None,
         groups: Optional[Dict[str, Iterable[int]]] = None,
         validate: bool = True,
     ) -> None:
@@ -72,7 +72,7 @@ class Ticket:
     @classmethod
     def from_groups(
         cls,
-        profile: Union[LotteryProfile, str],
+        profile: LotteryProfile | str,
         groups: Dict[str, Iterable[int]],
         generated_at: datetime | None = None,
         strategy_name: str = "",
