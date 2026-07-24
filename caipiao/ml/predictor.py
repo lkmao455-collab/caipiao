@@ -46,6 +46,16 @@ class MLPredictor:
             else:
                 logger.info("本地缓存模型与当前数据不一致，将重新训练")
 
+    @staticmethod
+    def get_transformer_model_class() -> type:
+        """获取 Transformer 模型类."""
+        try:
+            from .transformer_model import LotteryTransformerModel
+            return LotteryTransformerModel
+        except ImportError:
+            logger.warning("PyTorch 未安装，Transformer 模型不可用")
+            return LotteryXGBoostModel
+
     def _data_fingerprint(self) -> str:
         """基于记录数量和最新一期生成数据指纹."""
         return data_fingerprint(self.records)
