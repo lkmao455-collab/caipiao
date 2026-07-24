@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  caipiao:
+    build: .
+    container_name: caipiao-generator
+    volumes:
+      # 持久化数据目录
+      - caipiao_data:/app/.caipiao
+      # 可选：挂载插件目录
+      - ./plugins:/app/plugins
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+      - PYTHONPATH=/app
+    # 如果需要 Web 界面，取消注释
+    # ports:
+    #   - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  caipiao_data:
+    driver: local
