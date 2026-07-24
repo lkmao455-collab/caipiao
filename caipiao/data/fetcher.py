@@ -232,7 +232,7 @@ class LotteryDataFetcher:
     # ------------------------------------------------------------------ #
     def fetch_all(self) -> List[DrawRecord]:
         """获取全部历史记录."""
-        logger.info("Fetching data from %s", self.profile.data_url)
+        logger.info("正在从 %s 获取数据", self.profile.data_url)
         response = self._get_with_retry(self.profile.data_url)
         try:
             text = self._decode_response(response)
