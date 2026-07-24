@@ -100,6 +100,33 @@
 - openpyxl (Excel 导出)
 - pytest-cov (测试覆盖率)
 
+## 部署方式
+
+### 本地部署
+```bash
+# 一键部署
+python deploy.py all
+```
+
+### Docker 部署
+```bash
+# 构建并启动
+docker-compose up -d
+```
+
+### 便携版
+```bash
+# 创建便携版
+python deploy.py portable
+```
+
+## 文档
+
+- [部署指南](deployment_guide.md)
+- [API 文档](api/index.html)
+- [开发者指南](CONTRIBUTING.md)
+- [代码质量报告](code_quality_report.md)
+
 ## 致谢
 
 感谢所有贡献者的努力！
