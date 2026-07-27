@@ -7,23 +7,23 @@
 ## Backlog
 
 ### 功能增强
-- [ ] 增加更多 ML 模型（如 Transformer、TabNet）
-- [ ] 增加号码组合回测胜率统计
-- [ ] 增加多期联合预测
+- [x] 增加更多 ML 模型（如 Transformer、TabNet）
+- [x] 增加号码组合回测胜率统计
+- [x] 增加多期联合预测
 - [x] 增加自定义过滤规则 UI
 - [x] 增加开奖数据导出为 Excel
 
 ### 技术优化
 - [x] 模型训练增量更新（避免全量重训）
-- [ ] 特征工程自动化管道
-- [ ] 异步网络请求（替代 QThread）
+- [x] 特征工程自动化管道
+- [x] 异步网络请求（替代 QThread）
 - [ ] 单元测试覆盖率提升至 80%
-- [ ] 集成 CI/CD（GitHub Actions）
+- [x] 集成 CI/CD（GitHub Actions）
 
 ### 代码质量
 - [x] 消除重复代码（FC3D/QLC 过滤逻辑合并）
 - [x] 类型注解完善（Union → X | Y | None，添加 TypedDict）
-- [ ] 日志格式统一化
+- [x] 日志格式统一化（统一为中文）
 - [x] 异常处理分层（UI 层 vs 核心层）
 
 ### 文档
@@ -40,7 +40,7 @@
 - [x] 深色/浅色主题
 - [x] 老板键
 - [x] 参数组管理
-- [x] 经验策略过滤（SSQ/FC3D/QLC）
+- [x] 经验策略过滤（SSQ/FC3D/QLC/DLT）
 - [x] 数据导出 Excel（openpyxl）
 - [x] 消除 FC3D/QLC 过滤逻辑重复
 - [x] Core 层单元测试（115 tests）
