@@ -74,6 +74,7 @@ from .components.history_panel import HistoryPanel
 from .components.hotkey_edit import HotkeyEdit, validate_hotkey_dialog
 from .components.parameter_group_panel import ParameterGroupPanel
 from .components.strategy_panel import StrategyPanel
+from .components.auto_update_dialog import AutoUpdateDialog
 from .components.training_progress_dialog import TrainingProgressDialog
 from .lottery_context import ContextManager, LotteryContext
 from .markdown_view import MarkdownDialog
@@ -148,8 +149,11 @@ class MainWindow(QMainWindow):
 
         # 插件（每个彩种上下文独立加载，策略 id 互不冲突）
         self.plugin_managers: dict[str, PluginManager] = {}
-        plugin_dir = Path(self.settings.plugin_dir or Path.cwd() / "plugins")
-        plugin_dir.mkdir(exist_ok=True)
+        _default_plugin_dir = Path.cwd() / "plugins"
+        plugin_dir = Path(self.settings.plugin_dir) if self.settings.plugin_dir else _default_plugin_dir
+        if not plugin_dir.is_dir():
+            plugin_dir = _default_plugin_dir
+        plugin_dir.mkdir(parents=True, exist_ok=True)
         for ctx in self.context_manager.all_contexts():
             pm = PluginManager(ctx.engine, plugin_dir)
             pm.load_all()
@@ -743,6 +747,69 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(qlc_group)
 
+        # ---- 大乐透过滤设置 ----
+        dlt_group = QGroupBox("大乐透过滤")
+        dlt_group.setToolTip("配置大乐透号码生成后的过滤规则。")
+        dlt_layout = QVBoxLayout(dlt_group)
+
+        self.dlt_filter_enabled_check = QCheckBox("启用经验策略过滤")
+        self.dlt_filter_enabled_check.setToolTip("开启后，生成的大乐透号码将经过经验策略过滤。")
+        self.dlt_filter_enabled_check.setChecked(self.settings.dlt_filter_enabled)
+        dlt_layout.addWidget(self.dlt_filter_enabled_check)
+
+        dlt_compare_layout = QHBoxLayout()
+        dlt_compare_layout.addWidget(QLabel("比较期数:"))
+        self.dlt_filter_compare_spin = QSpinBox()
+        self.dlt_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。")
+        self.dlt_filter_compare_spin.setRange(0, 50)
+        self.dlt_filter_compare_spin.setValue(self.settings.dlt_filter_compare_periods)
+        dlt_compare_layout.addWidget(self.dlt_filter_compare_spin)
+        dlt_compare_layout.addStretch()
+        dlt_layout.addLayout(dlt_compare_layout)
+
+        dlt_overlap_layout = QHBoxLayout()
+        dlt_overlap_layout.addWidget(QLabel("前区重合上限:"))
+        self.dlt_filter_overlap_spin = QSpinBox()
+        self.dlt_filter_overlap_spin.setToolTip("允许与历史开奖前区号码重合的最大个数。超过则淘汰。")
+        self.dlt_filter_overlap_spin.setRange(0, 5)
+        self.dlt_filter_overlap_spin.setValue(self.settings.dlt_filter_max_front_overlap)
+        dlt_overlap_layout.addWidget(self.dlt_filter_overlap_spin)
+        dlt_overlap_layout.addStretch()
+        dlt_layout.addLayout(dlt_overlap_layout)
+
+        self.dlt_filter_block_back_check = QCheckBox("禁止后区与历史相同")
+        self.dlt_filter_block_back_check.setToolTip("开启后，后区号码与最近历史后区号码相同则淘汰。")
+        self.dlt_filter_block_back_check.setChecked(self.settings.dlt_filter_block_back)
+        dlt_layout.addWidget(self.dlt_filter_block_back_check)
+
+        dlt_back_compare_layout = QHBoxLayout()
+        dlt_back_compare_layout.addWidget(QLabel("后区对比期数:"))
+        self.dlt_filter_back_compare_spin = QSpinBox()
+        self.dlt_filter_back_compare_spin.setToolTip("禁止后区重复的对比期数。")
+        self.dlt_filter_back_compare_spin.setRange(0, 50)
+        self.dlt_filter_back_compare_spin.setValue(self.settings.dlt_filter_back_compare_periods)
+        dlt_back_compare_layout.addWidget(self.dlt_filter_back_compare_spin)
+        dlt_back_compare_layout.addStretch()
+        dlt_layout.addLayout(dlt_back_compare_layout)
+
+        dlt_sum_layout = QHBoxLayout()
+        dlt_sum_layout.addWidget(QLabel("前区和值范围:"))
+        self.dlt_filter_min_sum_spin = QSpinBox()
+        self.dlt_filter_min_sum_spin.setToolTip("允许的前区最小和值。")
+        self.dlt_filter_min_sum_spin.setRange(0, 165)
+        self.dlt_filter_min_sum_spin.setValue(self.settings.dlt_filter_min_front_sum)
+        dlt_sum_layout.addWidget(self.dlt_filter_min_sum_spin)
+        dlt_sum_layout.addWidget(QLabel("-"))
+        self.dlt_filter_max_sum_spin = QSpinBox()
+        self.dlt_filter_max_sum_spin.setToolTip("允许的前区最大和值。")
+        self.dlt_filter_max_sum_spin.setRange(0, 165)
+        self.dlt_filter_max_sum_spin.setValue(self.settings.dlt_filter_max_front_sum)
+        dlt_sum_layout.addWidget(self.dlt_filter_max_sum_spin)
+        dlt_sum_layout.addStretch()
+        dlt_layout.addLayout(dlt_sum_layout)
+
+        layout.addWidget(dlt_group)
+
         # 保存按钮
         self.save_settings_btn = QPushButton("保存设置")
         self.save_settings_btn.setToolTip("将当前设置保存到本地配置文件。")
@@ -1326,11 +1393,23 @@ class MainWindow(QMainWindow):
             return True
 
     def _perform_auto_update(self) -> None:
-        """启动时静默检查并更新最新一期数据（延迟到事件循环开始后再启动）。."""
+        """启动时检查并更新所有彩种的开奖数据（显示进度条对话框）。"""
         if not self._should_auto_update():
             return
         # 延迟执行，避免在构造函数中启动线程导致生命周期问题
-        QTimer.singleShot(0, self._start_auto_update)
+        QTimer.singleShot(500, self._show_auto_update_dialog)
+
+    def _show_auto_update_dialog(self) -> None:
+        """显示自动更新对话框."""
+        dialog = AutoUpdateDialog(self)
+        dialog.update_finished.connect(self._on_auto_update_dialog_closed)
+        dialog.exec()
+
+    def _on_auto_update_dialog_closed(self) -> None:
+        """自动更新对话框关闭后刷新界面."""
+        self._refresh_data_stats()
+        self.data_status_label.setText(self._data_status_text(offline=False))
+        self.xgboost_status_label.setText(self._model_status_text())
 
     def _start_auto_update(self) -> None:
         """实际启动自动更新线程."""
@@ -1623,6 +1702,18 @@ class MainWindow(QMainWindow):
                 options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
                 options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
                 options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
+        elif profile_key == "dlt":
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                options["_dlt_filter_enabled"] = self.settings.dlt_filter_enabled
+                options["_dlt_filter_compare_periods"] = self.settings.dlt_filter_compare_periods
+                options["_dlt_filter_max_front_overlap"] = self.settings.dlt_filter_max_front_overlap
+                options["_dlt_filter_block_back"] = self.settings.dlt_filter_block_back
+                options["_dlt_filter_back_compare_periods"] = self.settings.dlt_filter_back_compare_periods
+                options["_dlt_filter_min_front_sum"] = self.settings.dlt_filter_min_front_sum
+                options["_dlt_filter_max_front_sum"] = self.settings.dlt_filter_max_front_sum
 
         self._generate_single_strategy(strategy_id, count, options)
 
@@ -1857,6 +1948,18 @@ class MainWindow(QMainWindow):
                 options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
                 options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
                 options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
+        elif profile_key == "dlt":
+            draw_records = self.current.data_repository.get_all()
+            if draw_records:
+                options["_profile_key"] = profile_key
+                options["_draw_records"] = draw_records
+                options["_dlt_filter_enabled"] = self.settings.dlt_filter_enabled
+                options["_dlt_filter_compare_periods"] = self.settings.dlt_filter_compare_periods
+                options["_dlt_filter_max_front_overlap"] = self.settings.dlt_filter_max_front_overlap
+                options["_dlt_filter_block_back"] = self.settings.dlt_filter_block_back
+                options["_dlt_filter_back_compare_periods"] = self.settings.dlt_filter_back_compare_periods
+                options["_dlt_filter_min_front_sum"] = self.settings.dlt_filter_min_front_sum
+                options["_dlt_filter_max_front_sum"] = self.settings.dlt_filter_max_front_sum
 
         # 使用新的生成接口，指定回调以继续队列
         self._generate_single_strategy(
@@ -2930,6 +3033,13 @@ class MainWindow(QMainWindow):
             self.settings.qlc_filter_max_overlap = self.qlc_filter_overlap_spin.value()
             self.settings.qlc_filter_min_sum = self.qlc_filter_min_sum_spin.value()
             self.settings.qlc_filter_max_sum = self.qlc_filter_max_sum_spin.value()
+            self.settings.dlt_filter_enabled = self.dlt_filter_enabled_check.isChecked()
+            self.settings.dlt_filter_compare_periods = self.dlt_filter_compare_spin.value()
+            self.settings.dlt_filter_max_front_overlap = self.dlt_filter_overlap_spin.value()
+            self.settings.dlt_filter_block_back = self.dlt_filter_block_back_check.isChecked()
+            self.settings.dlt_filter_back_compare_periods = self.dlt_filter_back_compare_spin.value()
+            self.settings.dlt_filter_min_front_sum = self.dlt_filter_min_sum_spin.value()
+            self.settings.dlt_filter_max_front_sum = self.dlt_filter_max_sum_spin.value()
             self.settings.sync()
             QMessageBox.information(self, "设置已保存", "设置已保存并生效")
         except Exception as exc:  # noqa: BLE001

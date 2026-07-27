@@ -19,7 +19,15 @@ from caipiao.core.backtest_data import (
     RoundTask,
     RoundResult,
 )
-from caipiao.core.engine import GenerationEngine
+from caipiao.core.engine import (
+    GenerationEngine,
+    apply_dlt_experience_filter,
+    apply_fc3d_experience_filter,
+    apply_qlc_experience_filter,
+    dlt_filtered_gen_count,
+    fc3d_filtered_gen_count,
+    qlc_filtered_gen_count,
+)
 from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
 from caipiao.core.strategies import build_strategies
@@ -70,27 +78,9 @@ def _build_engine(profile_key: str, plugin_dir: str | None = None) -> Generation
     保证批量回测在子进程中也能使用用户自定义的插件策略。
     """
     engine = GenerationEngine()
-    if profile_key == "ssq":
-        from caipiao.core.strategies.lotteries.ssq.random import SSQRandomStrategy
-        from caipiao.core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
-        from caipiao.core.strategies.lotteries.ssq.hot_cold import SSQHotColdStrategy
-        from caipiao.core.strategies.lotteries.ssq.smart_hot_cold import SSQSmartHotColdStrategy
-        from caipiao.core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
-        from caipiao.core.strategies.lotteries.ssq.ml.xgboost import SSQXGBoostStrategy
-        from caipiao.core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
-        from caipiao.core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
-        engine.register(SSQRandomStrategy())
-        engine.register(SSQOddEvenStrategy())
-        engine.register(SSQHotColdStrategy())
-        engine.register(SSQSmartHotColdStrategy())
-        engine.register(SSQBalancedStrategy())
-        engine.register(SSQXGBoostStrategy())
-        engine.register(SSQBayesianStrategy())
-        engine.register(SSQMarkovStrategy())
-    else:
-        profile = get_profile(profile_key)
-        for strategy in build_strategies(profile):
-            engine.register(strategy)
+    profile = get_profile(profile_key)
+    for strategy in build_strategies(profile):
+        engine.register(strategy)
 
     if plugin_dir:
         from caipiao.plugins import PluginManager
@@ -225,11 +215,68 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
                 _get_worker_temp_dir(),
             )
 
+        # 3D/七乐彩 经验策略过滤（跟随主界面设置）：按理论通过率放大候选数量，
+        # 生成后与主界面走同一个过滤+截断后处理（3D 还会重分配 bet_mode），
+        # 比对用的 history 已限定为目标期之前的记录，无未来函数。
+        gen_count = context.tickets_per_round
+        fc3d_filter_active = False
+        qlc_filter_active = False
+        dlt_filter_active = False
+        cp = mo = 0
+        min_sum = max_sum = 0
+        if context.profile_key == "3d" and options.get("_fc3d_filter_enabled") and history:
+            cp = int(options.get("_fc3d_filter_compare_periods", 5))
+            mo = int(options.get("_fc3d_filter_max_overlap", 1))
+            min_sum = int(options.get("_fc3d_filter_min_sum", 0))
+            max_sum = int(options.get("_fc3d_filter_max_sum", 27))
+            gen_count, _ = fc3d_filtered_gen_count(
+                context.tickets_per_round, history, cp, mo, min_sum, max_sum
+            )
+            fc3d_filter_active = True
+        elif context.profile_key == "qlc" and options.get("_qlc_filter_enabled") and history:
+            cp = int(options.get("_qlc_filter_compare_periods", 5))
+            mo = int(options.get("_qlc_filter_max_overlap", 2))
+            min_sum = int(options.get("_qlc_filter_min_sum", 0))
+            max_sum = int(options.get("_qlc_filter_max_sum", 210))
+            gen_count, _ = qlc_filtered_gen_count(
+                context.tickets_per_round, history, cp, mo, min_sum, max_sum
+            )
+            qlc_filter_active = True
+        elif context.profile_key == "dlt" and options.get("_dlt_filter_enabled") and history:
+            cp = int(options.get("_dlt_filter_compare_periods", 7))
+            mo = int(options.get("_dlt_filter_max_front_overlap", 0))
+            min_sum = int(options.get("_dlt_filter_min_front_sum", 15))
+            max_sum = int(options.get("_dlt_filter_max_front_sum", 165))
+            block_back = bool(options.get("_dlt_filter_block_back", True))
+            back_cp = int(options.get("_dlt_filter_back_compare_periods", 1))
+            gen_count, _ = dlt_filtered_gen_count(
+                context.tickets_per_round, history, cp, mo, min_sum, max_sum
+            )
+            dlt_filter_active = True
+
         tickets = engine.generate(
             context.strategy_id,
-            count=context.tickets_per_round,
+            count=gen_count,
             options=options,
         )
+
+        if fc3d_filter_active:
+            tickets = apply_fc3d_experience_filter(
+                tickets, history, context.tickets_per_round, cp, mo,
+                min_sum=min_sum, max_sum=max_sum,
+            )
+        elif qlc_filter_active:
+            tickets = apply_qlc_experience_filter(
+                tickets, history, context.tickets_per_round, cp, mo,
+                min_sum=min_sum, max_sum=max_sum,
+            )
+        elif dlt_filter_active:
+            tickets = apply_dlt_experience_filter(
+                tickets, history, context.tickets_per_round, cp, mo,
+                min_front_sum=min_sum, max_front_sum=max_sum,
+                block_back_match=block_back,
+                back_compare_periods=back_cp,
+            )
 
         date_str = task.actual.draw_date.strftime("%Y-%m-%d")
         issue_str = task.actual.issue or "未知期号"

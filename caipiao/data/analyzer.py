@@ -108,6 +108,38 @@ class DrawAnalyzer:
                     break
         return count / len(records)
 
+    def consecutive_count_distribution(self, last_n: Optional[int] = None) -> Dict[int, float]:
+        """返回每注连号对数的分布 {连号对数: 概率}。"""
+        records = self._slice(last_n)
+        if not records:
+            return {0: 1.0}
+        counter: Dict[int, int] = {}
+        for record in records:
+            nums = sorted(self._primary_numbers(record))
+            pairs = sum(1 for i in range(len(nums) - 1) if nums[i] + 1 == nums[i + 1])
+            counter[pairs] = counter.get(pairs, 0) + 1
+        total = len(records)
+        return {k: v / total for k, v in counter.items()}
+
+    def zone_distribution(self, last_n: Optional[int] = None) -> Dict[str, float]:
+        """返回三区分布比例: {zone1(1-11): 比例, zone2(12-22): 比例, zone3(23-33): 比例}。"""
+        records = self._slice(last_n)
+        if not records:
+            return {"zone1": 1 / 3, "zone2": 1 / 3, "zone3": 1 / 3}
+        zone1 = zone2 = zone3 = 0
+        for record in records:
+            for n in self._primary_numbers(record):
+                if 1 <= n <= 11:
+                    zone1 += 1
+                elif 12 <= n <= 22:
+                    zone2 += 1
+                elif 23 <= n <= 33:
+                    zone3 += 1
+        total = zone1 + zone2 + zone3
+        if total == 0:
+            return {"zone1": 1 / 3, "zone2": 1 / 3, "zone3": 1 / 3}
+        return {"zone1": zone1 / total, "zone2": zone2 / total, "zone3": zone3 / total}
+
     def common_pairs(self, top_n: int = 10, last_n: Optional[int] = None) -> List[Tuple[Tuple[int, int], int]]:
         records = self._slice(last_n)
         pair_counter: Counter = Counter()

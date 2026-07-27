@@ -337,6 +337,24 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "参数错误", str(exc))
             return
 
+        # 3D/七乐彩：注入经验策略过滤参数（跟随主界面设置），使回测复现实际投注行为
+        if self.profile.key == "3d":
+            options["_fc3d_filter_enabled"] = self.settings.fc3d_filter_enabled
+            options["_fc3d_filter_compare_periods"] = (
+                self.settings.fc3d_filter_compare_periods
+            )
+            options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
+            options["_fc3d_filter_min_sum"] = self.settings.fc3d_filter_min_sum
+            options["_fc3d_filter_max_sum"] = self.settings.fc3d_filter_max_sum
+        elif self.profile.key == "qlc":
+            options["_qlc_filter_enabled"] = self.settings.qlc_filter_enabled
+            options["_qlc_filter_compare_periods"] = (
+                self.settings.qlc_filter_compare_periods
+            )
+            options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
+            options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
+            options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
+
         if needs_history(strategy_id):
             records = self.data_repository.get_all()
             if len(records) < 100:
@@ -365,6 +383,21 @@ class BatchBacktestDialog(QDialog):
         self._running_first_hit_count = 0
         self._running_rounds = 0
         self._running_ticket_index_hits: Dict[int, int] = {}
+
+        if self.profile.key == "3d" and options.get("_fc3d_filter_enabled"):
+            self.status_text.append(
+                f"已启用3D经验策略过滤（比较最近{options['_fc3d_filter_compare_periods']}期，"
+                f"相同号码≤{options['_fc3d_filter_max_overlap']}个，"
+                f"和值{options['_fc3d_filter_min_sum']}-{options['_fc3d_filter_max_sum']}），"
+                "与主界面设置一致"
+            )
+        elif self.profile.key == "qlc" and options.get("_qlc_filter_enabled"):
+            self.status_text.append(
+                f"已启用七乐彩经验策略过滤（比较最近{options['_qlc_filter_compare_periods']}期，"
+                f"重合号码≤{options['_qlc_filter_max_overlap']}个，"
+                f"和值{options['_qlc_filter_min_sum']}-{options['_qlc_filter_max_sum']}），"
+                "与主界面设置一致"
+            )
 
         self._thread = BatchBacktestThread(
             engine=self.context.engine,
@@ -500,7 +533,7 @@ class BatchBacktestDialog(QDialog):
                 prize_name = "未中奖"
                 if is_win:
                     if target_nums[0] == target_nums[1] == target_nums[2]:
-                        prize = 1000
+                        prize = 1040
                         prize_name = "豹子号"
                     elif target_nums[0] == target_nums[1] or target_nums[1] == target_nums[2] or target_nums[0] == target_nums[2]:
                         prize = 346

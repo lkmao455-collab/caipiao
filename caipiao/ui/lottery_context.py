@@ -3,8 +3,7 @@
 ``LotteryContext`` 为单个彩种封装该彩种运行所需的全部对象：
 档案（Profile）、生成引擎、数据仓库、分析器、历史管理器、抓取器。
 
-双色球（ssq）使用原有的类/策略/分析器以保持 100% 兼容，
-其它彩种使用通用（Profile 驱动）实现。
+所有彩种统一使用智能冷热号和历史均衡两个策略。
 """
 
 from __future__ import annotations
@@ -16,12 +15,7 @@ from PySide6.QtCore import QObject, Signal
 
 from ..core.engine import GenerationEngine
 from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
-from ..core.strategies.lotteries.ssq.balanced import SSQBalancedStrategy
-from ..core.strategies.advanced.lotteries.ssq.bayesian import SSQBayesianStrategy
-from ..core.strategies.advanced.lotteries.ssq.consensus_constraint import SSQConsensusConstraintStrategy
-from ..core.strategies.advanced.lotteries.ssq.markov import SSQMarkovStrategy
-from ..core.strategies.lotteries.ssq.odd_even import SSQOddEvenStrategy
-from ..core.strategies.lotteries.ssq.ml.xgboost import SSQXGBoostStrategy
+from ..core.strategies import build_strategies
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
 from ..data.models import DrawRecord
@@ -66,46 +60,9 @@ class LotteryContext(QObject):
         )
 
     def register_builtin_strategies(self) -> None:
-        if self.profile.key == "ssq":
-            self.engine.register(SSQBalancedStrategy())
-            self.engine.register(SSQOddEvenStrategy())
-            self.engine.register(SSQXGBoostStrategy())
-            self.engine.register(SSQBayesianStrategy())
-            self.engine.register(SSQMarkovStrategy())
-            self.engine.register(SSQConsensusConstraintStrategy())
-        elif self.profile.key == "3d":
-            # 福彩3D：仅保留核心策略
-            from ..core.strategies.lotteries.fc3d.smart_hot_cold import FC3DSmartHotColdStrategy
-            from ..core.strategies.lotteries.fc3d.missing_number import FC3DMissingNumberStrategy
-            from ..core.strategies.lotteries.fc3d.ml.xgboost import FC3DXGBoostStrategy
-            from ..core.strategies.lotteries.fc3d.balanced import FC3DBalancedStrategy
-            from ..core.strategies.lotteries.fc3d.ensemble import FC3DEnsembleStrategy
-            self.engine.register(FC3DSmartHotColdStrategy())
-            self.engine.register(FC3DMissingNumberStrategy())
-            self.engine.register(FC3DXGBoostStrategy())
-            self.engine.register(FC3DBalancedStrategy())
-            self.engine.register(FC3DEnsembleStrategy())
-        elif self.profile.key == "dlt":
-            # 大乐透：原仅保留 XGBoost，generic 移除后注册全部基础策略
-            from ..core.strategies import build_strategies
-            for strategy in build_strategies(self.profile):
-                self.engine.register(strategy)
-        elif self.profile.key == "pl3":
-            # 排列3：智能冷热号、遗漏号追踪、历史均衡（XGBoost 暂无 per-lottery 实现）
-            from ..core.strategies.lotteries.pl3.smart_hot_cold import PL3SmartHotColdStrategy
-            from ..core.strategies.lotteries.pl3.missing_number import PL3MissingNumberStrategy
-            from ..core.strategies.lotteries.pl3.balanced import PL3BalancedStrategy
-            self.engine.register(PL3SmartHotColdStrategy())
-            self.engine.register(PL3MissingNumberStrategy())
-            self.engine.register(PL3BalancedStrategy())
-        else:
-            # 其它彩种：过滤随机与排除/包含策略
-            from ..core.strategies import build_strategies
-            for strategy in build_strategies(self.profile):
-                sid = strategy.metadata.id
-                if sid.startswith(("random_", "exclude_include_", "lightgbm_", "catboost_")):
-                    continue
-                self.engine.register(strategy)
+        """注册所有彩种的策略（智能冷热号 + 历史均衡）。"""
+        for strategy in build_strategies(self.profile):
+            self.engine.register(strategy)
 
     def _register_strategies(self) -> None:
         self.register_builtin_strategies()

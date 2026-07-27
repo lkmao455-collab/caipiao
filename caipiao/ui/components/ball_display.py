@@ -101,10 +101,19 @@ class TicketRowWidget(QWidget):
         row_layout.setSpacing(8)
         row_layout.setContentsMargins(0, 0, 0, 0)
 
+        prediction = None
+        if ticket.profile.key == "kl8":
+            prediction = (ticket.details or {}).get("prediction")
+
         if show_index is not None:
             index_label = QLabel(f"{show_index:02d}.")
             index_label.setStyleSheet("color: #666; font-weight: bold;")
             row_layout.addWidget(index_label)
+
+        if prediction:
+            buy_label = QLabel("购买号码：")
+            buy_label.setStyleSheet("color: #0A2540; font-weight: bold;")
+            row_layout.addWidget(buy_label)
 
         render_groups = ticket.render_groups()
         for gi, rg in enumerate(render_groups):
@@ -117,6 +126,24 @@ class TicketRowWidget(QWidget):
 
         row_layout.addStretch()
         self.layout.addWidget(row)
+
+        if prediction:
+            # 快乐8：预测号码（20个）与购买号码分开显示
+            pred_row = QWidget(self)
+            pred_layout = QHBoxLayout(pred_row)
+            pred_layout.setSpacing(4)
+            pred_layout.setContentsMargins(0, 0, 0, 0)
+            pred_label = QLabel("预测号码：")
+            pred_label.setStyleSheet("color: #666; font-size: 9pt;")
+            pred_layout.addWidget(pred_label)
+            color = render_groups[0].color if render_groups else None
+            pad = render_groups[0].pad if render_groups else 2
+            for n in prediction:
+                pred_layout.addWidget(
+                    BallWidget(number=n, color=color, pad=pad, size=26)
+                )
+            pred_layout.addStretch()
+            self.layout.addWidget(pred_row)
 
         # 福彩3D / 排列3 显示投注方式建议
         if ticket.profile.key in ("3d", "pl3"):

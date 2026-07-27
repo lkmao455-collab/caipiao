@@ -10,17 +10,74 @@ from PySide6.QtCore import QThread, Signal
 
 from ..core.engine import (
     GenerationEngine,
+    apply_dlt_experience_filter,
     apply_fc3d_experience_filter,
+    apply_kl8_experience_filter,
+    apply_pl3_experience_filter,
+    apply_pl5_experience_filter,
     apply_qlc_experience_filter,
+    apply_qxc_experience_filter,
+    dlt_filtered_gen_count,
     fc3d_filtered_gen_count,
     filter_ssq_by_history,
+    kl8_filtered_gen_count,
+    pl3_filtered_gen_count,
+    pl5_filtered_gen_count,
     qlc_filtered_gen_count,
+    qxc_filtered_gen_count,
 )
-from ..core.profile import LotteryProfile, SSQ
+from ..core.profile import LotteryProfile, SSQ, list_profiles
 from ..data.fetcher import LotteryDataFetcher
 from ..utils import app_data_dir
 
 logger = logging.getLogger(__name__)
+
+
+class FetchAllLotteriesThread(QThread):
+    """批量更新所有彩种开奖数据的后台线程."""
+
+    progress = Signal(str, int, int)  # (彩种名称, 当前索引, 总数)
+    result_ready = Signal(object, object)  # (结果, 错误)
+
+    def __init__(
+        self,
+        parent=None,
+        timeout: int = 30,
+    ) -> None:
+        super().__init__(parent)
+        self.setObjectName("FetchAllLotteriesThread")
+        self.timeout = timeout
+
+    def run(self) -> None:
+        """遍历所有彩种，抓取最新一期数据."""
+        try:
+            profiles = list_profiles()
+            total = len(profiles)
+            results = []
+
+            for i, profile in enumerate(profiles):
+                if self.isInterruptionRequested():
+                    return
+
+                self.progress.emit(profile.name, i, total)
+
+                try:
+                    fetcher = LotteryDataFetcher(profile=profile, timeout=self.timeout)
+                    latest = fetcher.fetch_latest()
+                    if latest is not None:
+                        results.append((profile, latest, None))
+                    else:
+                        results.append((profile, None, "未获取到数据"))
+                except Exception as exc:
+                    results.append((profile, None, str(exc)))
+                    logger.warning("更新 %s 失败: %s", profile.name, exc)
+
+            if self.isInterruptionRequested():
+                return
+
+            self.result_ready.emit(results, None)
+        except Exception as exc:  # noqa: BLE001
+            self.result_ready.emit(None, exc)
 
 
 class FetchAllDataThread(QThread):
@@ -121,9 +178,9 @@ class GenerateTicketsThread(QThread):
         try:
             profile_key = self.options.get("_profile_key")
             has_records = bool(self.options.get("_draw_records"))
-            # 双色球：仅智能冷热号策略启用过滤，历史均衡不过滤
+            # 双色球：所有策略均启用过滤
             strategy_id = self.options.get("_strategy_id", "")
-            need_filter = has_records and profile_key == "ssq" and strategy_id != "balanced"
+            need_filter = has_records and profile_key == "ssq"
             need_3d_filter = (
                 has_records
                 and profile_key == "3d"
@@ -134,13 +191,43 @@ class GenerateTicketsThread(QThread):
                 and profile_key == "qlc"
                 and bool(self.options.get("_qlc_filter_enabled", False))
             )
+            need_dlt_filter = (
+                has_records
+                and profile_key == "dlt"
+                and bool(self.options.get("_dlt_filter_enabled", False))
+            )
+            need_pl3_filter = (
+                has_records
+                and profile_key == "pl3"
+                and bool(self.options.get("_pl3_filter_enabled", False))
+            )
+            need_pl5_filter = (
+                has_records
+                and profile_key == "pl5"
+                and bool(self.options.get("_pl5_filter_enabled", False))
+            )
+            need_qxc_filter = (
+                has_records
+                and profile_key == "qxc"
+                and bool(self.options.get("_qxc_filter_enabled", False))
+            )
+            need_kl8_filter = (
+                has_records
+                and profile_key == "kl8"
+                and bool(self.options.get("_kl8_filter_enabled", False))
+            )
 
             # 计算候选生成数量：
-            # - 3D/七乐彩 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
+            # - 3D/七乐彩/大乐透/排列3/排列5/7星彩/快乐8 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
             # - 双色球过滤：固定 3 倍
             cp = mo = pass_count = None
             min_sum = max_sum = None
             qlc_pass_ratio = None
+            dlt_pass_ratio = None
+            pl3_pass_count = None
+            pl5_pass_ratio = None
+            qxc_pass_ratio = None
+            kl8_pass_ratio = None
             if need_3d_filter:
                 cp = int(self.options.get("_fc3d_filter_compare_periods", 5))
                 mo = int(self.options.get("_fc3d_filter_max_overlap", 1))
@@ -158,6 +245,52 @@ class GenerateTicketsThread(QThread):
                 gen_count, qlc_pass_ratio = qlc_filtered_gen_count(
                     self.count, self.options["_draw_records"], cp, mo,
                     min_sum, max_sum,
+                )
+            elif need_dlt_filter:
+                cp = int(self.options.get("_dlt_filter_compare_periods", 7))
+                mo = int(self.options.get("_dlt_filter_max_front_overlap", 0))
+                min_sum = int(self.options.get("_dlt_filter_min_front_sum", 15))
+                max_sum = int(self.options.get("_dlt_filter_max_front_sum", 165))
+                gen_count, dlt_pass_ratio = dlt_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum,
+                )
+            elif need_pl3_filter:
+                cp = int(self.options.get("_pl3_filter_compare_periods", 5))
+                mo = int(self.options.get("_pl3_filter_max_overlap", 1))
+                min_sum = int(self.options.get("_pl3_filter_min_sum", 0))
+                max_sum = int(self.options.get("_pl3_filter_max_sum", 27))
+                gen_count, pl3_pass_count = pl3_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum,
+                )
+            elif need_pl5_filter:
+                cp = int(self.options.get("_pl5_filter_compare_periods", 5))
+                mo = int(self.options.get("_pl5_filter_max_overlap", 2))
+                min_sum = int(self.options.get("_pl5_filter_min_sum", 0))
+                max_sum = int(self.options.get("_pl5_filter_max_sum", 45))
+                gen_count, pl5_pass_ratio = pl5_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum,
+                )
+            elif need_qxc_filter:
+                cp = int(self.options.get("_qxc_filter_compare_periods", 5))
+                mo = int(self.options.get("_qxc_filter_max_overlap", 3))
+                min_sum = int(self.options.get("_qxc_filter_min_sum", 0))
+                max_sum = int(self.options.get("_qxc_filter_max_sum", 63))
+                gen_count, qxc_pass_ratio = qxc_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum,
+                )
+            elif need_kl8_filter:
+                cp = int(self.options.get("_kl8_filter_compare_periods", 5))
+                mo = int(self.options.get("_kl8_filter_max_overlap", 5))
+                min_sum = int(self.options.get("_kl8_filter_min_sum", 0))
+                max_sum = int(self.options.get("_kl8_filter_max_sum", 800))
+                pick_count = int(self.options.get("pick_count", 10))
+                gen_count, kl8_pass_ratio = kl8_filtered_gen_count(
+                    self.count, self.options["_draw_records"], cp, mo,
+                    min_sum, max_sum, pick_count,
                 )
             elif need_filter:
                 gen_count = self.count * 3
@@ -206,6 +339,75 @@ class GenerateTicketsThread(QThread):
                     cp,
                     mo,
                     pass_ratio=qlc_pass_ratio,
+                    min_sum=min_sum,
+                    max_sum=max_sum,
+                )
+
+            # 最后一层过滤（大乐透 经验策略）
+            if need_dlt_filter and profile_key == "dlt":
+                block_back = bool(self.options.get("_dlt_filter_block_back", True))
+                back_cp = int(self.options.get("_dlt_filter_back_compare_periods", 1))
+                tickets = apply_dlt_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_ratio=dlt_pass_ratio,
+                    min_front_sum=min_sum,
+                    max_front_sum=max_sum,
+                    block_back_match=block_back,
+                    back_compare_periods=back_cp,
+                )
+
+            # 最后一层过滤（排列3 经验策略）
+            if need_pl3_filter and profile_key == "pl3":
+                tickets = apply_pl3_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_count=pl3_pass_count,
+                    min_sum=min_sum,
+                    max_sum=max_sum,
+                )
+
+            # 最后一层过滤（排列5 经验策略）
+            if need_pl5_filter and profile_key == "pl5":
+                tickets = apply_pl5_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_ratio=pl5_pass_ratio,
+                    min_sum=min_sum,
+                    max_sum=max_sum,
+                )
+
+            # 最后一层过滤（7星彩 经验策略）
+            if need_qxc_filter and profile_key == "qxc":
+                tickets = apply_qxc_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_ratio=qxc_pass_ratio,
+                    min_sum=min_sum,
+                    max_sum=max_sum,
+                )
+
+            # 最后一层过滤（快乐8 经验策略）
+            if need_kl8_filter and profile_key == "kl8":
+                tickets = apply_kl8_experience_filter(
+                    tickets,
+                    self.options["_draw_records"],
+                    self.count,
+                    cp,
+                    mo,
+                    pass_ratio=kl8_pass_ratio,
                     min_sum=min_sum,
                     max_sum=max_sum,
                 )

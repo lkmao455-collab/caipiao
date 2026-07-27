@@ -1366,25 +1366,33 @@ class DrawAnalysisDialog(QDialog):
         stretch_cols: List[int] = []
 
         if self.profile.key == "ssq":
-            headers.extend(["红球", "蓝球", "与上期红球重复", "与上期蓝球相同"])
+            headers.extend([
+                "红球", "蓝球", "与上期红球重复", "与上期相同红球",
+                "与上期蓝球相同", "与上期相同蓝球",
+            ])
             stretch_cols = [2]
         elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
             group = self.profile.primary_group
             headers.append(group.name)
             headers.append(f"与上期{group.name}同位相同")
+            headers.append("与上期同位号码")
             stretch_cols = [2]
         elif self.profile.key in ("qlc", "gd36x7"):
-            headers.extend(["基本号", "特别号", "与上期基本号重复", "与上期特别号相同"])
+            headers.extend([
+                "基本号", "特别号", "与上期基本号重复", "与上期相同基本号",
+                "与上期特别号相同", "与上期相同特别号",
+            ])
             stretch_cols = [2]
         elif self.profile.key == "kl8":
             group = self.profile.primary_group
-            headers.extend([group.name, f"与上期{group.name}重复"])
+            headers.extend([group.name, f"与上期{group.name}重复", "与上期相同号码"])
             stretch_cols = [2]
         else:
             for g in self.profile.pick_groups:
                 headers.append(g.name)
                 headers.append(f"与上期{g.name}重复")
-            stretch_cols = list(range(2, 2 + len(self.profile.pick_groups) * 2, 2))
+                headers.append(f"与上期相同{g.name}")
+            stretch_cols = list(range(2, 2 + len(self.profile.pick_groups) * 3, 3))
 
         self.record_table.setColumnCount(len(headers))
         self.record_table.setHorizontalHeaderLabels(headers)
@@ -1404,6 +1412,26 @@ class DrawAnalysisDialog(QDialog):
         if group.positional:
             return " ".join(f"{n:0{group.pad}d}" for n in nums)
         return " ".join(f"{n:0{group.pad}d}" for n in sorted(nums))
+
+    def _prev_record(self, idx: int) -> Optional[DrawRecord]:
+        """返回时间上更早一期的记录；表格按日期倒序，前一期在下一行."""
+        global_idx = self._current_page * self._page_size + idx
+        if global_idx + 1 < len(self._paged_records):
+            return self._paged_records[global_idx + 1]
+        return None
+
+    def _same_nums_text(
+        self, idx: int, record: DrawRecord, group_key: str, pad: int = 2
+    ) -> str:
+        """该期与上一期相同的号码（升序），无上期返回 '-'，无相同返回 '无'."""
+        prev = self._prev_record(idx)
+        if prev is None:
+            return "-"
+        same = sorted(
+            set(record.groups.get(group_key, []))
+            & set(prev.groups.get(group_key, []))
+        )
+        return " ".join(f"{n:0{pad}d}" for n in same) if same else "无"
 
     def _refresh_data(self) -> None:
         self._records = self.data_repository.get_all()
@@ -2058,11 +2086,30 @@ class DrawAnalysisDialog(QDialog):
         overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 4, overlap_item)
 
+        same_red_item = QTableWidgetItem(self._same_nums_text(idx, record, "red"))
+        same_red_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 5, same_red_item)
+
         blue_same = detail.get("blue")
         blue_same_text = "是" if blue_same else ("否" if blue_same is False else "-")
         blue_same_item = QTableWidgetItem(blue_same_text)
         blue_same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.record_table.setItem(idx, 5, blue_same_item)
+        self.record_table.setItem(idx, 6, blue_same_item)
+
+        # 蓝球只有一个：相同则显示该号码，不同显示“无”
+        prev = self._prev_record(idx)
+        if prev is None:
+            same_blue_text = "-"
+        else:
+            prev_blue = next(iter(prev.groups.get("blue", [])), None)
+            same_blue_text = (
+                f"{blue:02d}"
+                if blue is not None and blue == prev_blue
+                else "无"
+            )
+        same_blue_item = QTableWidgetItem(same_blue_text)
+        same_blue_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 7, same_blue_item)
 
     def _fill_positional_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
         group = self.profile.primary_group
@@ -2075,6 +2122,22 @@ class DrawAnalysisDialog(QDialog):
         same_item = QTableWidgetItem(same_text)
         same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 3, same_item)
+
+        # 同位相同的具体数字：相同位显示数字，不同位显示 ·
+        prev = self._prev_record(idx)
+        if prev is None:
+            pos_text = "-"
+        else:
+            curr_nums = record.groups.get(group.key, [])
+            prev_nums = prev.groups.get(group.key, [])
+            parts = [
+                f"{c:0{group.pad}d}" if c == p else "·"
+                for c, p in zip(curr_nums, prev_nums)
+            ]
+            pos_text = " ".join(parts) if parts else "-"
+        pos_item = QTableWidgetItem(pos_text)
+        pos_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 4, pos_item)
 
     def _fill_basic_special_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
         basic = self.profile.group("basic")
@@ -2097,11 +2160,32 @@ class DrawAnalysisDialog(QDialog):
         basic_overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 4, basic_overlap_item)
 
+        same_basic_item = QTableWidgetItem(
+            self._same_nums_text(idx, record, basic.key, basic.pad)
+        )
+        same_basic_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 5, same_basic_item)
+
         special_same = detail.get("special")
         special_text = "是" if special_same else ("否" if special_same is False else "-")
         special_same_item = QTableWidgetItem(special_text)
         special_same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.record_table.setItem(idx, 5, special_same_item)
+        self.record_table.setItem(idx, 6, special_same_item)
+
+        # 特别号只有一个：相同则显示该号码，不同显示“无”
+        prev = self._prev_record(idx)
+        if prev is None:
+            same_special_text = "-"
+        else:
+            prev_special = next(iter(prev.groups.get(special.key, [])), None)
+            same_special_text = (
+                f"{special_num:0{special.pad}d}"
+                if special_num is not None and special_num == prev_special
+                else "无"
+            )
+        same_special_item = QTableWidgetItem(same_special_text)
+        same_special_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 7, same_special_item)
 
     def _fill_kl8_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
         group = self.profile.primary_group
@@ -2116,6 +2200,11 @@ class DrawAnalysisDialog(QDialog):
         overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 3, overlap_item)
 
+        # 与上一期（时间上更早一期）相同的具体号码
+        same_item = QTableWidgetItem(self._same_nums_text(idx, record, group.key))
+        same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.record_table.setItem(idx, 4, same_item)
+
     def _fill_generic_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
         col = 2
         for g in self.profile.pick_groups:
@@ -2129,6 +2218,13 @@ class DrawAnalysisDialog(QDialog):
             overlap_item = QTableWidgetItem(overlap_text)
             overlap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.record_table.setItem(idx, col, overlap_item)
+            col += 1
+
+            same_item = QTableWidgetItem(
+                self._same_nums_text(idx, record, g.key, g.pad)
+            )
+            same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.record_table.setItem(idx, col, same_item)
             col += 1
 
     def _show_stats(self, stats: AdjacentStats) -> None:
