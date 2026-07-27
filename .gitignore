@@ -40,3 +40,10 @@ python-3.12.11-amd64.exe
 
 # Generated result exports
 caipiao_result*.pdf
+caipiao_*_result_*.pdf
+test_*.pdf
+
+# Tooling state / coverage artifacts
+.mimocode/
+.coverage
+harness.txt
