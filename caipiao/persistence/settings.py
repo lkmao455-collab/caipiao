@@ -23,14 +23,14 @@ class AppSettings:
 
     @property
     def default_count(self) -> int:
-        return int(self.get("default_count", 5))
+        return int(self.get("default_count", 1))
 
     @default_count.setter
     def default_count(self, value: int) -> None:
         try:
             value = int(value)
         except (ValueError, TypeError):
-            value = 5
+            value = 1
         self.set("default_count", max(1, min(1000, value)))
 
     @property
@@ -65,6 +65,9 @@ class AppSettings:
         raw = self.get("auto_update_on_start", True)
         if isinstance(raw, str):
             return raw.strip().lower() in {"true", "1", "yes", "on"}
+        # 默认为 True，确保启动时自动更新
+        if raw is None:
+            return True
         return bool(raw)
 
     @auto_update_on_start.setter
@@ -236,18 +239,18 @@ class AppSettings:
 
     @property
     def ssq_filter_compare_periods(self) -> int:
-        """SSQ过滤：对比的历史期数，默认 7。"""
+        """SSQ过滤：对比的历史期数，默认 1。"""
         try:
-            return int(self.get("ssq_filter_compare_periods", 7))
+            return int(self.get("ssq_filter_compare_periods", 1))
         except (ValueError, TypeError):
-            return 7
+            return 1
 
     @ssq_filter_compare_periods.setter
     def ssq_filter_compare_periods(self, value: int) -> None:
         try:
             value = int(value)
         except (ValueError, TypeError):
-            value = 7
+            value = 1
         self.set("ssq_filter_compare_periods", max(0, min(50, value)))
 
     @property
@@ -268,8 +271,8 @@ class AppSettings:
 
     @property
     def ssq_filter_block_blue(self) -> bool:
-        """SSQ过滤：是否禁止蓝球与历史相同，默认 False。"""
-        raw = self.get("ssq_filter_block_blue", False)
+        """SSQ过滤：是否禁止蓝球与历史相同，默认 True。"""
+        raw = self.get("ssq_filter_block_blue", True)
         if isinstance(raw, str):
             return raw.strip().lower() in {"true", "1", "yes", "on"}
         return bool(raw)
@@ -325,6 +328,536 @@ class AppSettings:
         except (ValueError, TypeError):
             value = 1
         self.set("fc3d_filter_max_overlap", max(0, min(3, value)))
+
+    @property
+    def fc3d_filter_min_sum(self) -> int:
+        """3D经验策略过滤：允许的最小和值，默认 0（不限制）。"""
+        try:
+            return int(self.get("fc3d_filter_min_sum", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @fc3d_filter_min_sum.setter
+    def fc3d_filter_min_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("fc3d_filter_min_sum", max(0, min(27, value)))
+
+    @property
+    def fc3d_filter_max_sum(self) -> int:
+        """3D经验策略过滤：允许的最大和值，默认 27（不限制）。"""
+        try:
+            return int(self.get("fc3d_filter_max_sum", 27))
+        except (ValueError, TypeError):
+            return 27
+
+    @fc3d_filter_max_sum.setter
+    def fc3d_filter_max_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 27
+        self.set("fc3d_filter_max_sum", max(0, min(27, value)))
+
+    # ------------------------------------------------------------------ #
+    # 七乐彩经验策略过滤参数（参照福彩3D）
+    # ------------------------------------------------------------------ #
+
+    @property
+    def qlc_filter_enabled(self) -> bool:
+        """七乐彩经验策略过滤：是否启用，默认 False（保持原有无过滤行为）。"""
+        raw = self.get("qlc_filter_enabled", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
+
+    @qlc_filter_enabled.setter
+    def qlc_filter_enabled(self, value: bool) -> None:
+        self.set("qlc_filter_enabled", bool(value))
+
+    @property
+    def qlc_filter_compare_periods(self) -> int:
+        """七乐彩经验策略过滤：向前比较的历史期数，默认 5。"""
+        try:
+            return int(self.get("qlc_filter_compare_periods", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @qlc_filter_compare_periods.setter
+    def qlc_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("qlc_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def qlc_filter_max_overlap(self) -> int:
+        """七乐彩经验策略过滤：允许的基本号最大重合个数，默认 2（超过则淘汰）。"""
+        try:
+            return int(self.get("qlc_filter_max_overlap", 2))
+        except (ValueError, TypeError):
+            return 2
+
+    @qlc_filter_max_overlap.setter
+    def qlc_filter_max_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 2
+        self.set("qlc_filter_max_overlap", max(0, min(7, value)))
+
+    @property
+    def qlc_filter_min_sum(self) -> int:
+        """七乐彩经验策略过滤：允许的最小和值，默认 0（不限制）。"""
+        try:
+            return int(self.get("qlc_filter_min_sum", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @qlc_filter_min_sum.setter
+    def qlc_filter_min_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("qlc_filter_min_sum", max(0, min(210, value)))
+
+    @property
+    def qlc_filter_max_sum(self) -> int:
+        """七乐彩经验策略过滤：允许的最大和值，默认 210（不限制）。"""
+        try:
+            return int(self.get("qlc_filter_max_sum", 210))
+        except (ValueError, TypeError):
+            return 210
+
+    @qlc_filter_max_sum.setter
+    def qlc_filter_max_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 210
+        self.set("qlc_filter_max_sum", max(0, min(210, value)))
+
+    # --- 大乐透经验策略过滤 ---
+
+    @property
+    def dlt_filter_enabled(self) -> bool:
+        """大乐透经验策略过滤：是否启用，默认 False。"""
+        raw = self.get("dlt_filter_enabled", False)
+        if isinstance(raw, str):
+            return raw.lower() in ("true", "1", "yes")
+        return bool(raw)
+
+    @dlt_filter_enabled.setter
+    def dlt_filter_enabled(self, value: bool) -> None:
+        self.set("dlt_filter_enabled", bool(value))
+
+    @property
+    def dlt_filter_compare_periods(self) -> int:
+        """大乐透经验策略过滤：向前比较的期数，默认 7。"""
+        try:
+            return int(self.get("dlt_filter_compare_periods", 7))
+        except (ValueError, TypeError):
+            return 7
+
+    @dlt_filter_compare_periods.setter
+    def dlt_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 7
+        self.set("dlt_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def dlt_filter_max_front_overlap(self) -> int:
+        """大乐透经验策略过滤：允许的前区最大重合个数，默认 0（不允许重合）。"""
+        try:
+            return int(self.get("dlt_filter_max_front_overlap", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @dlt_filter_max_front_overlap.setter
+    def dlt_filter_max_front_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("dlt_filter_max_front_overlap", max(0, min(5, value)))
+
+    @property
+    def dlt_filter_block_back(self) -> bool:
+        """大乐透经验策略过滤：是否禁止后区与历史相同，默认 True。"""
+        raw = self.get("dlt_filter_block_back", True)
+        if isinstance(raw, str):
+            return raw.lower() in ("true", "1", "yes")
+        return bool(raw)
+
+    @dlt_filter_block_back.setter
+    def dlt_filter_block_back(self, value: bool) -> None:
+        self.set("dlt_filter_block_back", bool(value))
+
+    @property
+    def dlt_filter_back_compare_periods(self) -> int:
+        """大乐透经验策略过滤：后区禁止重复的对比期数，默认 1。"""
+        try:
+            return int(self.get("dlt_filter_back_compare_periods", 1))
+        except (ValueError, TypeError):
+            return 1
+
+    @dlt_filter_back_compare_periods.setter
+    def dlt_filter_back_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 1
+        self.set("dlt_filter_back_compare_periods", max(0, min(50, value)))
+
+    @property
+    def dlt_filter_min_front_sum(self) -> int:
+        """大乐透经验策略过滤：允许的前区最小和值，默认 15。"""
+        try:
+            return int(self.get("dlt_filter_min_front_sum", 15))
+        except (ValueError, TypeError):
+            return 15
+
+    @dlt_filter_min_front_sum.setter
+    def dlt_filter_min_front_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 15
+        self.set("dlt_filter_min_front_sum", max(0, min(165, value)))
+
+    @property
+    def dlt_filter_max_front_sum(self) -> int:
+        """大乐透经验策略过滤：允许的前区最大和值，默认 165。"""
+        try:
+            return int(self.get("dlt_filter_max_front_sum", 165))
+        except (ValueError, TypeError):
+            return 165
+
+    @dlt_filter_max_front_sum.setter
+    def dlt_filter_max_front_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 165
+        self.set("dlt_filter_max_front_sum", max(0, min(165, value)))
+
+    # --- 排列3 经验策略过滤参数 ---
+
+    @property
+    def pl3_filter_enabled(self) -> bool:
+        """排列3经验策略过滤：是否启用，默认 False。"""
+        raw = self.get("pl3_filter_enabled", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
+
+    @pl3_filter_enabled.setter
+    def pl3_filter_enabled(self, value: bool) -> None:
+        self.set("pl3_filter_enabled", bool(value))
+
+    @property
+    def pl3_filter_compare_periods(self) -> int:
+        """排列3经验策略过滤：向前比较的历史期数，默认 5。"""
+        try:
+            return int(self.get("pl3_filter_compare_periods", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @pl3_filter_compare_periods.setter
+    def pl3_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("pl3_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def pl3_filter_max_overlap(self) -> int:
+        """排列3经验策略过滤：允许的相同号码最大个数，默认 1。"""
+        try:
+            return int(self.get("pl3_filter_max_overlap", 1))
+        except (ValueError, TypeError):
+            return 1
+
+    @pl3_filter_max_overlap.setter
+    def pl3_filter_max_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 1
+        self.set("pl3_filter_max_overlap", max(0, min(3, value)))
+
+    @property
+    def pl3_filter_min_sum(self) -> int:
+        """排列3经验策略过滤：允许的最小和值，默认 0（不限制）。"""
+        try:
+            return int(self.get("pl3_filter_min_sum", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @pl3_filter_min_sum.setter
+    def pl3_filter_min_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("pl3_filter_min_sum", max(0, min(27, value)))
+
+    @property
+    def pl3_filter_max_sum(self) -> int:
+        """排列3经验策略过滤：允许的最大和值，默认 27（不限制）。"""
+        try:
+            return int(self.get("pl3_filter_max_sum", 27))
+        except (ValueError, TypeError):
+            return 27
+
+    @pl3_filter_max_sum.setter
+    def pl3_filter_max_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 27
+        self.set("pl3_filter_max_sum", max(0, min(27, value)))
+
+    # --- 排列5 经验策略过滤参数 ---
+
+    @property
+    def pl5_filter_enabled(self) -> bool:
+        """排列5经验策略过滤：是否启用，默认 False。"""
+        raw = self.get("pl5_filter_enabled", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
+
+    @pl5_filter_enabled.setter
+    def pl5_filter_enabled(self, value: bool) -> None:
+        self.set("pl5_filter_enabled", bool(value))
+
+    @property
+    def pl5_filter_compare_periods(self) -> int:
+        """排列5经验策略过滤：向前比较的历史期数，默认 5。"""
+        try:
+            return int(self.get("pl5_filter_compare_periods", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @pl5_filter_compare_periods.setter
+    def pl5_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("pl5_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def pl5_filter_max_overlap(self) -> int:
+        """排列5经验策略过滤：允许的相同号码最大个数，默认 2。"""
+        try:
+            return int(self.get("pl5_filter_max_overlap", 2))
+        except (ValueError, TypeError):
+            return 2
+
+    @pl5_filter_max_overlap.setter
+    def pl5_filter_max_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 2
+        self.set("pl5_filter_max_overlap", max(0, min(5, value)))
+
+    @property
+    def pl5_filter_min_sum(self) -> int:
+        """排列5经验策略过滤：允许的最小和值，默认 0（不限制）。"""
+        try:
+            return int(self.get("pl5_filter_min_sum", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @pl5_filter_min_sum.setter
+    def pl5_filter_min_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("pl5_filter_min_sum", max(0, min(45, value)))
+
+    @property
+    def pl5_filter_max_sum(self) -> int:
+        """排列5经验策略过滤：允许的最大和值，默认 45（不限制）。"""
+        try:
+            return int(self.get("pl5_filter_max_sum", 45))
+        except (ValueError, TypeError):
+            return 45
+
+    @pl5_filter_max_sum.setter
+    def pl5_filter_max_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 45
+        self.set("pl5_filter_max_sum", max(0, min(45, value)))
+
+    # --- 7星彩 经验策略过滤参数 ---
+
+    @property
+    def qxc_filter_enabled(self) -> bool:
+        """7星彩经验策略过滤：是否启用，默认 False。"""
+        raw = self.get("qxc_filter_enabled", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
+
+    @qxc_filter_enabled.setter
+    def qxc_filter_enabled(self, value: bool) -> None:
+        self.set("qxc_filter_enabled", bool(value))
+
+    @property
+    def qxc_filter_compare_periods(self) -> int:
+        """7星彩经验策略过滤：向前比较的历史期数，默认 5。"""
+        try:
+            return int(self.get("qxc_filter_compare_periods", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @qxc_filter_compare_periods.setter
+    def qxc_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("qxc_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def qxc_filter_max_overlap(self) -> int:
+        """7星彩经验策略过滤：允许的相同号码最大个数，默认 3。"""
+        try:
+            return int(self.get("qxc_filter_max_overlap", 3))
+        except (ValueError, TypeError):
+            return 3
+
+    @qxc_filter_max_overlap.setter
+    def qxc_filter_max_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 3
+        self.set("qxc_filter_max_overlap", max(0, min(7, value)))
+
+    @property
+    def qxc_filter_min_sum(self) -> int:
+        """7星彩经验策略过滤：允许的最小和值，默认 0（不限制）。"""
+        try:
+            return int(self.get("qxc_filter_min_sum", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @qxc_filter_min_sum.setter
+    def qxc_filter_min_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("qxc_filter_min_sum", max(0, min(63, value)))
+
+    @property
+    def qxc_filter_max_sum(self) -> int:
+        """7星彩经验策略过滤：允许的最大和值，默认 63（不限制）。"""
+        try:
+            return int(self.get("qxc_filter_max_sum", 63))
+        except (ValueError, TypeError):
+            return 63
+
+    @qxc_filter_max_sum.setter
+    def qxc_filter_max_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 63
+        self.set("qxc_filter_max_sum", max(0, min(63, value)))
+
+    # --- 快乐8 经验策略过滤参数 ---
+
+    @property
+    def kl8_filter_enabled(self) -> bool:
+        """快乐8经验策略过滤：是否启用，默认 False。"""
+        raw = self.get("kl8_filter_enabled", False)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"true", "1", "yes", "on"}
+        return bool(raw)
+
+    @kl8_filter_enabled.setter
+    def kl8_filter_enabled(self, value: bool) -> None:
+        self.set("kl8_filter_enabled", bool(value))
+
+    @property
+    def kl8_filter_compare_periods(self) -> int:
+        """快乐8经验策略过滤：向前比较的历史期数，默认 5。"""
+        try:
+            return int(self.get("kl8_filter_compare_periods", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @kl8_filter_compare_periods.setter
+    def kl8_filter_compare_periods(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("kl8_filter_compare_periods", max(0, min(50, value)))
+
+    @property
+    def kl8_filter_max_overlap(self) -> int:
+        """快乐8经验策略过滤：允许的最大重合个数，默认 5。"""
+        try:
+            return int(self.get("kl8_filter_max_overlap", 5))
+        except (ValueError, TypeError):
+            return 5
+
+    @kl8_filter_max_overlap.setter
+    def kl8_filter_max_overlap(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 5
+        self.set("kl8_filter_max_overlap", max(0, min(20, value)))
+
+    @property
+    def kl8_filter_min_sum(self) -> int:
+        """快乐8经验策略过滤：允许的最小和值，默认 0（不限制）。"""
+        try:
+            return int(self.get("kl8_filter_min_sum", 0))
+        except (ValueError, TypeError):
+            return 0
+
+    @kl8_filter_min_sum.setter
+    def kl8_filter_min_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 0
+        self.set("kl8_filter_min_sum", max(0, min(800, value)))
+
+    @property
+    def kl8_filter_max_sum(self) -> int:
+        """快乐8经验策略过滤：允许的最大和值，默认 800（不限制）。"""
+        try:
+            return int(self.get("kl8_filter_max_sum", 800))
+        except (ValueError, TypeError):
+            return 800
+
+    @kl8_filter_max_sum.setter
+    def kl8_filter_max_sum(self, value: int) -> None:
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = 800
+        self.set("kl8_filter_max_sum", max(0, min(800, value)))
 
     @property
     def last_backtest_options(self) -> dict:
