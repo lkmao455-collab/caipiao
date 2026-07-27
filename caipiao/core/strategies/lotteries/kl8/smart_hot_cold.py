@@ -24,7 +24,6 @@ from ._base import (
 from .stability import (
     MAIN_POOL,
     chi_square_uniform_test,
-    deterministic_seed,
     frequency_counts,
     geometric_missing_zscore,
     raw_missing_periods,
@@ -107,7 +106,7 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         cold_weight = int(options.get("cold_weight", 40))
         temperature = int(options.get("temperature", 10)) / 10.0
         pick = _get_pick_count(options, default_pick=DEFAULT_PICK_COUNT)
-        rng = self._make_rng(options, records, lookback)
+        rng = self._make_rng(options)
         primary = PROFILE.primary_group
 
         # 热号信号: 拉普拉斯平滑后的号码概率分布
@@ -132,6 +131,7 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         basis = (
             f"智能冷热号策略：lookback={lookback}，热权重={hot_weight}，"
             f"冷权重={cold_weight}，温度={temperature}，选{pick}。"
+            f"每期加权随机预测20个候选号码，购买号码从中选取。"
         )
         if is_uniform:
             basis += (
@@ -160,37 +160,46 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         max_attempts = count * 50 if dedup else 1
         for _ in range(count):
             selected: Optional[List[int]] = None
+            predicted_sorted: Optional[List[int]] = None
             for _attempt in range(max_attempts):
+                # 预测20个候选号码（加权随机，每次不同），
+                # 购买号码从候选中按权重再选 pick 个
+                predicted = weighted_sample_without_replacement(
+                    rng, MAIN_POOL, probabilities, 20
+                )
+                pred_weights = [probabilities[n - 1] for n in predicted]
                 chosen = weighted_sample_without_replacement(
-                    rng, MAIN_POOL, probabilities, pick
+                    rng, predicted, pred_weights, pick
                 )
                 chosen_sorted = sorted(chosen)
                 if not dedup or tuple(chosen_sorted) not in seen:
                     if dedup:
                         seen.add(tuple(chosen_sorted))
                     selected = chosen_sorted
+                    predicted_sorted = sorted(predicted)
                     break
             if selected is None:
                 # 兜底: 均匀随机抽样（不应常见，仅在 dedup 候选耗尽时触发）
                 selected = sorted(rng.sample(MAIN_POOL, pick))
             groups: Dict[str, List[int]] = {primary.key: selected}
             self._fill_random_other(groups, rng)
+            ticket_details = copy.deepcopy(details)
+            if predicted_sorted is not None:
+                ticket_details["prediction"] = predicted_sorted
             tickets.append(
                 _make_ticket(
                     groups, strategy_name=self.metadata.name, basis=basis,
-                    details=copy.deepcopy(details),
+                    details=ticket_details,
                 )
             )
         return tickets
 
-    def _make_rng(
-        self, options: Dict[str, Any], records: list, lookback: int
-    ) -> random.Random:
-        """无用户 seed 时基于历史内容派生确定性 seed，保证可复现。"""
-        seed = deterministic_seed(
-            options, records, lookback, self.metadata.id
-        )
-        return random.Random(seed)
+    def _make_rng(self, options: Dict[str, Any]) -> random.Random:
+        """用户显式设置 seed 时可复现；未设置时真随机，每次生成结果不同。"""
+        seed = options.get("seed")
+        if seed is not None:
+            return random.Random(int(seed))
+        return random.Random()
 
     def _fill_random_other(self, groups: Dict[str, List[int]], rng: random.Random) -> None:
         for g in PROFILE.pick_groups:

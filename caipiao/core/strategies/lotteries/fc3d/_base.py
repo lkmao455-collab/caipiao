@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 import random
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from ....profile import get_profile
@@ -22,13 +23,29 @@ def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
     for r in history:
         if isinstance(r, DrawRecord):
             records.append(r)
-        else:
+        elif isinstance(r, dict):
+            # 处理字典格式的历史记录
+            draw_date = r.get("draw_date")
+            if isinstance(draw_date, str):
+                draw_date = datetime.strptime(draw_date, "%Y-%m-%d")
+            elif not isinstance(draw_date, datetime):
+                draw_date = datetime.now()
             records.append(
                 DrawRecord(
-                    issue="",
-                    draw_date=r.generated_at,
-                    profile=r.profile.key,
-                    groups=r.groups,
+                    issue=r.get("issue", ""),
+                    draw_date=draw_date,
+                    profile=r.get("profile", "3d"),
+                    groups=r.get("groups", {}),
+                )
+            )
+        else:
+            # 处理对象格式的历史记录（向后兼容）
+            records.append(
+                DrawRecord(
+                    issue=getattr(r, "issue", ""),
+                    draw_date=getattr(r, "draw_date", datetime.now()),
+                    profile=getattr(r, "profile", None),
+                    groups=getattr(r, "groups", {}),
                 )
             )
     return records

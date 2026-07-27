@@ -1,6 +1,11 @@
-"""双色球智能冷热号策略.
+"""双色球智能冷热号策略（增强版）.
 
-综合考虑号码出现频率和遗漏值，给每个号码打分后加权随机选取。
+移植福彩3D的数学框架到双色球：
+- 拉普拉斯平滑频率（热号信号）
+- 几何分布 z-score 遗漏检验（冷号信号，避免赌徒谬误）
+- χ² 均匀性检验守卫（判断冷热信号是否有统计学意义）
+- z-score 标准化 + 温度控制 softmax（概率融合）
+- Gumbel-max 无放回采样（保持分布形状的高效去重）
 """
 
 from __future__ import annotations
@@ -8,17 +13,39 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List, Optional
 
-from .....data.analyzer import LotteryAnalyzer
 from ....profile import SSQ
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
 from ...common.records import records_from_options
+from .stability import (
+    RED_POOL,
+    BLUE_POOL,
+    chi_square_uniform_test,
+    deterministic_seed,
+    geometric_blue_missing_zscore,
+    geometric_missing_zscore,
+    raw_blue_missing_periods,
+    raw_missing_periods,
+    stable_blue_frequency,
+    stable_blue_scores,
+    stable_frequency,
+    stable_scores,
+    weighted_sample_reds,
+)
 
 
 class SSQSmartHotColdStrategy(GenerationStrategy):
-    """智能冷热分析策略.
+    """双色球智能冷热号（增强版）.
 
-    基于历史开奖数据，综合热号频率和冷号遗漏值生成号码。
+    数学原理：
+    1. 热号信号：拉普拉斯平滑后的出现频率概率
+    2. 冷号信号：原始遗漏期数 → 几何分布 z-score
+       在均匀假设(p=1/33)下 E[X]=32, σ≈5.63
+       z > 1.96 才算 95% 置信的统计显著偏冷，避免赌徒谬误
+    3. χ² 均匀性检验：判断红球/蓝球频率是否显著偏离均匀分布
+       若均匀，冷热信号较弱（频率波动在噪声范围内）
+    4. z-score 标准化 + 温度控制 softmax 融合热分和冷分
+    5. Gumbel-max 无放回采样选取 6 个红球，保持概率分布形状
     """
 
     @property
@@ -57,10 +84,18 @@ class SSQSmartHotColdStrategy(GenerationStrategy):
             "lookback": {
                 "type": "int",
                 "label": "统计期数",
-                "default": 100,
-                "min": 10,
+                "default": 200,
+                "min": 1,
                 "max": 10000,
                 "tooltip": "用于统计冷热号的最近期数。期数过少容易受噪声影响，过多则反应迟缓。",
+            },
+            "temperature": {
+                "type": "int",
+                "label": "温度(x0.1)",
+                "default": 10,
+                "min": 1,
+                "max": 50,
+                "tooltip": "控制号码集中程度。10=标准平衡，1=高度集中（强烈偏向热/冷号），50=接近随机均匀分布。",
             },
             "seed": {
                 "type": "int",
@@ -74,79 +109,104 @@ class SSQSmartHotColdStrategy(GenerationStrategy):
 
     def validate_options(self, options: Dict[str, Any]) -> None:
         records = records_from_options(options)
-        if not records:
-            raise ValueError("智能冷热号策略需要历史开奖数据，请先更新数据")
+        if len(records) < 20:
+            raise ValueError("智能冷热号策略需要至少 20 期历史数据")
 
     def generate(
         self, count: int = 1, options: Optional[Dict[str, Any]] = None
     ) -> List[Ticket]:
         options = options or {}
+        self.validate_options(options)
         records = records_from_options(options)
+        lookback = int(options.get("lookback", 200))
         hot_weight = int(options.get("hot_weight", 60))
         cold_weight = int(options.get("cold_weight", 40))
-        lookback = int(options.get("lookback", 100))
+        temperature = int(options.get("temperature", 10)) / 10.0
         seed = options.get("seed")
-        rng = random.Random(seed) if seed is not None else random.Random()
+        rng = random.Random(deterministic_seed(options, records, lookback, self.metadata.id))
 
-        analyzer = LotteryAnalyzer(records)
+        # === 红球分析 ===
 
-        # Build red scores
-        red_scores: Dict[int, float] = {n: 0.0 for n in range(1, 34)}
+        # 热号信号: 拉普拉斯平滑后的频率概率
+        red_freq = stable_frequency(records, lookback)
 
-        # Hot score based on frequency
-        freq = analyzer.red_frequency(lookback)
-        max_freq = max(freq.values()) if freq else 1
-        for n, f in freq.items():
-            red_scores[n] += hot_weight * (f / max_freq)
+        # 冷号信号: 原始遗漏期数 → 几何分布 z-score
+        red_raw_missing = raw_missing_periods(records, lookback)
+        red_geo_z = geometric_missing_zscore(red_raw_missing)
 
-        # Cold score based on missing value (higher missing = higher score)
-        missing = dict(analyzer.missing_reds(lookback))
-        max_missing = max(missing.values()) if missing else 1
-        for n, m in missing.items():
-            red_scores[n] += cold_weight * (m / max_missing)
+        # χ² 均匀性检验
+        red_counter = {n: 0 for n in RED_POOL}
+        for r in records[-lookback:]:
+            for n in r.groups.get("red", []):
+                if n in red_counter:
+                    red_counter[n] += 1
+        red_counts = [red_counter[n] for n in RED_POOL]
+        red_chi2, red_is_uniform = chi_square_uniform_test(red_counts)
 
-        # Normalize to weights
-        min_score = min(red_scores.values())
-        weights = [max(0.1, red_scores[n] - min_score + 1.0) for n in range(1, 34)]
-
-        # Build blue scores similarly
-        blue_scores: Dict[int, float] = {n: 0.0 for n in range(1, 17)}
-        blue_freq = analyzer.blue_frequency(lookback)
-        max_blue_freq = max(blue_freq.values()) if blue_freq else 1
-        for n, f in blue_freq.items():
-            blue_scores[n] += hot_weight * (f / max_blue_freq)
-
-        blue_missing = dict(analyzer.missing_blues(lookback))
-        max_blue_missing = max(blue_missing.values()) if blue_missing else 1
-        for n, m in blue_missing.items():
-            blue_scores[n] += cold_weight * (m / max_blue_missing)
-
-        min_blue_score = min(blue_scores.values())
-        blue_weights = [max(0.1, blue_scores[n] - min_blue_score + 1.0) for n in range(1, 17)]
-
-        basis = (
-            f"智能冷热号策略：综合最近 {lookback} 期热号频率（权重 {hot_weight}）"
-            f"与冷号遗漏值（权重 {cold_weight}）加权评分后随机抽取。"
-            f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
+        # 融合热分和冷分 → softmax 概率分布
+        red_probs = stable_scores(
+            red_freq, red_geo_z, hot_weight, cold_weight, temperature
         )
+
+        # === 蓝球分析 ===
+
+        blue_freq = stable_blue_frequency(records, lookback)
+        blue_raw_missing = raw_blue_missing_periods(records, lookback)
+        blue_geo_z = geometric_blue_missing_zscore(blue_raw_missing)
+
+        blue_counter = {n: 0 for n in BLUE_POOL}
+        for r in records[-lookback:]:
+            for n in r.groups.get("blue", []):
+                if n in blue_counter:
+                    blue_counter[n] += 1
+        blue_counts = [blue_counter[n] for n in BLUE_POOL]
+        blue_chi2, blue_is_uniform = chi_square_uniform_test(blue_counts)
+
+        blue_probs = stable_blue_scores(
+            blue_freq, blue_geo_z, hot_weight, cold_weight, temperature
+        )
+
+        # === 构建说明文本 ===
+        basis = (
+            f"智能冷热号策略：lookback={lookback}，热权重={hot_weight}，"
+            f"冷权重={cold_weight}，温度={temperature}。"
+        )
+        if red_is_uniform and blue_is_uniform:
+            basis += (
+                "χ²检验显示红球/蓝球接近均匀分布（频率波动在统计噪声范围内），"
+                "冷热信号较弱。"
+            )
+        else:
+            parts = []
+            if not red_is_uniform:
+                parts.append("红球")
+            if not blue_is_uniform:
+                parts.append("蓝球")
+            basis += f"χ²检验显示{'/'.join(parts)}显著偏离均匀分布，冷热信号有效。"
+        basis += "注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
+        details: Dict[str, Any] = {
+            "red_chi_square": round(red_chi2, 2),
+            "red_is_uniform": red_is_uniform,
+            "blue_chi_square": round(blue_chi2, 2),
+            "blue_is_uniform": blue_is_uniform,
+            "cold_signal": "geometric_zscore",
+        }
+
+        # === 生成号码 ===
         tickets: List[Ticket] = []
-        reds = list(range(1, 34))
-        blues = list(range(1, 17))
         for _ in range(count):
-            selected = sorted(rng.choices(reds, weights=weights, k=6))
-            # Ensure no duplicates; if any, re-sample
-            while len(set(selected)) < 6:
-                selected = sorted(rng.choices(reds, weights=weights, k=6))
-            blue = rng.choices(blues, weights=blue_weights, k=1)[0]
+            reds = weighted_sample_reds(red_probs, 6, rng)
+            blue = rng.choices(BLUE_POOL, weights=blue_probs, k=1)[0]
             tickets.append(
                 Ticket(
                     profile=SSQ,
-                    groups={"red": selected, "blue": [blue]},
+                    groups={"red": reds, "blue": [blue]},
                     strategy_name=self.metadata.name,
                     basis=basis,
+                    details=details.copy(),
                 )
             )
         return tickets
