@@ -35,7 +35,9 @@ class TestTicketConstruction:
         assert ticket.groups["pos"] == [3, 2, 1]
 
     def test_qlc_construction(self):
-        ticket = Ticket(profile="qlc", groups={"basic": [1, 2, 3, 4, 5, 6, 7]})
+        # 七乐彩已停售：不加入 PROFILES，故 get_profile("qlc") 会回退双色球；
+        # 此处直接用 QLC 档案对象构造，验证该彩种投注单模型本身仍然可用。
+        ticket = Ticket(profile=QLC, groups={"basic": [1, 2, 3, 4, 5, 6, 7]})
         assert ticket.profile.key == "qlc"
         assert len(ticket.groups["basic"]) == 7
 

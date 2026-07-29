@@ -145,8 +145,10 @@ class TestProfiles:
         assert get_profile("unknown").key == "ssq"
 
     def test_list_profiles_count(self):
+        # 七乐彩按用户要求已从导航下架（NAV_HIDDEN_PROFILE_KEYS={"qlc"}），
+        # 故 list_profiles 仅返回 7 个可见彩种，而非 8 个。
         profiles = list_profiles()
-        assert len(profiles) >= 8
+        assert len(profiles) == 7
 
     def test_profile_keys(self):
         keys = profile_keys()
