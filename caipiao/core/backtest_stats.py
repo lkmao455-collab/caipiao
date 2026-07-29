@@ -222,15 +222,6 @@ def _calculate_hits(
         draw_pos = draw_record.groups.get("pos", [])
         hits["pos"] = sum(1 for t, d in zip(ticket_pos, draw_pos) if t == d)
 
-    elif profile_key == "qlc":
-        ticket_basic = set(ticket.groups.get("basic", []))
-        draw_basic = set(draw_record.groups.get("basic", []))
-        hits["basic"] = len(ticket_basic & draw_basic)
-
-        ticket_special = ticket.groups.get("special", [])
-        draw_special = draw_record.groups.get("special", [])
-        hits["special"] = 1 if (ticket_special and draw_special and ticket_special[0] in draw_special) else 0
-
     elif profile_key == "kl8":
         ticket_main = set(ticket.groups.get("main", []))
         draw_main = set(draw_record.groups.get("main", []))

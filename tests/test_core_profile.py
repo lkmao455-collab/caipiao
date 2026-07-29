@@ -3,11 +3,10 @@
 import pytest
 
 from caipiao.core.profile import (
-    SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC,
+    SSQ, FC3D, KL8, DLT, PL3, PL5, QXC,
     NumberGroup, LotteryProfile,
     get_profile, list_profiles, profile_keys,
     list_profiles_by_category, category_label,
-    NAV_HIDDEN_PROFILE_KEYS,
     LOTTERY_CATEGORY_WELFARE, LOTTERY_CATEGORY_SPORTS,
 )
 
@@ -94,12 +93,6 @@ class TestLotteryProfile:
         picks = SSQ.pick_groups
         assert all(not g.draw_only for g in picks)
 
-    def test_qlc_pick_groups_excludes_special(self):
-        picks = QLC.pick_groups
-        keys = [g.key for g in picks]
-        assert "basic" in keys
-        assert "special" not in keys
-
     def test_primary_group_ssq(self):
         assert SSQ.primary_group.key == "red"
 
@@ -145,8 +138,7 @@ class TestProfiles:
         assert get_profile("unknown").key == "ssq"
 
     def test_list_profiles_count(self):
-        # 七乐彩按用户要求已从导航下架（NAV_HIDDEN_PROFILE_KEYS={"qlc"}），
-        # 故 list_profiles 仅返回 7 个可见彩种，而非 8 个。
+        # 当前共 7 个支持彩种（双色球/福彩3D/快乐8/大乐透/排列3/排列5/七星彩）。
         profiles = list_profiles()
         assert len(profiles) == 7
 
@@ -167,9 +159,6 @@ class TestProfiles:
 
     def test_category_label_unknown(self):
         assert category_label("unknown") == "unknown"
-
-    def test_nav_hidden(self):
-        assert "qlc" in NAV_HIDDEN_PROFILE_KEYS
 
     def test_all_profiles_have_groups(self):
         for p in list_profiles():

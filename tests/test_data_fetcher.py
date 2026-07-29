@@ -2,7 +2,7 @@
 
 import pytest
 
-from caipiao.core.profile import SSQ, FC3D, QLC
+from caipiao.core.profile import SSQ, FC3D
 from caipiao.data.fetcher import LotteryDataFetcher
 
 

@@ -118,9 +118,9 @@ def test_per_profile_methods(settings):
 # 设置页原始键 current_lottery
 # --------------------------------------------------------------------------- #
 def test_current_lottery_raw_key(settings):
-    settings.set("current_lottery", "qlc")
+    settings.set("current_lottery", "ssq")
     settings.sync()
-    assert settings.get("current_lottery", "") == "qlc"
+    assert settings.get("current_lottery", "") == "ssq"
 
 
 # --------------------------------------------------------------------------- #

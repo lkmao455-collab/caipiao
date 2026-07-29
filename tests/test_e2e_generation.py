@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from caipiao.core.engine import GenerationEngine
-from caipiao.core.profile import SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC
+from caipiao.core.profile import SSQ, FC3D, KL8, DLT, PL3, PL5, QXC
 from caipiao.core.strategies.factory import build_strategies
 from caipiao.core.ticket import Ticket
 from caipiao.data.models import DrawRecord
@@ -105,23 +105,9 @@ def _make_qxc_records(count=100):
     return records
 
 
-def _make_qlc_records(count=100):
-    records = []
-    for i in range(count):
-        basic = sorted([(i + j) % 30 + 1 for j in range(7)])
-        records.append(DrawRecord(
-            issue=f"2024{i + 1:03d}",
-            draw_date=datetime(2024, 1, 1) + timedelta(days=i),
-            profile="qlc",
-            groups={"basic": basic, "special": [(i % 30) + 1]},
-        ))
-    return records
-
-
 RECORD_MAKERS = {
     "ssq": _make_ssq_records,
     "3d": _make_3d_records,
-    "qlc": _make_qlc_records,
     "kl8": _make_kl8_records,
     "dlt": _make_dlt_records,
     "pl3": _make_pl3_records,

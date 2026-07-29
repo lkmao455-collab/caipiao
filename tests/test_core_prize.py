@@ -7,7 +7,6 @@ from caipiao.core.prize import (
     fc3d_bet_type,
     _ssq_prize,
     _fc3d_prize,
-    _qlc_prize,
     _kl8_prize,
     _dlt_prize,
     _pl3_prize,
@@ -100,46 +99,6 @@ class TestFC3DPrize:
         hits = {}
         ticket_groups = {"pos": [1, 2, 3]}
         level, amount = _fc3d_prize(hits, ticket_groups, None)
-        assert level == "未中奖"
-        assert amount == 0
-
-
-class TestQLCPrize:
-    """七乐彩奖金测试."""
-
-    def test_first_prize(self):
-        hits = {"basic": 7, "special": 0}
-        level, amount = _qlc_prize(hits)
-        assert level == "一等奖"
-        assert amount is None
-
-    def test_second_prize(self):
-        hits = {"basic": 6, "special": 1}
-        level, amount = _qlc_prize(hits)
-        assert level == "二等奖"
-        assert amount is None
-
-    def test_third_prize(self):
-        hits = {"basic": 6, "special": 0}
-        level, amount = _qlc_prize(hits)
-        assert level == "三等奖"
-        assert amount is None
-
-    def test_fourth_prize(self):
-        hits = {"basic": 5, "special": 1}
-        level, amount = _qlc_prize(hits)
-        assert level == "四等奖"
-        assert amount == 200
-
-    def test_fifth_prize(self):
-        hits = {"basic": 5, "special": 0}
-        level, amount = _qlc_prize(hits)
-        assert level == "五等奖"
-        assert amount == 50
-
-    def test_no_prize(self):
-        hits = {"basic": 0, "special": 0}
-        level, amount = _qlc_prize(hits)
         assert level == "未中奖"
         assert amount == 0
 

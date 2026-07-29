@@ -7,7 +7,6 @@ import pytest
 from caipiao.core.engine import (
     filter_ssq_by_history,
     filter_fc3d_by_history,
-    filter_qlc_by_history,
     filter_dlt_by_history,
     estimate_fc3d_pass_count,
     fc3d_filtered_gen_count,
@@ -44,19 +43,6 @@ def _make_3d_draw(nums, days_ago=0):
 
 def _make_3d_ticket(nums):
     return Ticket(profile="3d", groups={"pos": nums})
-
-
-def _make_qlc_draw(basic, days_ago=0):
-    return DrawRecord(
-        issue=f"2024001",
-        draw_date=datetime(2024, 1, 1) + timedelta(days=days_ago),
-        profile="qlc",
-        groups={"basic": basic, "special": [30]},
-    )
-
-
-def _make_qlc_ticket(basic):
-    return Ticket(profile="qlc", groups={"basic": basic})
 
 
 def _make_dlt_draw(front, back, days_ago=0):
@@ -230,60 +216,6 @@ class TestFC3DFilteredGenCount:
         gen, _ = fc3d_filtered_gen_count(1000, [], compare_periods=0, max_overlap=1)
         assert gen >= 1000 * 3
 
-
-# ---- QLC Filter Tests ----
-
-class TestFilterQLCByHistory:
-    """七乐彩经验策略过滤测试."""
-
-    def test_empty_tickets(self):
-        result = filter_qlc_by_history([], [])
-        assert result == []
-
-    def test_empty_records(self):
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [])
-        assert len(result) == 1
-
-    def test_no_overlap_keeps(self):
-        hist = _make_qlc_draw([10, 11, 12, 13, 14, 15, 16], days_ago=0)
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [hist], compare_periods=1, max_overlap=2)
-        assert len(result) == 1
-
-    def test_overlap_discards(self):
-        hist = _make_qlc_draw([1, 2, 3, 4, 5, 6, 7], days_ago=0)
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [hist], compare_periods=1, max_overlap=2)
-        assert len(result) == 0
-
-    def test_sum_too_high(self):
-        t1 = _make_qlc_ticket([24, 25, 26, 27, 28, 29, 30])
-        result = filter_qlc_by_history([t1], [], min_sum=0, max_sum=150)
-        assert len(result) == 0
-
-    def test_sum_too_low(self):
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [], min_sum=50, max_sum=210)
-        assert len(result) == 0
-
-    def test_compare_periods_zero_no_filter(self):
-        hist = _make_qlc_draw([1, 2, 3, 4, 5, 6, 7], days_ago=0)
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [hist], compare_periods=0, max_overlap=2)
-        assert len(result) == 1
-
-    def test_exactly_at_limit_keeps(self):
-        hist = _make_qlc_draw([1, 2, 10, 11, 12, 13, 14], days_ago=0)
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [hist], compare_periods=1, max_overlap=2)
-        assert len(result) == 1
-
-    def test_one_over_limit_discards(self):
-        hist = _make_qlc_draw([1, 2, 3, 4, 10, 11, 12], days_ago=0)
-        t1 = _make_qlc_ticket([1, 2, 3, 4, 5, 6, 7])
-        result = filter_qlc_by_history([t1], [hist], compare_periods=1, max_overlap=2)
-        assert len(result) == 0
 
 
 # ---- DLT Filter Tests ----

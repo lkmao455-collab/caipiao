@@ -184,67 +184,7 @@ class StrategyPanel(QWidget):
         self.layout.addWidget(self.filter_fc3d_group)
         self.filter_fc3d_group.setVisible(False)
 
-        # 七乐彩 经验策略参数（参照福彩3D）
-        self.filter_qlc_group = QGroupBox("经验策略参数")
-        filter_qlc_layout = QFormLayout(self.filter_qlc_group)
-        filter_qlc_layout.setSpacing(8)
-
-        self.qlc_filter_enable_check = QCheckBox("启用经验策略过滤")
-        self.qlc_filter_enable_check.setChecked(self._settings.qlc_filter_enabled)
-        self.qlc_filter_enable_check.setToolTip(
-            "开启后将新生成的号码与最近若干期开奖基本号比较；\n"
-            "只要与任一期重合的号码数超过允许上限，就放弃该号码。"
-        )
-        self.qlc_filter_enable_check.stateChanged.connect(self._on_filter_qlc_changed)
-        filter_qlc_layout.addRow(self.qlc_filter_enable_check)
-
-        self.qlc_compare_spin = QSpinBox()
-        self.qlc_compare_spin.setRange(0, 50)
-        self.qlc_compare_spin.setMinimumWidth(60)
-        self.qlc_compare_spin.setValue(self._settings.qlc_filter_compare_periods)
-        self.qlc_compare_spin.setToolTip(
-            "向前比较的历史开奖期数。例如 2 表示分别与前一期、前两期比较。"
-        )
-        self.qlc_compare_spin.valueChanged.connect(self._on_filter_qlc_changed)
-        filter_qlc_layout.addRow("对比期数:", self.qlc_compare_spin)
-
-        self.qlc_max_overlap_spin = QSpinBox()
-        self.qlc_max_overlap_spin.setRange(0, 7)
-        self.qlc_max_overlap_spin.setMinimumWidth(60)
-        self.qlc_max_overlap_spin.setValue(self._settings.qlc_filter_max_overlap)
-        self.qlc_max_overlap_spin.setToolTip(
-            "允许与某期开奖基本号重合的号码最大个数。\n"
-            "若新生成号码与任一期重合数多于该值，则放弃该号码。"
-        )
-        self.qlc_max_overlap_spin.valueChanged.connect(self._on_filter_qlc_changed)
-        filter_qlc_layout.addRow("允许重合号码数:", self.qlc_max_overlap_spin)
-
-        self.qlc_min_sum_spin = QSpinBox()
-        self.qlc_min_sum_spin.setRange(0, 210)
-        self.qlc_min_sum_spin.setMinimumWidth(60)
-        self.qlc_min_sum_spin.setValue(self._settings.qlc_filter_min_sum)
-        self.qlc_min_sum_spin.setToolTip(
-            "7 个基本号之和的下限，小于该值的号码将被过滤（0=不限制）。\n"
-            "理论最小和值为 28（1+2+...+7）。"
-        )
-        self.qlc_min_sum_spin.valueChanged.connect(self._on_filter_qlc_changed)
-        filter_qlc_layout.addRow("最小和值:", self.qlc_min_sum_spin)
-
-        self.qlc_max_sum_spin = QSpinBox()
-        self.qlc_max_sum_spin.setRange(0, 210)
-        self.qlc_max_sum_spin.setMinimumWidth(60)
-        self.qlc_max_sum_spin.setValue(self._settings.qlc_filter_max_sum)
-        self.qlc_max_sum_spin.setToolTip(
-            "7 个基本号之和的上限，大于该值的号码将被过滤（210=不限制）。\n"
-            "理论最大和值为 189（24+25+...+30）。"
-        )
-        self.qlc_max_sum_spin.valueChanged.connect(self._on_filter_qlc_changed)
-        filter_qlc_layout.addRow("最大和值:", self.qlc_max_sum_spin)
-
-        self.layout.addWidget(self.filter_qlc_group)
-        self.filter_qlc_group.setVisible(False)
-
-        # 大乐透 经验策略参数（参照七乐彩）
+        # 大乐透 经验策略参数
         self.filter_dlt_group = QGroupBox("经验策略参数")
         filter_dlt_layout = QFormLayout(self.filter_dlt_group)
         filter_dlt_layout.setSpacing(8)
@@ -492,7 +432,7 @@ class StrategyPanel(QWidget):
         self.layout.addWidget(self.filter_qxc_group)
         self.filter_qxc_group.setVisible(False)
 
-        # 快乐8 经验策略参数（参照七乐彩）
+        # 快乐8 经验策略参数
         self.filter_kl8_group = QGroupBox("经验策略参数")
         filter_kl8_layout = QFormLayout(self.filter_kl8_group)
         filter_kl8_layout.setSpacing(8)
@@ -623,7 +563,7 @@ class StrategyPanel(QWidget):
         #   self._profile_key 为准，确保针对双色球/大乐透/快乐8等不同彩种
         #   显示对应的过滤设置，而不是永远显示双色球过滤。
         _LOTTERY_SUFFIXES = {
-            "_3d": "3d", "_qlc": "qlc", "_kl8": "kl8", "_dlt": "dlt",
+            "_3d": "3d", "_kl8": "kl8", "_dlt": "dlt",
             "_pl3": "pl3", "_pl5": "pl5", "_qxc": "qxc", "_gd36x7": "gd36x7",
         }
         filter_pk = self._profile_key  # 通用策略（含八卦占卜）按当前彩种
@@ -633,7 +573,6 @@ class StrategyPanel(QWidget):
                 break
         self.filter_ssq_group.setVisible(filter_pk == "ssq")
         self.filter_fc3d_group.setVisible(filter_pk == "3d")
-        self.filter_qlc_group.setVisible(filter_pk == "qlc")
         self.filter_dlt_group.setVisible(filter_pk == "dlt")
         self.filter_pl3_group.setVisible(filter_pk == "pl3")
         self.filter_pl5_group.setVisible(filter_pk == "pl5")
@@ -655,15 +594,6 @@ class StrategyPanel(QWidget):
         self._settings.fc3d_filter_max_overlap = self.fc3d_max_overlap_spin.value()
         self._settings.fc3d_filter_min_sum = self.fc3d_min_sum_spin.value()
         self._settings.fc3d_filter_max_sum = self.fc3d_max_sum_spin.value()
-        self._settings.sync()
-
-    def _on_filter_qlc_changed(self, _=None) -> None:
-        """七乐彩经验策略过滤参数变化时保存到 QSettings."""
-        self._settings.qlc_filter_enabled = self.qlc_filter_enable_check.isChecked()
-        self._settings.qlc_filter_compare_periods = self.qlc_compare_spin.value()
-        self._settings.qlc_filter_max_overlap = self.qlc_max_overlap_spin.value()
-        self._settings.qlc_filter_min_sum = self.qlc_min_sum_spin.value()
-        self._settings.qlc_filter_max_sum = self.qlc_max_sum_spin.value()
         self._settings.sync()
 
     def _on_filter_dlt_changed(self, _=None) -> None:

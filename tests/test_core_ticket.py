@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from caipiao.core.profile import SSQ, FC3D, QLC, KL8, DLT, get_profile
+from caipiao.core.profile import SSQ, FC3D, KL8, DLT, get_profile
 from caipiao.core.ticket import Ticket
 
 
@@ -33,13 +33,6 @@ class TestTicketConstruction:
     def test_fc3d_positional_no_sort(self):
         ticket = Ticket(profile="3d", groups={"pos": [3, 2, 1]})
         assert ticket.groups["pos"] == [3, 2, 1]
-
-    def test_qlc_construction(self):
-        # 七乐彩已停售：不加入 PROFILES，故 get_profile("qlc") 会回退双色球；
-        # 此处直接用 QLC 档案对象构造，验证该彩种投注单模型本身仍然可用。
-        ticket = Ticket(profile=QLC, groups={"basic": [1, 2, 3, 4, 5, 6, 7]})
-        assert ticket.profile.key == "qlc"
-        assert len(ticket.groups["basic"]) == 7
 
     def test_kl8_construction(self):
         ticket = Ticket(profile="kl8", groups={"main": [1, 2, 3, 4, 5]})

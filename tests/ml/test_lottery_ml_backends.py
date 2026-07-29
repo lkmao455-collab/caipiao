@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from caipiao.core.profile import DLT, FC3D, KL8, PL3, PL5, QLC, QXC, LotteryProfile
+from caipiao.core.profile import DLT, FC3D, KL8, PL3, PL5, QXC, LotteryProfile
 from caipiao.data.models import DrawRecord
 from caipiao.ml.lotteries.dlt import DLTPredictor
 from caipiao.ml.lotteries.dlt import build_features as dlt_build_features
@@ -39,12 +39,6 @@ from caipiao.ml.lotteries.pl5 import build_prediction_features as pl5_build_pred
 from caipiao.ml.lotteries.pl5.models.catboost import PL5CatBoostModel
 from caipiao.ml.lotteries.pl5.models.lightgbm import PL5LightGBMModel
 from caipiao.ml.lotteries.pl5.models.xgboost import PL5XGBoostModel
-from caipiao.ml.lotteries.qlc import QLCPredictor
-from caipiao.ml.lotteries.qlc import build_features as qlc_build_features
-from caipiao.ml.lotteries.qlc import build_prediction_features as qlc_build_prediction_features
-from caipiao.ml.lotteries.qlc.models.catboost import QLCCatBoostModel
-from caipiao.ml.lotteries.qlc.models.lightgbm import QLCLightGBMModel
-from caipiao.ml.lotteries.qlc.models.xgboost import QLCXGBoostModel
 from caipiao.ml.lotteries.qxc import QXCPredictor
 from caipiao.ml.lotteries.qxc import build_features as qxc_build_features
 from caipiao.ml.lotteries.qxc import build_prediction_features as qxc_build_prediction_features
@@ -100,7 +94,6 @@ LOOKBACK = 50
     "profile, build_features",
     [
         (FC3D, fc3d_build_features),
-        (QLC, qlc_build_features),
         (DLT, dlt_build_features),
         (PL3, pl3_build_features),
         (PL5, pl5_build_features),
@@ -121,7 +114,6 @@ def test_build_features_returns_x_and_y_dict(profile, build_features):
     "profile, build_features, build_prediction_features",
     [
         (FC3D, fc3d_build_features, fc3d_build_prediction_features),
-        (QLC, qlc_build_features, qlc_build_prediction_features),
         (DLT, dlt_build_features, dlt_build_prediction_features),
         (PL3, pl3_build_features, pl3_build_prediction_features),
         (PL5, pl5_build_features, pl5_build_prediction_features),
@@ -144,7 +136,6 @@ def test_build_prediction_features_shape(profile, build_features, build_predicti
     "profile, predictor_cls",
     [
         (FC3D, FC3DPredictor),
-        (QLC, QLCPredictor),
         (DLT, DLTPredictor),
         (PL3, PL3Predictor),
         (PL5, PL5Predictor),
@@ -174,7 +165,6 @@ def test_predictor_predict_and_recommend(profile, predictor_cls, model_dir):
     "profile, predictor_cls",
     [
         (FC3D, FC3DPredictor),
-        (QLC, QLCPredictor),
         (DLT, DLTPredictor),
         (PL3, PL3Predictor),
         (PL5, PL5Predictor),
@@ -190,7 +180,6 @@ def test_predictor_pins_profile(profile, predictor_cls):
     "profile, predictor_cls",
     [
         (FC3D, FC3DPredictor),
-        (QLC, QLCPredictor),
         (DLT, DLTPredictor),
         (PL3, PL3Predictor),
         (PL5, PL5Predictor),
@@ -216,7 +205,6 @@ def test_predictor_all_tree_backends(profile, predictor_cls, backend, model_dir)
     "profile, model_classes",
     [
         (FC3D, [FC3DXGBoostModel, FC3DLightGBMModel, FC3DCatBoostModel]),
-        (QLC, [QLCXGBoostModel, QLCLightGBMModel, QLCCatBoostModel]),
         (DLT, [DLTXGBoostModel, DLTLightGBMModel, DLTCatBoostModel]),
         (PL3, [PL3XGBoostModel, PL3LightGBMModel, PL3CatBoostModel]),
         (PL5, [PL5XGBoostModel, PL5LightGBMModel, PL5CatBoostModel]),

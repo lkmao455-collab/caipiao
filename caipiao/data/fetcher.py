@@ -46,7 +46,6 @@ class LotteryDataFetcher:
         parser_map = {
             "ssq": self._parse_ssq,
             "3d": self._parse_3d,
-            "qlc": self._parse_qlc,
             "kl8": self._parse_kl8,
             "dlt": self._parse_dlt,
             "pl3": self._parse_pl3,
@@ -88,20 +87,6 @@ class LotteryDataFetcher:
             draw_date=draw_date,
             profile="3d",
             groups={"pos": digits},
-        )
-
-    def _parse_qlc(self, parts: List[str], line: str) -> Optional[DrawRecord]:
-        if len(parts) < 10:
-            return None
-        issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
-        basic = sorted(int(parts[i]) for i in range(2, 9))
-        special = [int(parts[9])]
-        return DrawRecord(
-            issue=issue,
-            draw_date=draw_date,
-            profile="qlc",
-            groups={"basic": basic, "special": special},
         )
 
     def _parse_kl8(self, parts: List[str], line: str) -> Optional[DrawRecord]:

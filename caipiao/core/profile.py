@@ -4,7 +4,7 @@
 每个号码组描述一段号池（范围、抽取数量、是否可重复、是否按位等）。
 
 双色球（ssq）在此体系下就是「红球组 + 蓝球组」两个号码组，
-福彩3D / 七乐彩 / 快乐8 各自用不同的号码组组合表达。
+福彩3D / 快乐8 各自用不同的号码组组合表达。
 
 设计原则：本模块**不依赖** ticket / models / analyzer 等上层模块，
 以避免循环引用；上层模块反过来依赖本模块。
@@ -50,7 +50,7 @@ class NumberGroup:
         color: 界面/打印中该组小球的颜色。
         pad: 展示时的补零宽度（3D 用 1，其余用 2）。
         is_primary: 是否为该彩种做整体统计（和值/奇偶/大小）的主号码组。
-        draw_only: 该组只在开奖记录/统计中出现，不参与玩家生成（七乐彩特别号）。
+        draw_only: 该组只在开奖记录/统计中出现，不参与玩家生成（如广东36选7特别号）。
     """
 
     key: str
@@ -215,22 +215,6 @@ FC3D = LotteryProfile(
     model_prefix="3d",
 )
 
-# 七乐彩：已停售，保留在此处供策略模块引用，但不加入 PROFILES 和 list_profiles()
-QLC = LotteryProfile(
-    key="qlc",
-    name="七乐彩",
-    subtitle="7 基本号 + 1 特别号 (1-30)",
-    groups=(
-        NumberGroup("basic", "基本号", 1, 30, 7, color=_RED, is_primary=True),
-        NumberGroup("special", "特别号", 1, 30, 1, color=_BLUE, draw_only=True),
-    ),
-    data_url="http://data.17500.cn/7lc_asc.txt",
-    parser_key="qlc",
-    draw_weekdays=(0, 2, 4),  # 周一/三/五
-    storage_file="draws_qlc.json",
-    model_prefix="qlc",
-)
-
 # 快乐8：从 1-80 中开 20 个号；玩家选 1-10 个。每日开奖。
 KL8 = LotteryProfile(
     key="kl8",
@@ -366,12 +350,6 @@ def get_profile(key: str) -> LotteryProfile:
 def list_profiles() -> List[LotteryProfile]:
     """按固定顺序返回全部彩种档案。"""
     return [SSQ, FC3D, KL8, DLT, PL3, PL5, QXC]
-
-
-# 主界面导航中隐藏的彩种 key：功能、数据与策略全部保留，
-# 仅不在彩种下拉框和「彩种」菜单中展示。
-# 七乐彩在广州无销售，按用户要求从导航移除。
-NAV_HIDDEN_PROFILE_KEYS = {"qlc"}
 
 
 def list_profiles_by_category() -> Dict[str, List[LotteryProfile]]:

@@ -3,7 +3,7 @@
 支持彩种：
 - 双色球：相邻期、间隔 1..N 期红球/蓝球重合统计
 - 福彩3D：相邻期、间隔 1..N 期按位数字相同个数统计
-- 七乐彩：相邻期、间隔 1..N 期基本号/特别号重合统计
+- 广东36选7：相邻期、间隔 1..N 期基本号/特别号重合统计
 - 快乐8：相邻期、间隔 1..N 期主号码重合个数统计
 
 每种彩种根据自身的 NumberGroup 结构计算相邻期号码重叠情况。
@@ -212,7 +212,7 @@ def _compute_overlap_basic_special(
     basic_group: NumberGroup,
     special_group: NumberGroup,
 ) -> Tuple[int, bool]:
-    """计算七乐彩/广东36选7 base 与 curr 的基本号重叠数、特别号是否相同."""
+    """计算广东36选7 base 与 curr 的基本号重叠数、特别号是否相同."""
     base_basic = set(base.groups.get(basic_group.key, []))
     curr_basic = set(curr.groups.get(basic_group.key, []))
     basic_overlap = len(base_basic & curr_basic)
@@ -403,7 +403,7 @@ def _analyze_adjacent_positional(
 def _analyze_adjacent_basic_special(records: List[DrawRecord], basic_group: NumberGroup,
                                     special_group: NumberGroup, max_gap: int = 7,
                                     should_interrupt: Optional[Callable[[], bool]] = None) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
-    """基本号+特别号彩种（七乐彩/广东36选7）：基本号 0-N 个相同，特别号是否相同，并补充间隔统计。"""
+    """基本号+特别号彩种（广东36选7）：基本号 0-N 个相同，特别号是否相同，并补充间隔统计。"""
     stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
     stats.group_stats["basic"] = GroupOverlapStats(
         group_name=basic_group.name,
@@ -509,7 +509,7 @@ def _analyze_adjacent(
         group = profile.primary_group
         return _analyze_adjacent_positional(records, group, max_gap, should_interrupt=should_interrupt)
 
-    if profile.key in ("qlc", "gd36x7"):
+    if profile.key in ("gd36x7",):
         basic = profile.group("basic")
         special = profile.group("special")
         return _analyze_adjacent_basic_special(
@@ -650,7 +650,7 @@ def _get_overlap_numbers_basic_special(
     base: DrawRecord, curr: DrawRecord,
     basic_group: NumberGroup, special_group: NumberGroup,
 ) -> Tuple[Set[int], Optional[int]]:
-    """获取七乐彩两期之间重叠的基本号和相同的特别号."""
+    """获取广东36选7两期之间重叠的基本号和相同的特别号."""
     base_basic = set(base.groups.get(basic_group.key, []))
     curr_basic = set(curr.groups.get(special_group.key, []))
     basic_overlap = base_basic & curr_basic
@@ -722,7 +722,7 @@ def _build_detailed_filter_text(
     groups_to_analyze: List[Tuple[str, str, NumberGroup]] = []
     if profile.key == "ssq":
         groups_to_analyze.append(("red", "红球", profile.group("red")))
-    elif profile.key in ("qlc", "gd36x7"):
+    elif profile.key in ("gd36x7",):
         groups_to_analyze.append(("basic", "基本号", profile.group("basic")))
     elif profile.key == "kl8":
         groups_to_analyze.append(("main", "主号码", profile.primary_group))
@@ -765,7 +765,7 @@ def _build_detailed_filter_text(
                 if profile.key == "ssq" and group_key == "red":
                     overlap_nums, _ = _get_overlap_numbers_ssq(base, curr)
                     overlap_count = len(overlap_nums)
-                elif profile.key in ("qlc", "gd36x7") and group_key == "basic":
+                elif profile.key in ("gd36x7",) and group_key == "basic":
                     overlap_nums, _ = _get_overlap_numbers_basic_special(
                         base, curr, profile.group("basic"), profile.group("special")
                     )
@@ -997,9 +997,9 @@ def _build_filter_summary_text(
         lines.append(f"  被过滤: {filtered_combos:,} ({main_impact.filtered_pct:.1f}%)" if main_impact else "  被过滤: 0")
         lines.append(f"  有效可买: {remain_combos:,}")
 
-    elif profile.key in ("qlc", "gd36x7"):
-        # 七乐彩: C(30,7)
-        total_combos = comb(30, 7)
+    elif profile.key in ("gd36x7",):
+        # 广东36选7: C(36,7)
+        total_combos = comb(36, 7)
 
         basic_impact = _compute_filter_impact(stats, "basic", 0, threshold)
         if basic_impact and basic_impact.total_pairs > 0:
@@ -1012,7 +1012,7 @@ def _build_filter_summary_text(
 
         lines.append("")
         lines.append(f"【{profile.name}】")
-        lines.append(f"  总组合数: {total_combos:,} (C(30,7))")
+        lines.append(f"  总组合数: {total_combos:,} (C(36,7))")
         lines.append(f"  被过滤: {filtered_combos:,} ({basic_impact.filtered_pct:.1f}%)" if basic_impact else "  被过滤: 0")
         lines.append(f"  有效可买: {remain_combos:,}")
 
@@ -1377,7 +1377,7 @@ class DrawAnalysisDialog(QDialog):
             headers.append(f"与上期{group.name}同位相同")
             headers.append("与上期同位号码")
             stretch_cols = [2]
-        elif self.profile.key in ("qlc", "gd36x7"):
+        elif self.profile.key in ("gd36x7",):
             headers.extend([
                 "基本号", "特别号", "与上期基本号重复", "与上期相同基本号",
                 "与上期特别号相同", "与上期相同特别号",
@@ -1793,7 +1793,7 @@ class DrawAnalysisDialog(QDialog):
                 self._fill_ssq_row(local_idx, record, detail)
             elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
                 self._fill_positional_row(local_idx, record, detail)
-            elif self.profile.key in ("qlc", "gd36x7"):
+            elif self.profile.key in ("gd36x7",):
                 self._fill_basic_special_row(local_idx, record, detail)
             elif self.profile.key == "kl8":
                 self._fill_kl8_row(local_idx, record, detail)
@@ -2007,7 +2007,7 @@ class DrawAnalysisDialog(QDialog):
             stats.group_stats[group_key].same_counts[same] += 1
             return {group_key: same}
 
-        if self.profile.key in ("qlc", "gd36x7"):
+        if self.profile.key in ("gd36x7",):
             basic = self.profile.group("basic")
             special = self.profile.group("special")
             basic_overlap, special_same = _compute_overlap_basic_special(prev, curr, basic, special)
@@ -2050,7 +2050,7 @@ class DrawAnalysisDialog(QDialog):
             stats.gap_stats[group_key][gap].same_counts[same] += 1
             return
 
-        if self.profile.key in ("qlc", "gd36x7"):
+        if self.profile.key in ("gd36x7",):
             basic = self.profile.group("basic")
             special = self.profile.group("special")
             basic_overlap, special_same = _compute_overlap_basic_special(base, curr, basic, special)
@@ -2233,7 +2233,7 @@ class DrawAnalysisDialog(QDialog):
             gstat = stats.group_stats[key]
             lines.append("")
             lines.append(f"【{gstat.group_name}相同统计】")
-            if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+            if self.profile.key in ("ssq", "gd36x7") and key in ("blue", "special"):
                 # 二值统计
                 same = gstat.same_counts.get(1, 0)
                 diff = gstat.same_counts.get(0, 0)
@@ -2254,7 +2254,7 @@ class DrawAnalysisDialog(QDialog):
                     gap_stat = stats.gap_stats[key][gap]
                     lines.append("")
                     lines.append(f"【间隔 {gap} 期 {gap_stat.group_name}相同统计】")
-                    if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+                    if self.profile.key in ("ssq", "gd36x7") and key in ("blue", "special"):
                         same = gap_stat.same_counts.get(1, 0)
                         diff = gap_stat.same_counts.get(0, 0)
                         lines.append(f"  相同：{same} 次（{gap_stat.same_ratio(1):.2f}%）")
@@ -2305,7 +2305,7 @@ class DrawAnalysisDialog(QDialog):
             elif self.profile.key in ("3d", "pl3", "pl5", "qxc"):
                 group = self.profile.primary_group
                 headers.extend([group.name, f"与上期{group.name}同位相同"])
-            elif self.profile.key in ("qlc", "gd36x7"):
+            elif self.profile.key in ("gd36x7",):
                 headers.extend(["基本号", "特别号", "与上期基本号重复", "与上期特别号相同"])
             elif self.profile.key == "kl8":
                 group = self.profile.primary_group
@@ -2344,7 +2344,7 @@ class DrawAnalysisDialog(QDialog):
                     ws1.cell(row=row_idx, column=3, value=" ".join(f"{n:0{group.pad}d}" for n in nums))
                     same = detail.get(group.key)
                     ws1.cell(row=row_idx, column=4, value=str(same) if same is not None else "-")
-                elif self.profile.key in ("qlc", "gd36x7"):
+                elif self.profile.key in ("gd36x7",):
                     basic = self.profile.group("basic")
                     special = self.profile.group("special")
                     basic_nums = record.groups.get(basic.key, [])
@@ -2398,7 +2398,7 @@ class DrawAnalysisDialog(QDialog):
                     ws2.cell(row=row, column=c).font = Font(bold=True)
                 row += 1
 
-                if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+                if self.profile.key in ("ssq", "gd36x7") and key in ("blue", "special"):
                     for val, label in [(1, "相同"), (0, "不同")]:
                         ws2.cell(row=row, column=1, value="相邻")
                         ws2.cell(row=row, column=2, value=label)
@@ -2432,7 +2432,7 @@ class DrawAnalysisDialog(QDialog):
                             ws2.cell(row=row, column=c).font = Font(bold=True)
                         row += 1
 
-                        if self.profile.key in ("ssq", "qlc", "gd36x7") and key in ("blue", "special"):
+                        if self.profile.key in ("ssq", "gd36x7") and key in ("blue", "special"):
                             for val, label in [(1, "相同"), (0, "不同")]:
                                 ws2.cell(row=row, column=1, value=f"间隔{gap}期")
                                 ws2.cell(row=row, column=2, value=label)

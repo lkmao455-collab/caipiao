@@ -1,7 +1,7 @@
 """彩种奖金计算（固定奖级）。
 
 用于历史回测时把命中号码映射为理论奖金。
-一等奖/二等奖/七乐彩高奖等为浮动奖金，无法精确计算，用 "浮动" 表示。
+一等奖/二等奖等高奖等为浮动奖金，无法精确计算，用 "浮动" 表示。
 """
 
 from __future__ import annotations
@@ -82,27 +82,6 @@ def _fc3d_prize(
         if unique == 3:
             return ("组选6", 173)
 
-    return ("未中奖", 0)
-
-
-def _qlc_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
-    """七乐彩奖金：投注只选 7 个基本号，开奖为基本号 7 个 + 特别号 1 个。"""
-    basic = hits.get("basic", 0)
-    special = hits.get("special", 0)
-    if basic == 7:
-        return ("一等奖", None)
-    if basic == 6 and special == 1:
-        return ("二等奖", None)
-    if basic == 6:
-        return ("三等奖", None)
-    if basic == 5 and special == 1:
-        return ("四等奖", 200)
-    if basic == 5:
-        return ("五等奖", 50)
-    if basic == 4 and special == 1:
-        return ("六等奖", 10)
-    if basic == 4:
-        return ("七等奖", 5)
     return ("未中奖", 0)
 
 
@@ -297,8 +276,6 @@ def calculate_prize(
         return _ssq_prize(hits)
     if profile_key == "3d":
         return _fc3d_prize(hits, ticket_groups, actual_groups, details)
-    if profile_key == "qlc":
-        return _qlc_prize(hits)
     if profile_key == "kl8":
         return _kl8_prize(hits, ticket_groups)
     if profile_key == "dlt":

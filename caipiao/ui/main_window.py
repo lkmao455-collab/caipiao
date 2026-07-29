@@ -41,7 +41,6 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.profile import (
-    NAV_HIDDEN_PROFILE_KEYS,
     category_label,
     list_profiles,
     list_profiles_by_category,
@@ -109,7 +108,7 @@ class MainWindow(QMainWindow):
     """彩票号码生成器主窗口。
 
     支持彩种：
-    - 福利彩票：双色球、福彩3D、七乐彩、快乐8
+    - 福利彩票：双色球、福彩3D、快乐8
     - 体育彩票：超级大乐透、排列3、排列5、7星彩、广东36选7
     """
 
@@ -174,8 +173,8 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _validated_current_key(key: str) -> str:
-        """校验并规范化当前彩种 key，非法或已从导航隐藏时回退到双色球。"""
-        if key in profile_keys() and key not in NAV_HIDDEN_PROFILE_KEYS:
+        """校验并规范化当前彩种 key，非法时回退到双色球。"""
+        if key in profile_keys():
             return key
         return "ssq"
 
@@ -320,7 +319,7 @@ class MainWindow(QMainWindow):
         self.lottery_combo.clear()
         first = True
         for category, profiles in list_profiles_by_category().items():
-            visible = [p for p in profiles if p.key not in NAV_HIDDEN_PROFILE_KEYS]
+            visible = list(profiles)
             if not visible:
                 continue
             if not first:
@@ -631,7 +630,7 @@ class MainWindow(QMainWindow):
 
         # 过滤参数已移至「策略参数」面板，按各彩种分别配置
         filter_hint = QLabel(
-            "号码过滤参数（双色球 / 福彩3D / 七乐彩 / 大乐透）已移至左侧"
+            "号码过滤参数（双色球 / 福彩3D / 大乐透）已移至左侧"
             "「策略参数」面板，选择对应彩种策略后即可单独配置，"
             "此处不再重复设置。"
         )
@@ -1366,7 +1365,7 @@ class MainWindow(QMainWindow):
         # 彩种菜单：按福利彩票/体育彩票分组，当前均为福利彩票
         lottery_menu = menubar.addMenu("彩种")
         for category, profiles in list_profiles_by_category().items():
-            visible = [p for p in profiles if p.key not in NAV_HIDDEN_PROFILE_KEYS]
+            visible = list(profiles)
             category_menu = lottery_menu.addMenu(category_label(category))
             if not visible:
                 placeholder = QAction("暂无", self)
@@ -1423,7 +1422,7 @@ class MainWindow(QMainWindow):
 
         lottery_guide_action = QAction("彩种介绍", self)
         lottery_guide_action.setToolTip(
-            "查看全部彩种（福利彩票：双色球/福彩3D/七乐彩/快乐8；"
+            "查看全部彩种（福利彩票：双色球/福彩3D/快乐8；"
             "体育彩票：超级大乐透/排列3/排列5/7星彩/广东36选7）的玩法规则与策略说明。"
         )
         lottery_guide_action.triggered.connect(
@@ -1551,16 +1550,6 @@ class MainWindow(QMainWindow):
                 options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
                 options["_fc3d_filter_min_sum"] = self.settings.fc3d_filter_min_sum
                 options["_fc3d_filter_max_sum"] = self.settings.fc3d_filter_max_sum
-        elif profile_key == "qlc":
-            draw_records = self.current.data_repository.get_all()
-            if draw_records:
-                options["_profile_key"] = profile_key
-                options["_draw_records"] = draw_records
-                options["_qlc_filter_enabled"] = self.settings.qlc_filter_enabled
-                options["_qlc_filter_compare_periods"] = self.settings.qlc_filter_compare_periods
-                options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
-                options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
-                options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
         elif profile_key == "dlt":
             draw_records = self.current.data_repository.get_all()
             if draw_records:
@@ -1798,16 +1787,6 @@ class MainWindow(QMainWindow):
                 options["_fc3d_filter_max_overlap"] = self.settings.fc3d_filter_max_overlap
                 options["_fc3d_filter_min_sum"] = self.settings.fc3d_filter_min_sum
                 options["_fc3d_filter_max_sum"] = self.settings.fc3d_filter_max_sum
-        elif profile_key == "qlc":
-            draw_records = self.current.data_repository.get_all()
-            if draw_records:
-                options["_profile_key"] = profile_key
-                options["_draw_records"] = draw_records
-                options["_qlc_filter_enabled"] = self.settings.qlc_filter_enabled
-                options["_qlc_filter_compare_periods"] = self.settings.qlc_filter_compare_periods
-                options["_qlc_filter_max_overlap"] = self.settings.qlc_filter_max_overlap
-                options["_qlc_filter_min_sum"] = self.settings.qlc_filter_min_sum
-                options["_qlc_filter_max_sum"] = self.settings.qlc_filter_max_sum
         elif profile_key == "dlt":
             draw_records = self.current.data_repository.get_all()
             if draw_records:
@@ -2217,9 +2196,6 @@ class MainWindow(QMainWindow):
         elif profile.key == "dlt":
             self.add_number_input.setPlaceholderText("前区:1,2,3,4,5 后区:1,2")
             self.add_number_input.setMaxLength(30)
-        elif profile.key == "qlc":
-            self.add_number_input.setPlaceholderText("基本号:1,2,3,4,5,6,7")
-            self.add_number_input.setMaxLength(30)
         elif profile.key == "kl8":
             self.add_number_input.setPlaceholderText("号码:1,2,3,...,10（1-10个）")
             self.add_number_input.setMaxLength(30)
@@ -2316,9 +2292,6 @@ class MainWindow(QMainWindow):
             front_str = ",".join(f"{n:02d}" for n in fronts)
             back_str = ",".join(f"{n:02d}" for n in backs)
             return f"前{front_str} 后{back_str}"
-        elif profile_key == "qlc":
-            basics = ticket.groups.get("basic", [])
-            return ",".join(f"{n:02d}" for n in basics)
         elif profile_key == "kl8":
             mains = ticket.groups.get("main", [])
             return ",".join(f"{n:02d}" for n in mains)
@@ -2335,8 +2308,6 @@ class MainWindow(QMainWindow):
             return "红+蓝"
         elif profile_key == "dlt":
             return "前+后"
-        elif profile_key == "qlc":
-            return "基本号"
         elif profile_key == "kl8":
             return "选号"
         return ""
@@ -2391,13 +2362,6 @@ class MainWindow(QMainWindow):
                     return
                 ticket.groups["front"] = fronts
                 ticket.groups["back"] = backs
-            elif profile_key == "qlc":
-                nums = [int(x) for x in new_num.split(",") if x.strip()]
-                if len(nums) != 7:
-                    QMessageBox.warning(self, "输入错误", "请输入7个号码（1-30）")
-                    self._refresh_editable_table()
-                    return
-                ticket.groups["basic"] = nums
             elif profile_key == "kl8":
                 nums = [int(x) for x in new_num.split(",") if x.strip()]
                 if len(nums) < 1 or len(nums) > 10:
@@ -2460,12 +2424,6 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "输入错误", "格式: 前1,2,3,4,5 后1,2")
                     return
                 groups = {"front": fronts, "back": backs}
-            elif profile_key == "qlc":
-                nums = sorted(int(x) for x in num_str.split(",") if x.strip())
-                if len(nums) != 7:
-                    QMessageBox.warning(self, "输入错误", "请输入7个号码（1-30）")
-                    return
-                groups = {"basic": nums}
             elif profile_key == "kl8":
                 nums = sorted(int(x) for x in num_str.split(",") if x.strip())
                 if len(nums) < 1 or len(nums) > 10:
@@ -2515,10 +2473,6 @@ class MainWindow(QMainWindow):
             fronts = sorted(random.sample(range(front_grp.lo, front_grp.hi + 1), front_grp.count))
             backs = sorted(random.sample(range(back_grp.lo, back_grp.hi + 1), back_grp.count))
             groups = {"front": fronts, "back": backs}
-        elif profile_key == "qlc":
-            grp = profile.group("basic")
-            nums = sorted(random.sample(range(grp.lo, grp.hi + 1), grp.count))
-            groups = {"basic": nums}
         elif profile_key == "kl8":
             grp = profile.group("main")
             pick_count = random.randint(grp.effective_pick_min, grp.effective_pick_max)
@@ -2984,7 +2938,7 @@ class MainWindow(QMainWindow):
             "关于",
             "<h2>彩票号码生成器</h2>"
             "<p>版本: 2.0.0</p>"
-            "<p>基于 PySide6 开发，支持双色球、福彩3D、七乐彩、快乐8。</p>"
+            "<p>基于 PySide6 开发，支持双色球、福彩3D、快乐8。</p>"
             "<p>本软件仅供娱乐参考，不保证中奖。</p>",
         )
 

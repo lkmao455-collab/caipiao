@@ -15,7 +15,6 @@ from ..core.engine import (
     apply_kl8_experience_filter,
     apply_pl3_experience_filter,
     apply_pl5_experience_filter,
-    apply_qlc_experience_filter,
     apply_qxc_experience_filter,
     dlt_filtered_gen_count,
     fc3d_filtered_gen_count,
@@ -23,7 +22,6 @@ from ..core.engine import (
     kl8_filtered_gen_count,
     pl3_filtered_gen_count,
     pl5_filtered_gen_count,
-    qlc_filtered_gen_count,
     qxc_filtered_gen_count,
 )
 from ..core.profile import LotteryProfile, SSQ, list_profiles
@@ -186,11 +184,6 @@ class GenerateTicketsThread(QThread):
                 and profile_key == "3d"
                 and bool(self.options.get("_fc3d_filter_enabled", False))
             )
-            need_qlc_filter = (
-                has_records
-                and profile_key == "qlc"
-                and bool(self.options.get("_qlc_filter_enabled", False))
-            )
             need_dlt_filter = (
                 has_records
                 and profile_key == "dlt"
@@ -218,11 +211,10 @@ class GenerateTicketsThread(QThread):
             )
 
             # 计算候选生成数量：
-            # - 3D/七乐彩/大乐透/排列3/排列5/7星彩/快乐8 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
+            # - 3D/大乐透/排列3/排列5/7星彩/快乐8 经验策略过滤：按理论通过率自适应放大，避免过滤后候选不足
             # - 双色球过滤：固定 3 倍
             cp = mo = pass_count = None
             min_sum = max_sum = None
-            qlc_pass_ratio = None
             dlt_pass_ratio = None
             pl3_pass_count = None
             pl5_pass_ratio = None
@@ -234,15 +226,6 @@ class GenerateTicketsThread(QThread):
                 min_sum = int(self.options.get("_fc3d_filter_min_sum", 0))
                 max_sum = int(self.options.get("_fc3d_filter_max_sum", 27))
                 gen_count, pass_count = fc3d_filtered_gen_count(
-                    self.count, self.options["_draw_records"], cp, mo,
-                    min_sum, max_sum,
-                )
-            elif need_qlc_filter:
-                cp = int(self.options.get("_qlc_filter_compare_periods", 5))
-                mo = int(self.options.get("_qlc_filter_max_overlap", 2))
-                min_sum = int(self.options.get("_qlc_filter_min_sum", 0))
-                max_sum = int(self.options.get("_qlc_filter_max_sum", 210))
-                gen_count, qlc_pass_ratio = qlc_filtered_gen_count(
                     self.count, self.options["_draw_records"], cp, mo,
                     min_sum, max_sum,
                 )
@@ -326,19 +309,6 @@ class GenerateTicketsThread(QThread):
                     cp,
                     mo,
                     pass_count=pass_count,
-                    min_sum=min_sum,
-                    max_sum=max_sum,
-                )
-
-            # 最后一层过滤（七乐彩 经验策略）
-            if need_qlc_filter and profile_key == "qlc":
-                tickets = apply_qlc_experience_filter(
-                    tickets,
-                    self.options["_draw_records"],
-                    self.count,
-                    cp,
-                    mo,
-                    pass_ratio=qlc_pass_ratio,
                     min_sum=min_sum,
                     max_sum=max_sum,
                 )

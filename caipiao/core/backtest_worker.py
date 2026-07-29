@@ -23,10 +23,8 @@ from caipiao.core.engine import (
     GenerationEngine,
     apply_dlt_experience_filter,
     apply_fc3d_experience_filter,
-    apply_qlc_experience_filter,
     dlt_filtered_gen_count,
     fc3d_filtered_gen_count,
-    qlc_filtered_gen_count,
 )
 from caipiao.core.prize import calculate_prize
 from caipiao.core.profile import LotteryProfile, get_profile
@@ -215,12 +213,11 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
                 _get_worker_temp_dir(),
             )
 
-        # 3D/七乐彩 经验策略过滤（跟随主界面设置）：按理论通过率放大候选数量，
+        # 3D/大乐透 经验策略过滤（跟随主界面设置）：按理论通过率放大候选数量，
         # 生成后与主界面走同一个过滤+截断后处理（3D 还会重分配 bet_mode），
         # 比对用的 history 已限定为目标期之前的记录，无未来函数。
         gen_count = context.tickets_per_round
         fc3d_filter_active = False
-        qlc_filter_active = False
         dlt_filter_active = False
         cp = mo = 0
         min_sum = max_sum = 0
@@ -233,15 +230,6 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
                 context.tickets_per_round, history, cp, mo, min_sum, max_sum
             )
             fc3d_filter_active = True
-        elif context.profile_key == "qlc" and options.get("_qlc_filter_enabled") and history:
-            cp = int(options.get("_qlc_filter_compare_periods", 5))
-            mo = int(options.get("_qlc_filter_max_overlap", 2))
-            min_sum = int(options.get("_qlc_filter_min_sum", 0))
-            max_sum = int(options.get("_qlc_filter_max_sum", 210))
-            gen_count, _ = qlc_filtered_gen_count(
-                context.tickets_per_round, history, cp, mo, min_sum, max_sum
-            )
-            qlc_filter_active = True
         elif context.profile_key == "dlt" and options.get("_dlt_filter_enabled") and history:
             cp = int(options.get("_dlt_filter_compare_periods", 7))
             mo = int(options.get("_dlt_filter_max_front_overlap", 0))
@@ -262,11 +250,6 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
 
         if fc3d_filter_active:
             tickets = apply_fc3d_experience_filter(
-                tickets, history, context.tickets_per_round, cp, mo,
-                min_sum=min_sum, max_sum=max_sum,
-            )
-        elif qlc_filter_active:
-            tickets = apply_qlc_experience_filter(
                 tickets, history, context.tickets_per_round, cp, mo,
                 min_sum=min_sum, max_sum=max_sum,
             )

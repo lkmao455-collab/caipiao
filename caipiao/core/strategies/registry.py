@@ -16,8 +16,6 @@ from .lotteries.pl3 import balanced as pl3_balanced
 from .lotteries.pl3 import smart_hot_cold as pl3_smart_hot_cold
 from .lotteries.pl5 import balanced as pl5_balanced
 from .lotteries.pl5 import smart_hot_cold as pl5_smart_hot_cold
-from .lotteries.qlc import balanced as qlc_balanced
-from .lotteries.qlc import smart_hot_cold as qlc_smart_hot_cold
 from .lotteries.qxc import balanced as qxc_balanced
 from .lotteries.qxc import smart_hot_cold as qxc_smart_hot_cold
 from .bagua import BaguaStrategy
@@ -32,11 +30,6 @@ STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
     "3d": [
         fc3d_smart_hot_cold.FC3DSmartHotColdStrategy,
         fc3d_balanced.FC3DBalancedStrategy,
-        BaguaStrategy,
-    ],
-    "qlc": [
-        qlc_smart_hot_cold.QLCSmartHotColdStrategy,
-        qlc_balanced.QLCBalancedStrategy,
         BaguaStrategy,
     ],
     "kl8": [

@@ -37,20 +37,20 @@ def test_main_window_has_toolbar_with_five_actions(tmp_path, monkeypatch):
         window.deleteLater()
 
 
-def test_validated_current_key_falls_back_for_hidden_lottery():
-    """已从导航隐藏的彩种（七乐彩）作为当前彩种时应回退到双色球。"""
+def test_validated_current_key_falls_back_for_unknown():
+    """未知彩种作为当前彩种时应回退到双色球。"""
     from caipiao.ui.main_window import MainWindow
 
-    assert MainWindow._validated_current_key("qlc") == "ssq"
     assert MainWindow._validated_current_key("ssq") == "ssq"
     assert MainWindow._validated_current_key("3d") == "3d"
+    assert MainWindow._validated_current_key("qlc") == "ssq"
     assert MainWindow._validated_current_key("nonexistent") == "ssq"
 
 
 @pytest.mark.slow
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnknownMarkWarning")
-def test_qlc_hidden_from_lottery_combo(tmp_path, monkeypatch):
-    """彩种下拉框不应包含七乐彩。"""
+def test_removed_lottery_excluded_from_combo(tmp_path, monkeypatch):
+    """彩种下拉框不应包含已彻底移除的七乐彩。"""
     _ensure_qapp()
 
     from caipiao.ui.main_window import MainWindow

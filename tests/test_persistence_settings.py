@@ -105,31 +105,6 @@ class TestAppSettings:
         settings.fc3d_filter_max_sum = 20
         assert settings.fc3d_filter_max_sum == 20
 
-    def test_qlc_filter_enabled(self):
-        settings = AppSettings()
-        settings.qlc_filter_enabled = True
-        assert settings.qlc_filter_enabled is True
-
-    def test_qlc_filter_compare_periods(self):
-        settings = AppSettings()
-        settings.qlc_filter_compare_periods = 10
-        assert settings.qlc_filter_compare_periods == 10
-
-    def test_qlc_filter_max_overlap(self):
-        settings = AppSettings()
-        settings.qlc_filter_max_overlap = 3
-        assert settings.qlc_filter_max_overlap == 3
-
-    def test_qlc_filter_min_sum(self):
-        settings = AppSettings()
-        settings.qlc_filter_min_sum = 30
-        assert settings.qlc_filter_min_sum == 30
-
-    def test_qlc_filter_max_sum(self):
-        settings = AppSettings()
-        settings.qlc_filter_max_sum = 150
-        assert settings.qlc_filter_max_sum == 150
-
     def test_sync(self):
         settings = AppSettings()
         settings.sync()  # 应该不抛异常
