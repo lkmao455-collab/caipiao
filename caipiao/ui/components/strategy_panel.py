@@ -617,31 +617,28 @@ class StrategyPanel(QWidget):
             )
         else:
             self.description_label.setText("请选择生成策略")
-        # SSQ策略（智能冷热号+历史均衡）均显示过滤设置
-        is_ssq = bool(strategy_id and not strategy_id.endswith("_3d")
-                       and not any(strategy_id.endswith(f"_{s}") for s in ["qlc", "kl8", "dlt", "pl3", "pl5", "qxc", "gd36x7"]))
-        self.filter_ssq_group.setVisible(is_ssq)
-        # 仅福彩3D策略显示经验策略参数
-        is_3d = bool(strategy_id and strategy_id.endswith("_3d"))
-        self.filter_fc3d_group.setVisible(is_3d)
-        # 仅七乐彩策略显示经验策略参数
-        is_qlc = bool(strategy_id and strategy_id.endswith("_qlc"))
-        self.filter_qlc_group.setVisible(is_qlc)
-        # 仅大乐透策略显示经验策略参数
-        is_dlt = bool(strategy_id and strategy_id.endswith("_dlt"))
-        self.filter_dlt_group.setVisible(is_dlt)
-        # 仅排列3策略显示经验策略参数
-        is_pl3 = bool(strategy_id and strategy_id.endswith("_pl3"))
-        self.filter_pl3_group.setVisible(is_pl3)
-        # 仅排列5策略显示经验策略参数
-        is_pl5 = bool(strategy_id and strategy_id.endswith("_pl5"))
-        self.filter_pl5_group.setVisible(is_pl5)
-        # 仅7星彩策略显示经验策略参数
-        is_qxc = bool(strategy_id and strategy_id.endswith("_qxc"))
-        self.filter_qxc_group.setVisible(is_qxc)
-        # 仅快乐8策略显示经验策略参数
-        is_kl8 = bool(strategy_id and strategy_id.endswith("_kl8"))
-        self.filter_kl8_group.setVisible(is_kl8)
+        # 过滤参数按“目标彩种”显示：
+        # - 分彩种专属策略以其对应彩种为准（策略id后缀对应彩种）；
+        # - 通用策略（如八卦占卜 bagua）不绑定特定彩种，按当前所选彩种
+        #   self._profile_key 为准，确保针对双色球/大乐透/快乐8等不同彩种
+        #   显示对应的过滤设置，而不是永远显示双色球过滤。
+        _LOTTERY_SUFFIXES = {
+            "_3d": "3d", "_qlc": "qlc", "_kl8": "kl8", "_dlt": "dlt",
+            "_pl3": "pl3", "_pl5": "pl5", "_qxc": "qxc", "_gd36x7": "gd36x7",
+        }
+        filter_pk = self._profile_key  # 通用策略（含八卦占卜）按当前彩种
+        for suf, pk in _LOTTERY_SUFFIXES.items():
+            if strategy_id and strategy_id.endswith(suf):
+                filter_pk = pk
+                break
+        self.filter_ssq_group.setVisible(filter_pk == "ssq")
+        self.filter_fc3d_group.setVisible(filter_pk == "3d")
+        self.filter_qlc_group.setVisible(filter_pk == "qlc")
+        self.filter_dlt_group.setVisible(filter_pk == "dlt")
+        self.filter_pl3_group.setVisible(filter_pk == "pl3")
+        self.filter_pl5_group.setVisible(filter_pk == "pl5")
+        self.filter_qxc_group.setVisible(filter_pk == "qxc")
+        self.filter_kl8_group.setVisible(filter_pk == "kl8")
         self.options_changed.emit()
 
     def _on_filter_ssq_changed(self, _=None) -> None:
