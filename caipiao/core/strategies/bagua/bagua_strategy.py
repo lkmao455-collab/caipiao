@@ -193,7 +193,12 @@ class BaguaStrategy(GenerationStrategy):
             lo = group.lo
             hi = group.hi
             pool_size = hi - lo + 1
-            count = group.count
+            # 选号个数：固定彩种用开奖个数 group.count；
+            # 可变选号彩种（如快乐8）玩家选 1-10 个，而非开奖的 20 个。
+            if group.variable_pick:
+                count = rng.randint(group.effective_pick_min, group.effective_pick_max)
+            else:
+                count = group.count
 
             # 使用不同的算法为每个组生成号码
             group_numbers = set()

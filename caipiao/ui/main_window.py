@@ -1531,6 +1531,7 @@ class MainWindow(QMainWindow):
 
         # 注入 draw records 和过滤参数供最后一层过滤使用
         profile_key = self.current.profile.key
+        options["profile_key"] = profile_key  # 供策略（如八卦占卜）识别目标彩种
         if profile_key == "ssq":
             draw_records = self.current.data_repository.get_all()
             if draw_records:
@@ -1777,6 +1778,7 @@ class MainWindow(QMainWindow):
 
         # 注入 draw records 和过滤参数供最后一层过滤使用
         profile_key = self.current.profile.key
+        options["profile_key"] = profile_key  # 供策略（如八卦占卜）识别目标彩种
         if profile_key == "ssq":
             draw_records = self.current.data_repository.get_all()
             if draw_records:
