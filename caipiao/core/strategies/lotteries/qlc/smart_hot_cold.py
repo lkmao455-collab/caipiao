@@ -77,9 +77,11 @@ class QLCSmartHotColdStrategy(GenerationStrategy):
         max_missing = max(missing.values()) if missing else 1
 
         scores: Dict[int, float] = {n: 0.0 for n in primary.values}
-        for n, f in freq.items():
+        for n in primary.values:
+            f = freq.get(n, 0)
             scores[n] += hot_weight * (f / max_freq)
-        for n, m in missing.items():
+        for n in primary.values:
+            m = missing.get(n, 0)
             scores[n] += cold_weight * (m / max_missing)
         min_score = min(scores.values())
         weights = [max(0.1, scores[n] - min_score + 1.0) for n in primary.values]

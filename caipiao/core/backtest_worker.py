@@ -371,6 +371,22 @@ def merge_round_results(results: list[RoundResult], total_rounds: int) -> BatchB
         merged.float_prize_count += r.float_prize_count
         merged.first_ticket_hit_count += r.first_ticket_hit_count
         merged.ticket_results.extend(r.ticket_results)
+        # 还原中奖明细，供结果界面「中奖记录」面板使用（之前合并时仅保留汇总，
+        # 导致一键找最优策略/期数扫描完成后详细结果面板为空）。
+        for tr in r.ticket_results:
+            if not _is_winner(tr["prize_amount"]):
+                continue
+            t_idx = tr["ticket_index"]
+            ticket = r.tickets[t_idx] if 0 <= t_idx < len(r.tickets) else None
+            merged.winner_details.append({
+                "round": r.index,
+                "date": r.date_str,
+                "issue": r.issue_str,
+                "ticket": ticket,
+                "prize_name": tr["prize_name"],
+                "prize_amount": tr["prize_amount"],
+                "is_first": t_idx == 0,
+            })
         for k, v in r.ticket_index_hits.items():
             merged.ticket_index_hits[k] = merged.ticket_index_hits.get(k, 0) + v
 

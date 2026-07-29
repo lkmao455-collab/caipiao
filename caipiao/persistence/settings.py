@@ -23,7 +23,10 @@ class AppSettings:
 
     @property
     def default_count(self) -> int:
-        return int(self.get("default_count", 1))
+        try:
+            return int(self.get("default_count", 1))
+        except (ValueError, TypeError):
+            return 1
 
     @default_count.setter
     def default_count(self, value: int) -> None:
@@ -76,7 +79,10 @@ class AppSettings:
 
     @property
     def auto_update_interval_days(self) -> int:
-        return int(self.get("auto_update_interval_days", 1))
+        try:
+            return int(self.get("auto_update_interval_days", 1))
+        except (ValueError, TypeError):
+            return 1
 
     @auto_update_interval_days.setter
     def auto_update_interval_days(self, value: int) -> None:
@@ -120,7 +126,10 @@ class AppSettings:
 
     @property
     def draw_analysis_max_gap(self) -> int:
-        return int(self.get("draw_analysis_max_gap", 1))
+        try:
+            return int(self.get("draw_analysis_max_gap", 1))
+        except (ValueError, TypeError):
+            return 1
 
     @draw_analysis_max_gap.setter
     def draw_analysis_max_gap(self, value: int) -> None:
@@ -132,7 +141,10 @@ class AppSettings:
 
     @property
     def draw_analysis_filter_threshold(self) -> int:
-        return int(self.get("draw_analysis_filter_threshold", 1))
+        try:
+            return int(self.get("draw_analysis_filter_threshold", 1))
+        except (ValueError, TypeError):
+            return 1
 
     @draw_analysis_filter_threshold.setter
     def draw_analysis_filter_threshold(self, value: int) -> None:

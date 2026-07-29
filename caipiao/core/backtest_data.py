@@ -21,6 +21,9 @@ class BatchBacktestResult:
     first_ticket_hit_count: int = 0  # 第一注中奖次数
     ticket_index_hits: Dict[int, int] = field(default_factory=dict)  # 第 n 注中奖次数
     ticket_results: List[Dict[str, Any]] = field(default_factory=list)
+    # 每期中奖注的明细，用于在结果界面还原「中奖记录」面板
+    # （含日期/期号/号码/奖级），由 merge_round_results 填充。
+    winner_details: List[Dict[str, Any]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)  # 各期错误信息
 
 

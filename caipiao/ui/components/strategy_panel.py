@@ -811,7 +811,11 @@ class StrategyPanel(QWidget):
             combo = QComboBox()
             combo.setMinimumWidth(120)
             for choice in meta.get("choices", []):
-                combo.addItem(str(choice), choice)
+                if isinstance(choice, (tuple, list)) and len(choice) == 2:
+                    value, label = choice
+                else:
+                    value, label = choice, str(choice)
+                combo.addItem(str(label), value)
             if default is not None:
                 idx = combo.findData(default)
                 if idx >= 0:

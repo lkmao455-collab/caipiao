@@ -75,7 +75,11 @@ from .components.hotkey_edit import HotkeyEdit, validate_hotkey_dialog
 from .components.parameter_group_panel import ParameterGroupPanel
 from .components.strategy_panel import StrategyPanel
 from .components.auto_update_dialog import AutoUpdateDialog
+from .components.today_draws_dialog import TodayDrawsDialog
+from .components.latest_results_dialog import LatestResultsDialog
 from .components.training_progress_dialog import TrainingProgressDialog
+from .components.lunar_calendar_widget import LunarCalendarWidget
+from .components.divination_tab import DivinationTab
 from .lottery_context import ContextManager, LotteryContext
 from .markdown_view import MarkdownDialog
 from .workers import (
@@ -288,6 +292,14 @@ class MainWindow(QMainWindow):
         # 数据页
         self.data_tab = self._build_data_tab()
         self.tabs.addTab(self.data_tab, "开奖数据")
+
+        # 万年历页
+        self.calendar_tab = LunarCalendarWidget()
+        self.tabs.addTab(self.calendar_tab, "万年历")
+
+        # 八卦占卜页
+        self.divination_tab = DivinationTab()
+        self.tabs.addTab(self.divination_tab, "八卦占卜")
 
         # 插件页
         self.plugins_tab = self._build_plugins_tab()
@@ -579,9 +591,12 @@ class MainWindow(QMainWindow):
     def _build_settings_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setSpacing(14)
+        layout.setContentsMargins(16, 16, 16, 16)
 
         # 默认注数
         count_layout = QHBoxLayout()
+        count_layout.setSpacing(8)
         count_layout.addWidget(QLabel("默认生成注数:"))
         self.settings_count_spin = QSpinBox()
         self.settings_count_spin.setToolTip("设置主界面每次默认生成的彩票注数。")
@@ -592,16 +607,13 @@ class MainWindow(QMainWindow):
         layout.addLayout(count_layout)
 
         # 主题
-        from PySide6.QtWidgets import QCheckBox
-
-        self.dark_theme_check = QCheckBox("深色主题")
-        self.dark_theme_check.setToolTip("切换深色/浅色主题。深色主题适合夜间使用。")
-        self.dark_theme_check.setChecked(self.settings.dark_theme)
-        self.dark_theme_check.stateChanged.connect(self._apply_theme)
-        layout.addWidget(self.dark_theme_check)
+        theme_label = QLabel("主题：中式八卦喜庆风格")
+        theme_label.setStyleSheet("font-weight: bold; color: #8B0000;")
+        layout.addWidget(theme_label)
 
         # 老板键设置
         hotkey_layout = QHBoxLayout()
+        hotkey_layout.setSpacing(8)
         hotkey_layout.addWidget(QLabel("老板键:"))
         self.boss_key_edit = HotkeyEdit()
         self.boss_key_edit.set_hotkey(self.settings.boss_key)
@@ -617,198 +629,15 @@ class MainWindow(QMainWindow):
         self.boss_key_hint.setStyleSheet("color: #666; font-size: 9pt;")
         layout.addWidget(self.boss_key_hint)
 
-        # ---- 双色球过滤设置 ----
-        from PySide6.QtWidgets import QGroupBox
-
-        ssq_group = QGroupBox("双色球过滤")
-        ssq_group.setToolTip("配置双色球号码生成后的过滤规则。")
-        ssq_layout = QVBoxLayout(ssq_group)
-
-        ssq_compare_layout = QHBoxLayout()
-        ssq_compare_layout.addWidget(QLabel("比较期数:"))
-        self.ssq_filter_compare_spin = QSpinBox()
-        self.ssq_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。0=不比较。")
-        self.ssq_filter_compare_spin.setRange(0, 50)
-        self.ssq_filter_compare_spin.setValue(self.settings.ssq_filter_compare_periods)
-        ssq_compare_layout.addWidget(self.ssq_filter_compare_spin)
-        ssq_compare_layout.addStretch()
-        ssq_layout.addLayout(ssq_compare_layout)
-
-        ssq_overlap_layout = QHBoxLayout()
-        ssq_overlap_layout.addWidget(QLabel("红球重合上限:"))
-        self.ssq_filter_overlap_spin = QSpinBox()
-        self.ssq_filter_overlap_spin.setToolTip("允许与历史开奖红球重合的最大个数。超过则淘汰。")
-        self.ssq_filter_overlap_spin.setRange(0, 6)
-        self.ssq_filter_overlap_spin.setValue(self.settings.ssq_filter_max_red_overlap)
-        ssq_overlap_layout.addWidget(self.ssq_filter_overlap_spin)
-        ssq_overlap_layout.addStretch()
-        ssq_layout.addLayout(ssq_overlap_layout)
-
-        self.ssq_filter_block_blue_check = QCheckBox("禁止蓝球与历史相同")
-        self.ssq_filter_block_blue_check.setToolTip("开启后，蓝球与最近一期历史蓝球相同则淘汰。")
-        self.ssq_filter_block_blue_check.setChecked(self.settings.ssq_filter_block_blue)
-        ssq_layout.addWidget(self.ssq_filter_block_blue_check)
-
-        layout.addWidget(ssq_group)
-
-        # ---- 福彩3D过滤设置 ----
-        fc3d_group = QGroupBox("福彩3D过滤")
-        fc3d_group.setToolTip("配置福彩3D号码生成后的过滤规则。")
-        fc3d_layout = QVBoxLayout(fc3d_group)
-
-        self.fc3d_filter_enabled_check = QCheckBox("启用经验策略过滤")
-        self.fc3d_filter_enabled_check.setToolTip("开启后，生成的3D号码将经过经验策略过滤。")
-        self.fc3d_filter_enabled_check.setChecked(self.settings.fc3d_filter_enabled)
-        fc3d_layout.addWidget(self.fc3d_filter_enabled_check)
-
-        fc3d_compare_layout = QHBoxLayout()
-        fc3d_compare_layout.addWidget(QLabel("比较期数:"))
-        self.fc3d_filter_compare_spin = QSpinBox()
-        self.fc3d_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。")
-        self.fc3d_filter_compare_spin.setRange(0, 50)
-        self.fc3d_filter_compare_spin.setValue(self.settings.fc3d_filter_compare_periods)
-        fc3d_compare_layout.addWidget(self.fc3d_filter_compare_spin)
-        fc3d_compare_layout.addStretch()
-        fc3d_layout.addLayout(fc3d_compare_layout)
-
-        fc3d_overlap_layout = QHBoxLayout()
-        fc3d_overlap_layout.addWidget(QLabel("相同号码上限:"))
-        self.fc3d_filter_overlap_spin = QSpinBox()
-        self.fc3d_filter_overlap_spin.setToolTip("允许与历史开奖相同号码的最大个数。超过则淘汰。")
-        self.fc3d_filter_overlap_spin.setRange(0, 3)
-        self.fc3d_filter_overlap_spin.setValue(self.settings.fc3d_filter_max_overlap)
-        fc3d_overlap_layout.addWidget(self.fc3d_filter_overlap_spin)
-        fc3d_overlap_layout.addStretch()
-        fc3d_layout.addLayout(fc3d_overlap_layout)
-
-        fc3d_sum_layout = QHBoxLayout()
-        fc3d_sum_layout.addWidget(QLabel("和值范围:"))
-        self.fc3d_filter_min_sum_spin = QSpinBox()
-        self.fc3d_filter_min_sum_spin.setToolTip("允许的最小和值。")
-        self.fc3d_filter_min_sum_spin.setRange(0, 27)
-        self.fc3d_filter_min_sum_spin.setValue(self.settings.fc3d_filter_min_sum)
-        fc3d_sum_layout.addWidget(self.fc3d_filter_min_sum_spin)
-        fc3d_sum_layout.addWidget(QLabel("-"))
-        self.fc3d_filter_max_sum_spin = QSpinBox()
-        self.fc3d_filter_max_sum_spin.setToolTip("允许的最大和值。")
-        self.fc3d_filter_max_sum_spin.setRange(0, 27)
-        self.fc3d_filter_max_sum_spin.setValue(self.settings.fc3d_filter_max_sum)
-        fc3d_sum_layout.addWidget(self.fc3d_filter_max_sum_spin)
-        fc3d_sum_layout.addStretch()
-        fc3d_layout.addLayout(fc3d_sum_layout)
-
-        layout.addWidget(fc3d_group)
-
-        # ---- 七乐彩过滤设置 ----
-        qlc_group = QGroupBox("七乐彩过滤")
-        qlc_group.setToolTip("配置七乐彩号码生成后的过滤规则。")
-        qlc_layout = QVBoxLayout(qlc_group)
-
-        self.qlc_filter_enabled_check = QCheckBox("启用经验策略过滤")
-        self.qlc_filter_enabled_check.setToolTip("开启后，生成的七乐彩号码将经过经验策略过滤。")
-        self.qlc_filter_enabled_check.setChecked(self.settings.qlc_filter_enabled)
-        qlc_layout.addWidget(self.qlc_filter_enabled_check)
-
-        qlc_compare_layout = QHBoxLayout()
-        qlc_compare_layout.addWidget(QLabel("比较期数:"))
-        self.qlc_filter_compare_spin = QSpinBox()
-        self.qlc_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。")
-        self.qlc_filter_compare_spin.setRange(0, 50)
-        self.qlc_filter_compare_spin.setValue(self.settings.qlc_filter_compare_periods)
-        qlc_compare_layout.addWidget(self.qlc_filter_compare_spin)
-        qlc_compare_layout.addStretch()
-        qlc_layout.addLayout(qlc_compare_layout)
-
-        qlc_overlap_layout = QHBoxLayout()
-        qlc_overlap_layout.addWidget(QLabel("基本号重合上限:"))
-        self.qlc_filter_overlap_spin = QSpinBox()
-        self.qlc_filter_overlap_spin.setToolTip("允许与历史开奖基本号重合的最大个数。超过则淘汰。")
-        self.qlc_filter_overlap_spin.setRange(0, 7)
-        self.qlc_filter_overlap_spin.setValue(self.settings.qlc_filter_max_overlap)
-        qlc_overlap_layout.addWidget(self.qlc_filter_overlap_spin)
-        qlc_overlap_layout.addStretch()
-        qlc_layout.addLayout(qlc_overlap_layout)
-
-        qlc_sum_layout = QHBoxLayout()
-        qlc_sum_layout.addWidget(QLabel("和值范围:"))
-        self.qlc_filter_min_sum_spin = QSpinBox()
-        self.qlc_filter_min_sum_spin.setToolTip("允许的最小和值。")
-        self.qlc_filter_min_sum_spin.setRange(0, 210)
-        self.qlc_filter_min_sum_spin.setValue(self.settings.qlc_filter_min_sum)
-        qlc_sum_layout.addWidget(self.qlc_filter_min_sum_spin)
-        qlc_sum_layout.addWidget(QLabel("-"))
-        self.qlc_filter_max_sum_spin = QSpinBox()
-        self.qlc_filter_max_sum_spin.setToolTip("允许的最大和值。")
-        self.qlc_filter_max_sum_spin.setRange(0, 210)
-        self.qlc_filter_max_sum_spin.setValue(self.settings.qlc_filter_max_sum)
-        qlc_sum_layout.addWidget(self.qlc_filter_max_sum_spin)
-        qlc_sum_layout.addStretch()
-        qlc_layout.addLayout(qlc_sum_layout)
-
-        layout.addWidget(qlc_group)
-
-        # ---- 大乐透过滤设置 ----
-        dlt_group = QGroupBox("大乐透过滤")
-        dlt_group.setToolTip("配置大乐透号码生成后的过滤规则。")
-        dlt_layout = QVBoxLayout(dlt_group)
-
-        self.dlt_filter_enabled_check = QCheckBox("启用经验策略过滤")
-        self.dlt_filter_enabled_check.setToolTip("开启后，生成的大乐透号码将经过经验策略过滤。")
-        self.dlt_filter_enabled_check.setChecked(self.settings.dlt_filter_enabled)
-        dlt_layout.addWidget(self.dlt_filter_enabled_check)
-
-        dlt_compare_layout = QHBoxLayout()
-        dlt_compare_layout.addWidget(QLabel("比较期数:"))
-        self.dlt_filter_compare_spin = QSpinBox()
-        self.dlt_filter_compare_spin.setToolTip("与历史开奖记录比较的期数。")
-        self.dlt_filter_compare_spin.setRange(0, 50)
-        self.dlt_filter_compare_spin.setValue(self.settings.dlt_filter_compare_periods)
-        dlt_compare_layout.addWidget(self.dlt_filter_compare_spin)
-        dlt_compare_layout.addStretch()
-        dlt_layout.addLayout(dlt_compare_layout)
-
-        dlt_overlap_layout = QHBoxLayout()
-        dlt_overlap_layout.addWidget(QLabel("前区重合上限:"))
-        self.dlt_filter_overlap_spin = QSpinBox()
-        self.dlt_filter_overlap_spin.setToolTip("允许与历史开奖前区号码重合的最大个数。超过则淘汰。")
-        self.dlt_filter_overlap_spin.setRange(0, 5)
-        self.dlt_filter_overlap_spin.setValue(self.settings.dlt_filter_max_front_overlap)
-        dlt_overlap_layout.addWidget(self.dlt_filter_overlap_spin)
-        dlt_overlap_layout.addStretch()
-        dlt_layout.addLayout(dlt_overlap_layout)
-
-        self.dlt_filter_block_back_check = QCheckBox("禁止后区与历史相同")
-        self.dlt_filter_block_back_check.setToolTip("开启后，后区号码与最近历史后区号码相同则淘汰。")
-        self.dlt_filter_block_back_check.setChecked(self.settings.dlt_filter_block_back)
-        dlt_layout.addWidget(self.dlt_filter_block_back_check)
-
-        dlt_back_compare_layout = QHBoxLayout()
-        dlt_back_compare_layout.addWidget(QLabel("后区对比期数:"))
-        self.dlt_filter_back_compare_spin = QSpinBox()
-        self.dlt_filter_back_compare_spin.setToolTip("禁止后区重复的对比期数。")
-        self.dlt_filter_back_compare_spin.setRange(0, 50)
-        self.dlt_filter_back_compare_spin.setValue(self.settings.dlt_filter_back_compare_periods)
-        dlt_back_compare_layout.addWidget(self.dlt_filter_back_compare_spin)
-        dlt_back_compare_layout.addStretch()
-        dlt_layout.addLayout(dlt_back_compare_layout)
-
-        dlt_sum_layout = QHBoxLayout()
-        dlt_sum_layout.addWidget(QLabel("前区和值范围:"))
-        self.dlt_filter_min_sum_spin = QSpinBox()
-        self.dlt_filter_min_sum_spin.setToolTip("允许的前区最小和值。")
-        self.dlt_filter_min_sum_spin.setRange(0, 165)
-        self.dlt_filter_min_sum_spin.setValue(self.settings.dlt_filter_min_front_sum)
-        dlt_sum_layout.addWidget(self.dlt_filter_min_sum_spin)
-        dlt_sum_layout.addWidget(QLabel("-"))
-        self.dlt_filter_max_sum_spin = QSpinBox()
-        self.dlt_filter_max_sum_spin.setToolTip("允许的前区最大和值。")
-        self.dlt_filter_max_sum_spin.setRange(0, 165)
-        self.dlt_filter_max_sum_spin.setValue(self.settings.dlt_filter_max_front_sum)
-        dlt_sum_layout.addWidget(self.dlt_filter_max_sum_spin)
-        dlt_sum_layout.addStretch()
-        dlt_layout.addLayout(dlt_sum_layout)
-
-        layout.addWidget(dlt_group)
+        # 过滤参数已移至「策略参数」面板，按各彩种分别配置
+        filter_hint = QLabel(
+            "号码过滤参数（双色球 / 福彩3D / 七乐彩 / 大乐透）已移至左侧"
+            "「策略参数」面板，选择对应彩种策略后即可单独配置，"
+            "此处不再重复设置。"
+        )
+        filter_hint.setWordWrap(True)
+        filter_hint.setStyleSheet("color: #666; font-size: 9pt;")
+        layout.addWidget(filter_hint)
 
         # 保存按钮
         self.save_settings_btn = QPushButton("保存设置")
@@ -1394,10 +1223,12 @@ class MainWindow(QMainWindow):
 
     def _perform_auto_update(self) -> None:
         """启动时检查并更新所有彩种的开奖数据（显示进度条对话框）。"""
-        if not self._should_auto_update():
-            return
-        # 延迟执行，避免在构造函数中启动线程导致生命周期问题
-        QTimer.singleShot(500, self._show_auto_update_dialog)
+        if self._should_auto_update():
+            # 延迟执行，避免在构造函数中启动线程导致生命周期问题
+            QTimer.singleShot(500, self._show_auto_update_dialog)
+        else:
+            # 即使不执行自动更新，也要显示今日开奖彩种提示
+            QTimer.singleShot(500, self._show_today_draws)
 
     def _show_auto_update_dialog(self) -> None:
         """显示自动更新对话框."""
@@ -1406,10 +1237,22 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def _on_auto_update_dialog_closed(self) -> None:
-        """自动更新对话框关闭后刷新界面."""
+        """自动更新对话框关闭后刷新界面并显示今日开奖彩种."""
         self._refresh_data_stats()
         self.data_status_label.setText(self._data_status_text(offline=False))
         self.xgboost_status_label.setText(self._model_status_text())
+        # 显示今日开奖彩种提示
+        self._show_today_draws()
+
+    def _show_today_draws(self) -> None:
+        """显示今日开奖彩种提示小窗口."""
+        dialog = TodayDrawsDialog(self)
+        dialog.exec()
+
+    def _show_latest_results(self) -> None:
+        """显示所有彩种最近一次开奖结果."""
+        dialog = LatestResultsDialog(self)
+        dialog.exec()
 
     def _start_auto_update(self) -> None:
         """实际启动自动更新线程."""
@@ -1539,6 +1382,19 @@ class MainWindow(QMainWindow):
                 category_menu.addAction(action)
 
         tools_menu = menubar.addMenu("工具")
+
+        today_draws_action = QAction("今日开奖彩种", self)
+        today_draws_action.setToolTip("查看今日会开奖的彩种列表。")
+        today_draws_action.triggered.connect(self._show_today_draws)
+        tools_menu.addAction(today_draws_action)
+
+        latest_results_action = QAction("最近开奖结果", self)
+        latest_results_action.setToolTip("查看各彩种最近一次的开奖结果。")
+        latest_results_action.triggered.connect(self._show_latest_results)
+        tools_menu.addAction(latest_results_action)
+
+        tools_menu.addSeparator()
+
         backtest_action = QAction("历史回测", self)
         backtest_action.setToolTip("选择历史开奖日期，用策略基于当时已知数据预测并对比真实结果。")
         backtest_action.triggered.connect(self._show_backtest_dialog)
@@ -1616,6 +1472,8 @@ class MainWindow(QMainWindow):
             return QIcon()
 
         actions = [
+            ("today", "今日开奖", "查看今日会开奖的彩种列表。", self._show_today_draws),
+            ("results", "最近开奖", "查看各彩种最近一次的开奖结果。", self._show_latest_results),
             ("generate", "立即生成", "根据当前策略生成号码。ML 策略首次会训练模型，请稍候。", self._generate),
             ("copy", "复制全部号码", "将生成的号码复制到剪贴板。", self._copy_all),
             ("print", "打印结果", "将生成的号码打印或导出为 PDF。", self._print_results),
@@ -2335,8 +2193,9 @@ class MainWindow(QMainWindow):
         self.editable_numbers_group.setVisible(True)
         self._editable_tickets = list(tickets)
 
-        # 福彩3D/排列3/排列5/7星彩 显示筛选复选框
-        is_fc3d = tickets[0].profile.key in ("3d", "pl3", "pl5", "qxc")
+        # 仅福彩3D/排列3 支持 组选/直选，显示筛选复选框；
+        # 排列5/7星彩为按位直选，无组选/豹子概念，不显示。
+        is_fc3d = tickets[0].profile.key in ("3d", "pl3")
         self.filter_layout_container.setVisible(is_fc3d)
 
         # 更新输入框占位符
@@ -2381,8 +2240,8 @@ class MainWindow(QMainWindow):
 
         profile_key = self._editable_tickets[0].profile.key if self._editable_tickets else ""
 
-        # 根据筛选条件过滤（仅FC3D/PL3/PL5/QXC）
-        if profile_key in ("3d", "pl3", "pl5", "qxc"):
+        # 根据筛选条件过滤（仅福彩3D/排列3 有组选/豹子形态）
+        if profile_key in ("3d", "pl3"):
             show_zu6 = self.filter_zu6_check.isChecked()
             show_zu3 = self.filter_zu3_check.isChecked()
             show_baozi = self.filter_baozi_check.isChecked()
@@ -2466,8 +2325,10 @@ class MainWindow(QMainWindow):
     def _get_ticket_type_label(self, ticket) -> str:
         """获取ticket的类型标签（通用）."""
         profile_key = ticket.profile.key
-        if profile_key in ("3d", "pl3", "pl5", "qxc"):
+        if profile_key in ("3d", "pl3"):
             return MainWindow._fc3d_display_label(ticket)
+        if profile_key in ("pl5", "qxc"):
+            return "直选"
         elif profile_key == "ssq":
             return "红+蓝"
         elif profile_key == "dlt":
@@ -2996,16 +2857,13 @@ class MainWindow(QMainWindow):
     # 主题/设置
     # ------------------------------------------------------------------ #
     def _apply_theme(self) -> None:
-        is_dark = self.dark_theme_check.isChecked()
-        self.settings.dark_theme = is_dark
+        """应用中式八卦喜庆主题."""
+        self.settings.dark_theme = False  # 统一使用中式主题
         font = self.font()
         if font.pointSize() <= 0:
             font.setPointSize(10)
             self.setFont(font)
-        if is_dark:
-            self.setStyleSheet(self._dark_stylesheet())
-        else:
-            self.setStyleSheet(self._light_stylesheet())
+        self.setStyleSheet(self._chinese_taoist_stylesheet())
 
     def _save_settings(self) -> None:
         try:
@@ -3019,27 +2877,6 @@ class MainWindow(QMainWindow):
                 self._register_boss_key()
             else:
                 return
-            # 保存过滤设置
-            self.settings.ssq_filter_compare_periods = self.ssq_filter_compare_spin.value()
-            self.settings.ssq_filter_max_red_overlap = self.ssq_filter_overlap_spin.value()
-            self.settings.ssq_filter_block_blue = self.ssq_filter_block_blue_check.isChecked()
-            self.settings.fc3d_filter_enabled = self.fc3d_filter_enabled_check.isChecked()
-            self.settings.fc3d_filter_compare_periods = self.fc3d_filter_compare_spin.value()
-            self.settings.fc3d_filter_max_overlap = self.fc3d_filter_overlap_spin.value()
-            self.settings.fc3d_filter_min_sum = self.fc3d_filter_min_sum_spin.value()
-            self.settings.fc3d_filter_max_sum = self.fc3d_filter_max_sum_spin.value()
-            self.settings.qlc_filter_enabled = self.qlc_filter_enabled_check.isChecked()
-            self.settings.qlc_filter_compare_periods = self.qlc_filter_compare_spin.value()
-            self.settings.qlc_filter_max_overlap = self.qlc_filter_overlap_spin.value()
-            self.settings.qlc_filter_min_sum = self.qlc_filter_min_sum_spin.value()
-            self.settings.qlc_filter_max_sum = self.qlc_filter_max_sum_spin.value()
-            self.settings.dlt_filter_enabled = self.dlt_filter_enabled_check.isChecked()
-            self.settings.dlt_filter_compare_periods = self.dlt_filter_compare_spin.value()
-            self.settings.dlt_filter_max_front_overlap = self.dlt_filter_overlap_spin.value()
-            self.settings.dlt_filter_block_back = self.dlt_filter_block_back_check.isChecked()
-            self.settings.dlt_filter_back_compare_periods = self.dlt_filter_back_compare_spin.value()
-            self.settings.dlt_filter_min_front_sum = self.dlt_filter_min_sum_spin.value()
-            self.settings.dlt_filter_max_front_sum = self.dlt_filter_max_sum_spin.value()
             self.settings.sync()
             QMessageBox.information(self, "设置已保存", "设置已保存并生效")
         except Exception as exc:  # noqa: BLE001
@@ -3150,260 +2987,369 @@ class MainWindow(QMainWindow):
         )
 
     # ------------------------------------------------------------------ #
-    # 样式表（与原版一致）
+    # 中式八卦喜庆主题样式表
     # ------------------------------------------------------------------ #
     @staticmethod
-    def _light_stylesheet() -> str:
-        return """
-        QWidget {
-            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-            font-size: 10pt;
-            color: #0A2540;
-            background-color: #EEF4F9;
-        }
-        QMainWindow {
-            background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
-                stop:0 #F6FAFC, stop:1 #DCE8F2);
-        }
-        QPushButton {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #0077B6, stop:1 #023E8A);
-            color: #FFFFFF;
-            border: 1px solid #0096C7;
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #0096C7, stop:1 #0077B6);
-            border: 1px solid #48CAE4;
-        }
-        QPushButton:pressed {
-            background: #005F73;
-        }
-        QLineEdit, QSpinBox, QComboBox, QTextEdit {
-            background-color: rgba(255, 255, 255, 0.85);
-            border: 1px solid rgba(0, 119, 182, 0.45);
-            border-radius: 6px;
-            padding: 6px;
-            color: #0A2540;
-        }
-        QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QTextEdit:focus {
-            border: 1px solid #0077B6;
-        }
-        QGroupBox {
-            font-weight: bold;
-            background-color: rgba(255, 255, 255, 0.55);
-            border: 1px solid rgba(0, 119, 182, 0.30);
-            border-radius: 12px;
-            margin-top: 12px;
-            padding-top: 12px;
-            color: #0A2540;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 12px;
-            padding: 0 8px;
-            color: #0077B6;
-        }
-        QLabel {
-            color: #0A2540;
-        }
-        QLabel#app_title {
-            font-size: 18pt;
-            font-weight: bold;
-            color: #023E8A;
-            padding: 8px;
-        }
-        QTabWidget::pane {
-            border: 1px solid rgba(0, 119, 182, 0.25);
-            border-radius: 12px;
-            background-color: rgba(255, 255, 255, 0.35);
-        }
-        QTabBar::tab {
-            background: rgba(255, 255, 255, 0.55);
-            color: #0077B6;
-            border: 1px solid rgba(0, 119, 182, 0.25);
-            padding: 8px 18px;
-            margin-right: 4px;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
-            font-weight: bold;
-        }
-        QTabBar::tab:selected {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #0077B6, stop:1 #023E8A);
-            color: #FFFFFF;
-            border: 1px solid #0096C7;
-        }
-        QTabBar::tab:hover:!selected {
-            background: rgba(0, 150, 199, 0.15);
-        }
-        QScrollArea > QWidget {
-            background-color: transparent;
-        }
-        QListWidget {
-            background-color: rgba(255, 255, 255, 0.55);
-            border: 1px solid rgba(0, 119, 182, 0.25);
-            border-radius: 10px;
-            padding: 6px;
-            color: #0A2540;
-        }
-        QToolBar {
-            background-color: rgba(255, 255, 255, 0.45);
-            border: 1px solid rgba(0, 119, 182, 0.25);
-            border-radius: 10px;
-            padding: 4px;
-            spacing: 6px;
-        }
-        QToolButton {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #FFFFFF, stop:1 #E1EEF7);
-            color: #0A2540;
-            border: 1px solid rgba(0, 119, 182, 0.35);
-            border-radius: 8px;
-            padding: 6px 8px;
-            font-weight: bold;
-            font-size: 9pt;
-        }
-        QToolButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #E1EEF7, stop:1 #CCE3F2);
-            border: 1px solid #48CAE4;
-        }
-        QToolButton:pressed {
-            background: #B8D9ED;
-        }
-        QToolButton::icon {
-            padding-bottom: 2px;
-        }
+    def _chinese_taoist_stylesheet() -> str:
+        """中式八卦喜庆主题样式表.
+        
+        配色方案：
+        - 主色：中国红 #C41E3A / 朱砂红 #E2231A
+        - 辅色：金色 #D4A017 / 琉璃黄 #F5C518
+        - 背景：宣纸色 #FDF5E6 / 米白 #F8F4E9
+        - 文字：墨黑 #2D2D2D / 深棕 #3D2B1F
+        - 点缀：道家青 #2E8B57 / 青瓷绿 #6B8E6B
         """
-
-    @staticmethod
-    def _dark_stylesheet() -> str:
         return """
+        /* ========== 全局基础 ========== */
         QWidget {
-            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+            font-family: "Microsoft YaHei", "SimSun", "KaiTi", sans-serif;
             font-size: 10pt;
-            color: #E0F7FF;
-            background-color: #05070A;
+            color: #2D2D2D;
+            background-color: #FDF5E6;
         }
         QMainWindow {
-            background: qradialgradient(cx:0.5, cy:0.5, radius:0.9,
-                stop:0 #0B1021, stop:1 #030408);
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FDF5E6, stop:0.5 #F8F4E9, stop:1 #F0E6D3);
         }
+
+        /* ========== 按钮 - 中国红渐变 ========== */
         QPushButton {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #00B4D8, stop:1 #0077B6);
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #E2231A, stop:0.5 #C41E3A, stop:1 #A01830);
             color: #FFFFFF;
-            border: 1px solid #48CAE4;
+            border: 2px solid #D4A017;
             border-radius: 8px;
             padding: 8px 16px;
             font-weight: bold;
+            font-size: 10pt;
         }
         QPushButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                stop:0 #48CAE4, stop:1 #0096C7);
-            border: 1px solid #90E0EF;
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #F54030, stop:0.5 #E2231A, stop:1 #C41E3A);
+            border: 2px solid #F5C518;
         }
         QPushButton:pressed {
-            background: #005F73;
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #A01830, stop:1 #801020);
         }
+        QPushButton:disabled {
+            background: #CCBBAA;
+            color: #888888;
+            border: 1px solid #BBAA99;
+        }
+
+        /* ========== 输入框 - 宣纸质感 ========== */
         QLineEdit, QSpinBox, QComboBox, QTextEdit {
-            background-color: rgba(10, 14, 23, 0.85);
-            border: 1px solid rgba(0, 210, 255, 0.45);
+            background-color: #FFFEF9;
+            border: 2px solid #D4A017;
             border-radius: 6px;
-            padding: 6px;
-            color: #E0F7FF;
+            padding: 6px 8px;
+            color: #2D2D2D;
+            selection-background-color: #C41E3A;
+            selection-color: #FFFFFF;
         }
         QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QTextEdit:focus {
-            border: 1px solid #00D2FF;
+            border: 2px solid #C41E3A;
+            background-color: #FFFFFF;
         }
+        QComboBox::drop-down {
+            border: none;
+            width: 24px;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #C41E3A;
+            margin-right: 8px;
+        }
+
+        /* ========== 分组框 - 古典边框 ========== */
         QGroupBox {
             font-weight: bold;
-            background-color: rgba(16, 24, 39, 0.65);
-            border: 1px solid rgba(0, 210, 255, 0.30);
+            font-size: 10pt;
+            background-color: rgba(255, 254, 249, 0.7);
+            border: 2px solid #D4A017;
             border-radius: 12px;
-            margin-top: 12px;
-            padding-top: 12px;
-            color: #E0F7FF;
+            margin-top: 14px;
+            padding-top: 14px;
+            color: #8B0000;
         }
         QGroupBox::title {
             subcontrol-origin: margin;
             left: 12px;
             padding: 0 8px;
-            color: #48CAE4;
+            color: #C41E3A;
+            font-size: 11pt;
         }
+
+        /* ========== 标签 ========== */
         QLabel {
-            color: #E0F7FF;
+            color: #2D2D2D;
+            background: transparent;
         }
         QLabel#app_title {
-            font-size: 18pt;
+            font-size: 20pt;
             font-weight: bold;
-            color: #48CAE4;
-            padding: 8px;
+            color: #8B0000;
+            padding: 10px;
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 transparent, stop:0.5 rgba(212, 160, 23, 0.15), stop:1 transparent);
         }
+
+        /* ========== 标签页 - 八卦风格 ========== */
         QTabWidget::pane {
-            border: 1px solid rgba(0, 210, 255, 0.25);
-            border-radius: 12px;
-            background-color: rgba(10, 16, 28, 0.50);
+            border: 2px solid #D4A017;
+            border-radius: 10px;
+            background-color: rgba(255, 254, 249, 0.5);
+            top: -1px;
         }
         QTabBar::tab {
-            background: rgba(16, 24, 39, 0.65);
-            color: #90E0EF;
-            border: 1px solid rgba(0, 210, 255, 0.25);
-            padding: 8px 18px;
-            margin-right: 4px;
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FDF5E6, stop:1 #F0E6D3);
+            color: #8B4513;
+            border: 2px solid #D4A017;
+            border-bottom: none;
+            padding: 10px 20px;
+            margin-right: 3px;
             border-top-left-radius: 10px;
             border-top-right-radius: 10px;
             font-weight: bold;
+            font-size: 10pt;
         }
         QTabBar::tab:selected {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #00B4D8, stop:1 #0077B6);
-            color: #FFFFFF;
-            border: 1px solid #48CAE4;
+                stop:0 #C41E3A, stop:0.5 #A01830, stop:1 #801020);
+            color: #FFD700;
+            border: 2px solid #D4A017;
+            border-bottom: 2px solid #C41E3A;
         }
         QTabBar::tab:hover:!selected {
-            background: rgba(0, 180, 216, 0.20);
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FFF8E7, stop:1 #FFE4B5);
+            color: #C41E3A;
         }
+
+        /* ========== 滚动区域 ========== */
         QScrollArea > QWidget {
             background-color: transparent;
         }
+        QScrollBar:vertical {
+            background: #F0E6D3;
+            width: 12px;
+            border-radius: 6px;
+            margin: 2px;
+        }
+        QScrollBar::handle:vertical {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #D4A017, stop:1 #C41E3A);
+            border-radius: 6px;
+            min-height: 30px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #C41E3A;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        QScrollBar:horizontal {
+            background: #F0E6D3;
+            height: 12px;
+            border-radius: 6px;
+            margin: 2px;
+        }
+        QScrollBar::handle:horizontal {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #D4A017, stop:1 #C41E3A);
+            border-radius: 6px;
+            min-width: 30px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background: #C41E3A;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+
+        /* ========== 列表控件 ========== */
         QListWidget {
-            background-color: rgba(10, 16, 28, 0.55);
-            border: 1px solid rgba(0, 210, 255, 0.25);
+            background-color: #FFFEF9;
+            border: 2px solid #D4A017;
             border-radius: 10px;
             padding: 6px;
-            color: #E0F7FF;
+            color: #2D2D2D;
+            outline: none;
         }
+        QListWidget::item {
+            padding: 6px;
+            border-radius: 4px;
+        }
+        QListWidget::item:selected {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #C41E3A, stop:1 #A01830);
+            color: #FFD700;
+        }
+        QListWidget::item:hover {
+            background: rgba(196, 30, 58, 0.1);
+        }
+
+        /* ========== 工具栏 ========== */
         QToolBar {
-            background-color: rgba(16, 24, 39, 0.55);
-            border: 1px solid rgba(0, 210, 255, 0.25);
+            background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FDF5E6, stop:1 #F0E6D3);
+            border: 2px solid #D4A017;
             border-radius: 10px;
             padding: 4px;
             spacing: 6px;
         }
         QToolButton {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #0F172A, stop:1 #1E293B);
-            color: #E0F7FF;
-            border: 1px solid rgba(0, 210, 255, 0.35);
+                stop:0 #FFFEF9, stop:1 #F5EFE0);
+            color: #8B0000;
+            border: 1px solid #D4A017;
             border-radius: 8px;
-            padding: 6px 8px;
+            padding: 6px 10px;
             font-weight: bold;
             font-size: 9pt;
         }
         QToolButton:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #1E293B, stop:1 #334155);
-            border: 1px solid #48CAE4;
+                stop:0 #FFE4B5, stop:1 #FFDAB9);
+            border: 1px solid #C41E3A;
+            color: #C41E3A;
         }
         QToolButton:pressed {
-            background: #0B1220;
+            background: #C41E3A;
+            color: #FFD700;
         }
-        QToolButton::icon {
-            padding-bottom: 2px;
+
+        /* ========== 表格 ========== */
+        QTableWidget {
+            background-color: #FFFEF9;
+            border: 2px solid #D4A017;
+            border-radius: 8px;
+            gridline-color: #E8DCC8;
+            color: #2D2D2D;
+        }
+        QTableWidget::item {
+            padding: 4px;
+        }
+        QTableWidget::item:selected {
+            background: #C41E3A;
+            color: #FFFFFF;
+        }
+        QHeaderView::section {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #C41E3A, stop:1 #A01830);
+            color: #FFD700;
+            border: 1px solid #D4A017;
+            padding: 6px;
+            font-weight: bold;
+        }
+
+        /* ========== 进度条 ========== */
+        QProgressBar {
+            border: 2px solid #D4A017;
+            border-radius: 8px;
+            text-align: center;
+            color: #2D2D2D;
+            background-color: #F0E6D3;
+            height: 20px;
+        }
+        QProgressBar::chunk {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #C41E3A, stop:0.5 #E2231A, stop:1 #C41E3A);
+            border-radius: 6px;
+        }
+
+        /* ========== 复选框/单选框 ========== */
+        QCheckBox, QRadioButton {
+            color: #2D2D2D;
+            spacing: 8px;
+        }
+        QCheckBox::indicator, QRadioButton::indicator {
+            width: 18px;
+            height: 18px;
+        }
+        QCheckBox::indicator {
+            border: 2px solid #D4A017;
+            border-radius: 4px;
+            background: #FFFEF9;
+        }
+        QCheckBox::indicator:checked {
+            background: #C41E3A;
+            border-color: #C41E3A;
+        }
+        QRadioButton::indicator {
+            border: 2px solid #D4A017;
+            border-radius: 10px;
+            background: #FFFEF9;
+        }
+        QRadioButton::indicator:checked {
+            background: #C41E3A;
+            border-color: #C41E3A;
+        }
+
+        /* ========== 提示框 ========== */
+        QToolTip {
+            font-family: "Microsoft YaHei", sans-serif;
+            font-size: 10pt;
+            background-color: #FFF8DC;
+            color: #2D2D2D;
+            border: 2px solid #D4A017;
+            border-radius: 6px;
+            padding: 6px;
+        }
+
+        /* ========== 状态栏 ========== */
+        QStatusBar {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FDF5E6, stop:1 #F0E6D3);
+            border-top: 2px solid #D4A017;
+            color: #8B4513;
+        }
+
+        /* ========== 菜单 ========== */
+        QMenuBar {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FDF5E6, stop:1 #F0E6D3);
+            border-bottom: 2px solid #D4A017;
+            color: #2D2D2D;
+        }
+        QMenuBar::item:selected {
+            background: #C41E3A;
+            color: #FFFFFF;
+        }
+        QMenu {
+            background: #FFFEF9;
+            border: 2px solid #D4A017;
+            color: #2D2D2D;
+        }
+        QMenu::item:selected {
+            background: #C41E3A;
+            color: #FFFFFF;
+        }
+        QMenu::separator {
+            height: 2px;
+            background: #D4A017;
+            margin: 4px 8px;
+        }
+
+        /* ========== 对话框 ========== */
+        QDialog {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #FDF5E6, stop:1 #F0E6D3);
+        }
+
+        /* ========== 分割器 ========== */
+        QSplitter::handle {
+            background: #D4A017;
+            width: 3px;
+            height: 3px;
+            border-radius: 2px;
+        }
+        QSplitter::handle:hover {
+            background: #C41E3A;
         }
         """

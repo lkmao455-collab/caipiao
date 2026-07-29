@@ -167,6 +167,10 @@ class LotteryDataFetcher:
         issue = parts[0]
         draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
         digits = [int(parts[i]) for i in range(2, 9)]
+        # 七星彩每位为 0-9；历史上个别数据存在越界值（如第 7 位为 10-14），
+        # 属脏数据，跳过该行以免污染统计与生成逻辑。
+        if len(digits) != 7 or any(not (0 <= d <= 9) for d in digits):
+            return None
         return DrawRecord(
             issue=issue,
             draw_date=draw_date,

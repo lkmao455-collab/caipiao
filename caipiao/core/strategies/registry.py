@@ -20,39 +20,48 @@ from .lotteries.qlc import balanced as qlc_balanced
 from .lotteries.qlc import smart_hot_cold as qlc_smart_hot_cold
 from .lotteries.qxc import balanced as qxc_balanced
 from .lotteries.qxc import smart_hot_cold as qxc_smart_hot_cold
+from .bagua import BaguaStrategy
 from ..strategy import GenerationStrategy
 
 STRATEGY_REGISTRY: Dict[str, List[Type[GenerationStrategy]]] = {
     "ssq": [
         ssq_smart_hot_cold.SSQSmartHotColdStrategy,
         ssq_balanced.SSQBalancedStrategy,
+        BaguaStrategy,
     ],
     "3d": [
         fc3d_smart_hot_cold.FC3DSmartHotColdStrategy,
         fc3d_balanced.FC3DBalancedStrategy,
+        BaguaStrategy,
     ],
     "qlc": [
         qlc_smart_hot_cold.QLCSmartHotColdStrategy,
         qlc_balanced.QLCBalancedStrategy,
+        BaguaStrategy,
     ],
     "kl8": [
         kl8_smart_hot_cold.KL8SmartHotColdStrategy,
         kl8_balanced.KL8BalancedStrategy,
+        BaguaStrategy,
     ],
     "dlt": [
         dlt_smart_hot_cold.DLTSmartHotColdStrategy,
         dlt_balanced.DLTBalancedStrategy,
+        BaguaStrategy,
     ],
     "pl3": [
         pl3_smart_hot_cold.PL3SmartHotColdStrategy,
         pl3_balanced.PL3BalancedStrategy,
+        BaguaStrategy,
     ],
     "pl5": [
         pl5_smart_hot_cold.PL5SmartHotColdStrategy,
         pl5_balanced.PL5BalancedStrategy,
+        BaguaStrategy,
     ],
     "qxc": [
         qxc_smart_hot_cold.QXCSmartHotColdStrategy,
         qxc_balanced.QXCBalancedStrategy,
+        BaguaStrategy,
     ],
 }

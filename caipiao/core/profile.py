@@ -215,7 +215,7 @@ FC3D = LotteryProfile(
     model_prefix="3d",
 )
 
-# 七乐彩：7 个基本号 + 1 个特别号，均来自 1-30。周一/三/五开奖。
+# 七乐彩：已停售，保留在此处供策略模块引用，但不加入 PROFILES 和 list_profiles()
 QLC = LotteryProfile(
     key="qlc",
     name="七乐彩",
@@ -260,7 +260,7 @@ DLT = LotteryProfile(
     ),
     data_url="http://data.17500.cn/dlt_asc.txt",
     parser_key="dlt",
-    draw_weekdays=(1, 3, 6),  # 周一/三/六
+    draw_weekdays=(0, 2, 5),  # 周一/三/六
     storage_file="draws_dlt.json",
     model_prefix="dlt",
     category=LOTTERY_CATEGORY_SPORTS,
@@ -320,7 +320,7 @@ QXC = LotteryProfile(
     ),
     data_url="http://data.17500.cn/7xc_asc.txt",
     parser_key="qxc",
-    draw_weekdays=(2, 4, 6),  # 周二/五/日
+    draw_weekdays=(1, 4, 6),  # 周二/五/日
     storage_file="draws_qxc.json",
     model_prefix="qxc",
     category=LOTTERY_CATEGORY_SPORTS,
@@ -347,7 +347,7 @@ GD36X7 = LotteryProfile(
 
 
 PROFILES: Dict[str, LotteryProfile] = {
-    p.key: p for p in (SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC)
+    p.key: p for p in (SSQ, FC3D, KL8, DLT, PL3, PL5, QXC)
 }
 
 DEFAULT_KEY = "ssq"
@@ -365,7 +365,7 @@ def get_profile(key: str) -> LotteryProfile:
 
 def list_profiles() -> List[LotteryProfile]:
     """按固定顺序返回全部彩种档案。"""
-    return [SSQ, FC3D, QLC, KL8, DLT, PL3, PL5, QXC]
+    return [SSQ, FC3D, KL8, DLT, PL3, PL5, QXC]
 
 
 # 主界面导航中隐藏的彩种 key：功能、数据与策略全部保留，

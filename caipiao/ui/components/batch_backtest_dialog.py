@@ -941,6 +941,9 @@ class BatchBacktestDialog(QDialog):
             summary_lines.append("（已中断，结果为部分扫描）")
         self._set_summary("\n".join(summary_lines))
 
+        # 还原最优策略对应的中奖记录明细
+        self._render_winner_details(result.optimal_result.winner_details)
+
         self._last_strategy_scan_result = result
         self.save_group_btn.setVisible(True)
 
@@ -1063,6 +1066,32 @@ class BatchBacktestDialog(QDialog):
 
         self._update_running_summary(current, total)
 
+    def _render_winner_details(self, winner_details: List[Dict[str, Any]]) -> None:
+        """把中奖明细写入「详细结果（中奖记录）」面板.
+
+        一键找最优策略 / 最优期数扫描完成后复用此方法，
+        避免结果面板的中奖记录为空。
+        """
+        self.detail_text.clear()
+        if not winner_details:
+            self.detail_text.setText("没有中奖记录。")
+            return
+        for item in winner_details:
+            ticket = item.get("ticket")
+            ticket_text = ticket.format_compact() if ticket is not None else ""
+            prize_amount = item.get("prize_amount")
+            prize_name = item.get("prize_name", "未中奖")
+            if prize_amount is None:
+                prize_text = f"{prize_name}（浮动奖金）"
+            else:
+                prize_text = f"{prize_name} {prize_amount} 元"
+            prefix = "【首注】" if item.get("is_first") else ""
+            line = (
+                f"{prefix}{item.get('date', '')} 第 {item.get('issue', '')} 期："
+                f"{ticket_text} -> {prize_text}"
+            )
+            self.detail_text.append(line)
+
     def _update_running_summary(self, current: int, total: int) -> None:
         profit = self._running_fixed_prize - self._running_cost
         rounds = max(self._running_rounds, 1)
@@ -1165,6 +1194,9 @@ class BatchBacktestDialog(QDialog):
         if result.interrupted:
             summary_lines.append("（已中断，结果为部分扫描）")
         self._set_summary("\n".join(summary_lines))
+
+        # 还原最优期数对应的中奖记录明细
+        self._render_winner_details(result.optimal_result.winner_details)
 
         # 在日志区打印所有结果排名
         ranked = sorted(
