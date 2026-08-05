@@ -32,6 +32,7 @@
 - 追加提交：`9670732` test: 核心层(排除 UI/ML)行覆盖率提升至 100%（13 文件，+6301/−19，669 新测试）。
 - 未 push（远端提交需另行确认）。
 
-## 附注：文档同步
+## 附注：文档同步 (已完成)
 
-- `docs/roadmap.md` 的 Phase 4 与 `docs/todo.md` 不同步：Phase 4（增量训练、多期联合预测、自定义过滤、Excel 导出、Transformer/TabNet）实际已完成但 roadmap 未勾选，需更新。
+- `docs/roadmap.md` 的 Phase 4 与 `docs/todo.md` 已同步：Phase 4 五项（增量训练、多期联合预测、自定义过滤、Excel 导出、Transformer/TabNet）及 Phase 3 的「测试覆盖率提升」「代码质量优化」均已勾选为完成；`docs/todo.md` 的「单元测试覆盖率提升至 80%」同步勾选；移除 todo 中已删除的 QLC 引用。
+- 提交：见 `c225368` 之后的文档更新提交。
