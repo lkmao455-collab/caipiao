@@ -6,8 +6,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
-from typing import Any, Dict, Optional
+from datetime import datetime, timezone
+from typing import Any
 from uuid import uuid4
 
 from PySide6.QtCore import Signal
@@ -61,11 +61,11 @@ class ParameterGroupSaveDialog(QDialog):
         scan_result: StrategyScanResult,
         profile_key: str,
         store: ParameterGroupStore,
-        strategy_name_map: Optional[Dict[str, str]] = None,
+        strategy_name_map: dict[str, str] | None = None,
         start_date: str = "",
         end_date: str = "",
         tickets_per_round: int = 0,
-        optimal_param_store: Optional[OptimalParamStore] = None,
+        optimal_param_store: OptimalParamStore | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -139,7 +139,7 @@ class ParameterGroupSaveDialog(QDialog):
 
     def _auto_name(self) -> str:
         count = len(self._eligible_results())
-        return f"最优组_{datetime.now().strftime('%Y-%m-%d')}_前{count}策略"
+        return f"最优组_{datetime.now(timezone.utc).astimezone().strftime('%Y-%m-%d')}_前{count}策略"
 
     def _update_preview(self) -> None:
         top_n = self.top_n_spin.value()
@@ -218,7 +218,7 @@ class ParameterGroupSaveDialog(QDialog):
             id=str(uuid4()),
             name=name,
             profile_key=self._profile_key,
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(timezone.utc).astimezone().isoformat(),
             scan_context={
                 "start_date": self._start_date,
                 "end_date": self._end_date,

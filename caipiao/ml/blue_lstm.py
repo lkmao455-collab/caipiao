@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import pickle
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 
@@ -18,7 +17,7 @@ def _ensure_torch():
     global _torch_available
     if _torch_available is None:
         try:
-            import torch
+            import torch  # noqa: F401
             _torch_available = True
         except ImportError:
             _torch_available = False
@@ -44,7 +43,7 @@ class BlueBallLSTM:
 
     def _build_model(self):
         import torch
-        import torch.nn as nn
+        from torch import nn
 
         self._device = torch.device("cpu")
 
@@ -63,7 +62,7 @@ class BlueBallLSTM:
 
         self.model = LSTMModel(self.BLUE_COUNT, self.hidden_size, self.num_layers).to(self._device)
 
-    def _encode_blue_batch(self, blue_list: List[int]) -> np.ndarray:
+    def _encode_blue_batch(self, blue_list: list[int]) -> np.ndarray:
         """批量编码蓝球为 one-hot 矩阵 (n, 16)."""
         n = len(blue_list)
         mat = np.zeros((n, self.BLUE_COUNT), dtype=np.float32)
@@ -90,7 +89,7 @@ class BlueBallLSTM:
             (missing > 0.5).sum() / self.BLUE_COUNT,
         ], dtype=np.float32)
 
-    def _build_sequences(self, blue_list: List[int]) -> Tuple[np.ndarray, np.ndarray]:
+    def _build_sequences(self, blue_list: list[int]) -> tuple[np.ndarray, np.ndarray]:
         """向量化构建训练数据."""
         n = len(blue_list)
         if n < self.seq_len + 1:
@@ -110,11 +109,11 @@ class BlueBallLSTM:
 
         return X, y
 
-    def train(self, blue_list: List[int], epochs: int = 50, lr: float = 0.001,
+    def train(self, blue_list: list[int], epochs: int = 50, lr: float = 0.001,
               progress_callback=None):
         """训练 LSTM 模型."""
         import torch
-        import torch.nn as nn
+        from torch import nn
         from torch.utils.data import DataLoader, TensorDataset
 
         X, y = self._build_sequences(blue_list)
@@ -154,7 +153,7 @@ class BlueBallLSTM:
             progress_callback("蓝球LSTM: 训练完成")
         logger.info("蓝球 LSTM 训练完成")
 
-    def predict(self, blue_sequence: List[int]) -> np.ndarray:
+    def predict(self, blue_sequence: list[int]) -> np.ndarray:
         """预测下一期蓝球概率分布."""
         import torch
 
@@ -189,7 +188,7 @@ class BlueBallLSTM:
             pickle.dump(data, f)
 
     @classmethod
-    def load(cls, path: Path) -> "BlueBallLSTM":
+    def load(cls, path: Path) -> BlueBallLSTM:
         with path.open("rb") as f:
             data = pickle.load(f)
         instance = cls(

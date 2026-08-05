@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -19,7 +19,7 @@ def build_features(
     records: list[DrawRecord],
     profile: LotteryProfile | None = None,
     lookback: int = 50,
-) -> Tuple[np.ndarray, dict[str, np.ndarray]]:
+) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """构建 QXC 训练特征与标签."""
     return _build_features(records, profile=QXC, lookback=lookback)
 

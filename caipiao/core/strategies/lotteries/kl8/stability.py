@@ -17,10 +17,9 @@ import hashlib
 import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .....data.models import DrawRecord
-
 
 MAIN_KEY = "main"
 MAIN_POOL = list(range(1, 81))
@@ -28,7 +27,7 @@ MAIN_POOL_SIZE = len(MAIN_POOL)
 DRAW_PER_NUMBER_PROB = 20.0 / 80.0  # p = 0.25
 
 
-def _slice_records(records: List[DrawRecord], lookback: Optional[int]) -> List[DrawRecord]:
+def _slice_records(records: list[DrawRecord], lookback: int | None) -> list[DrawRecord]:
     sorted_records = sorted(records, key=lambda r: r.draw_date)
     if lookback is None or lookback >= len(sorted_records):
         return sorted_records
@@ -41,7 +40,7 @@ def _slice_records(records: List[DrawRecord], lookback: Optional[int]) -> List[D
 # 确定性随机种子（无用户 seed 时基于历史内容可复现）
 # --------------------------------------------------------------------------- #
 def _history_content_hash(
-    records: List[DrawRecord], lookback: Optional[int] = None
+    records: list[DrawRecord], lookback: int | None = None
 ) -> str:
     """根据历史数据内容生成短 hash."""
     sliced = _slice_records(records, lookback)
@@ -55,8 +54,8 @@ def _history_content_hash(
 
 def deterministic_seed(
     options: dict,
-    history: List[DrawRecord],
-    lookback: Optional[int] = None,
+    history: list[DrawRecord],
+    lookback: int | None = None,
     strategy_id: str = "",
 ) -> int:
     """若 options 中无 seed，则基于历史内容派生确定性 seed."""
@@ -64,7 +63,7 @@ def deterministic_seed(
     if seed is not None:
         return int(seed)
     h = _history_content_hash(history, lookback)
-    raw = hashlib.sha256(f"{strategy_id}:{h}".encode("utf-8")).hexdigest()
+    raw = hashlib.sha256(f"{strategy_id}:{h}".encode()).hexdigest()
     return int(raw, 16) % (2**31)
 
 
@@ -72,8 +71,8 @@ def deterministic_seed(
 # 热号信号：拉普拉斯平滑频率
 # --------------------------------------------------------------------------- #
 def stable_frequency(
-    records: List[DrawRecord], lookback: Optional[int] = None, smoothing: float = 1.0
-) -> Dict[int, float]:
+    records: list[DrawRecord], lookback: int | None = None, smoothing: float = 1.0
+) -> dict[int, float]:
     """返回拉普拉斯平滑后的号码概率分布 {number: probability}.
 
     数学原理:
@@ -92,15 +91,15 @@ def stable_frequency(
 
 
 def frequency_counts(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> Dict[int, int]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> dict[int, int]:
     """返回 lookback 窗口内每个号码的原始出现次数 {number: count}.
 
     供 :func:`chi_square_uniform_test` 使用原始观测计数（而非平滑概率），
     保证 χ² 统计量的无偏性。
     """
     sliced = _slice_records(records, lookback)
-    counter: Dict[int, int] = {n: 0 for n in MAIN_POOL}
+    counter: dict[int, int] = {n: 0 for n in MAIN_POOL}
     for r in sliced:
         for n in r.groups.get(MAIN_KEY, []):
             if n in counter:
@@ -112,8 +111,8 @@ def frequency_counts(
 # 冷号信号：原始遗漏期数 → 几何分布 z-score
 # --------------------------------------------------------------------------- #
 def raw_missing_periods(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> Dict[int, int]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> dict[int, int]:
     """返回每个号码的原始遗漏期数 {number: periods}.
 
     遗漏期数 = 距离该号码最近一次出现过了多少期（0 = 最近一期出现）。
@@ -121,7 +120,7 @@ def raw_missing_periods(
     """
     sliced = _slice_records(records, lookback)
     window = len(sliced) if sliced else 1
-    missing: Dict[int, int] = {n: window for n in MAIN_POOL}
+    missing: dict[int, int] = {n: window for n in MAIN_POOL}
     for idx, r in enumerate(reversed(sliced)):
         for n in r.groups.get(MAIN_KEY, []):
             if n in missing and missing[n] == window:
@@ -130,8 +129,8 @@ def raw_missing_periods(
 
 
 def geometric_missing_zscore(
-    missing_periods: Dict[int, int], p: float = DRAW_PER_NUMBER_PROB
-) -> Dict[int, float]:
+    missing_periods: dict[int, int], p: float = DRAW_PER_NUMBER_PROB
+) -> dict[int, float]:
     """将原始遗漏期数转为几何分布的 z-score {number: z}.
 
     数学原理:
@@ -174,7 +173,7 @@ def _chi_square_critical(df: int, alpha: float = 0.05) -> float:
     return df * (1 - c + z * math.sqrt(c)) ** 3
 
 
-def chi_square_uniform_test(counts: List[int]) -> tuple:
+def chi_square_uniform_test(counts: list[int]) -> tuple:
     """χ² 拟合优度检验: 观测频率是否偏离均匀分布.
 
     数学原理:
@@ -208,7 +207,7 @@ def chi_square_uniform_test(counts: List[int]) -> tuple:
 # --------------------------------------------------------------------------- #
 # 评分合成：z-score 标准化 + softmax 温度
 # --------------------------------------------------------------------------- #
-def _zscore_normalize(scores: Dict[int, float]) -> Dict[int, float]:
+def _zscore_normalize(scores: dict[int, float]) -> dict[int, float]:
     """z-score 标准化: z = (x - mean) / std.
 
     输出均值 0、标准差 1，是 softmax logits 的标准输入形式。
@@ -233,7 +232,7 @@ def _zscore_normalize(scores: Dict[int, float]) -> Dict[int, float]:
     return {n: (scores[n] - mean) / std for n in MAIN_POOL}
 
 
-def softmax_scores(values: List[float], temperature: float = 1.0) -> List[float]:
+def softmax_scores(values: list[float], temperature: float = 1.0) -> list[float]:
     """带温度参数的 softmax.
 
     temperature → ∞ 时退化为均匀分布（纯随机），
@@ -248,12 +247,12 @@ def softmax_scores(values: List[float], temperature: float = 1.0) -> List[float]
 
 
 def stable_scores(
-    hot_scores: Dict[int, float],
-    cold_scores: Dict[int, float],
+    hot_scores: dict[int, float],
+    cold_scores: dict[int, float],
     hot_weight: float,
     cold_weight: float,
     temperature: float = 1.0,
-) -> List[float]:
+) -> list[float]:
     """合并热分和冷分，输出 1-80 的 softmax 概率分布（按号码升序）.
 
     数学原理 (z-score 标准化):
@@ -277,7 +276,7 @@ def stable_scores(
 # 加权采样
 # --------------------------------------------------------------------------- #
 def sample_weighted(
-    rng: random.Random, values: List[Any], probabilities: List[float]
+    rng: random.Random, values: list[Any], probabilities: list[float]
 ) -> Any:
     """加权采样，概率全为 0 时退化为均匀随机."""
     if len(values) != len(probabilities):
@@ -289,8 +288,8 @@ def sample_weighted(
 
 
 def weighted_sample_without_replacement(
-    rng: random.Random, values: List[int], weights: List[float], k: int
-) -> List[int]:
+    rng: random.Random, values: list[int], weights: list[float], k: int
+) -> list[int]:
     """按概率加权无放回采样 k 个不同号码.
 
     数学原理 (顺序加权无放回采样, PPS sequential):
@@ -309,7 +308,7 @@ def weighted_sample_without_replacement(
     pool = list(values)
     pool_w = list(weights)
     k = max(0, min(k, len(pool)))
-    selected: List[int] = []
+    selected: list[int] = []
     for _ in range(k):
         total = sum(pool_w)
         if total <= 0:

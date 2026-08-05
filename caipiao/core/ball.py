@@ -32,26 +32,24 @@ class Ball:
 
     def _validate(self) -> None:
         """校验号码范围."""
-        if self.color == BallColor.RED:
-            if not (self.MIN_RED <= self.number <= self.MAX_RED):
-                raise ValueError(
-                    f"红球号码必须在 {self.MIN_RED}-{self.MAX_RED} 之间，"
-                    f"得到 {self.number}"
-                )
-        elif self.color == BallColor.BLUE:
-            if not (self.MIN_BLUE <= self.number <= self.MAX_BLUE):
-                raise ValueError(
-                    f"蓝球号码必须在 {self.MIN_BLUE}-{self.MAX_BLUE} 之间，"
-                    f"得到 {self.number}"
-                )
+        if self.color == BallColor.RED and not (self.MIN_RED <= self.number <= self.MAX_RED):
+            raise ValueError(
+                f"红球号码必须在 {self.MIN_RED}-{self.MAX_RED} 之间，"
+                f"得到 {self.number}"
+            )
+        if self.color == BallColor.BLUE and not (self.MIN_BLUE <= self.number <= self.MAX_BLUE):
+            raise ValueError(
+                f"蓝球号码必须在 {self.MIN_BLUE}-{self.MAX_BLUE} 之间，"
+                f"得到 {self.number}"
+            )
 
     @classmethod
-    def red(cls, number: int) -> "Ball":
+    def red(cls, number: int) -> Ball:
         """快速创建红球."""
         return cls(number, BallColor.RED)
 
     @classmethod
-    def blue(cls, number: int) -> "Ball":
+    def blue(cls, number: int) -> Ball:
         """快速创建蓝球."""
         return cls(number, BallColor.BLUE)
 

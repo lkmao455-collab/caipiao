@@ -1,15 +1,15 @@
 """核心数据模型与生成逻辑."""
 
 from .ball import Ball, BallColor
-from .ticket import Ticket
-from .strategy import GenerationStrategy, StrategyMetadata
 from .engine import GenerationEngine
+from .strategy import GenerationStrategy, StrategyMetadata
+from .ticket import Ticket
 
 __all__ = [
     "Ball",
     "BallColor",
-    "Ticket",
+    "GenerationEngine",
     "GenerationStrategy",
     "StrategyMetadata",
-    "GenerationEngine",
+    "Ticket",
 ]

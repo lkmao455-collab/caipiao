@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .....data.analyzer import DrawAnalyzer
 from ....strategy import GenerationStrategy, StrategyMetadata
@@ -27,7 +27,7 @@ class DLTBalancedStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
@@ -43,14 +43,14 @@ class DLTBalancedStrategy(GenerationStrategy):
         _add_pick_count_schema(schema)
         return schema
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         history = options.get("history", [])
         if len(history) < 20:
             raise ValueError(f"{self.metadata.name} 策略需要至少 20 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = records_from_options(options)
@@ -83,9 +83,9 @@ class DLTBalancedStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         for _ in range(count):
-            best: Optional[Dict[str, List[int]]] = None
+            best: dict[str, list[int]] | None = None
             best_score = float("inf")
             for _ in range(max_attempts):
                 if primary.allow_repeat:
@@ -102,7 +102,7 @@ class DLTBalancedStrategy(GenerationStrategy):
                 )
                 if score < best_score:
                     best_score = score
-                    groups: Dict[str, List[int]] = {primary.key: candidate_primary}
+                    groups: dict[str, list[int]] = {primary.key: candidate_primary}
                     self._fill_random_other(groups, rng)
                     best = groups
                 if best_score <= 0.5:
@@ -118,7 +118,7 @@ class DLTBalancedStrategy(GenerationStrategy):
             tickets.append(_make_ticket(best, strategy_name=self.metadata.name, basis=basis))
         return tickets
 
-    def _fill_random_other(self, groups: Dict[str, List[int]], rng: random.Random) -> None:
+    def _fill_random_other(self, groups: dict[str, list[int]], rng: random.Random) -> None:
         for g in PROFILE.pick_groups:
             if g.key in groups:
                 continue

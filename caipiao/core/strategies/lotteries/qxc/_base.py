@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import random
-from typing import Any, Dict, List
+from typing import Any
 
 from ....profile import QXC
 from ....ticket import Ticket
 
-
 PROFILE = QXC
 
 
-def _get_pick_count(options: Dict[str, Any]) -> int:
+def _get_pick_count(options: dict[str, Any]) -> int:
     """返回本次生成主号码组应选几个号码。"""
     primary = PROFILE.primary_group
     if not primary.variable_pick:
@@ -27,7 +25,7 @@ def _get_pick_count(options: Dict[str, Any]) -> int:
     return max(primary.effective_pick_min, min(pick, primary.effective_pick_max))
 
 
-def _add_pick_count_schema(schema: Dict[str, Any], label: str = "投注个数") -> None:
+def _add_pick_count_schema(schema: dict[str, Any], label: str = "投注个数") -> None:
     """为可变 pick 彩种在策略参数里加入‘选几’配置。"""
     primary = PROFILE.primary_group
     if not primary.variable_pick:
@@ -41,5 +39,5 @@ def _add_pick_count_schema(schema: Dict[str, Any], label: str = "投注个数") 
     }
 
 
-def _make_ticket(groups: Dict[str, List[int]], **kwargs) -> Ticket:
+def _make_ticket(groups: dict[str, list[int]], **kwargs) -> Ticket:
     return Ticket(profile=PROFILE, groups=groups, **kwargs)

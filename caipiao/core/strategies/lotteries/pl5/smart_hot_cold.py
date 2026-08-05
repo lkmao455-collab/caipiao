@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+from typing import Any
 
 from .....data.analyzer import DrawAnalyzer
 from ....strategy import GenerationStrategy, StrategyMetadata
@@ -29,7 +27,7 @@ class PL5SmartHotColdStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
@@ -52,14 +50,14 @@ class PL5SmartHotColdStrategy(GenerationStrategy):
         _add_pick_count_schema(schema)
         return schema
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         history = options.get("history", [])
         if len(history) < 20:
             raise ValueError(f"{self.metadata.name} 策略需要至少 20 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = records_from_options(options)
@@ -76,7 +74,7 @@ class PL5SmartHotColdStrategy(GenerationStrategy):
         missing = dict(analyzer.missing(primary.key, lookback))
         max_missing = max(missing.values()) if missing else 1
 
-        scores: Dict[int, float] = {n: 0.0 for n in primary.values}
+        scores: dict[int, float] = {n: 0.0 for n in primary.values}
         for n in primary.values:
             f = freq.get(n, 0)
             scores[n] += hot_weight * (f / max_freq)
@@ -97,11 +95,11 @@ class PL5SmartHotColdStrategy(GenerationStrategy):
         dedup = bool(options.get("dedup", True))
 
         seen: set = set()
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         max_attempts = count * 50 if dedup else 1
         for _ in range(count):
             for attempt in range(max_attempts):
-                groups: Dict[str, List[int]] = {}
+                groups: dict[str, list[int]] = {}
                 if primary.positional:
                     groups[primary.key] = [rng.choices(primary.values, weights=weights, k=1)[0] for _ in range(primary.count)]
                 else:
@@ -128,7 +126,7 @@ class PL5SmartHotColdStrategy(GenerationStrategy):
             tickets.append(_make_ticket(groups, strategy_name=self.metadata.name, basis=basis))
         return tickets
 
-    def _fill_random_other(self, groups: Dict[str, List[int]], rng: random.Random) -> None:
+    def _fill_random_other(self, groups: dict[str, list[int]], rng: random.Random) -> None:
         for g in PROFILE.pick_groups:
             if g.key in groups:
                 continue

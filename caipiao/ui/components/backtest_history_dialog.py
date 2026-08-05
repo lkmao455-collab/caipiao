@@ -5,9 +5,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -17,7 +14,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -26,14 +22,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...persistence.backtest_db import BacktestDatabase
 from ...core.profile import get_profile
+from ...persistence.backtest_db import BacktestDatabase
 
 
 class BacktestHistoryDialog(QDialog):
     """回测历史记录查询窗口."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("回测记录")
         self.resize(1100, 750)
@@ -180,7 +176,7 @@ class BacktestHistoryDialog(QDialog):
         record = self._db.get_single(backtest_id)
         if record is None:
             return
-        lines: List[str] = [
+        lines: list[str] = [
             f"ID: {record.id}",
             f"时间: {record.created_at}",
             f"彩种: {get_profile(record.profile_key).name} ({record.profile_key})",
@@ -188,8 +184,8 @@ class BacktestHistoryDialog(QDialog):
             f"目标日期: {record.target_date}  期号: {record.issue}",
             f"参数: {record.options}",
             f"真实开奖: {record.actual_groups}",
-            f"注数: {record.tickets_count}  花费: {record.total_cost}  固定奖: {record.total_fixed_prize}"
-            f"  浮动奖: {record.float_prize_count}  中奖: {record.hit_count}  盈亏: {record.profit:+d}",
+            (f"注数: {record.tickets_count}  花费: {record.total_cost}  固定奖: {record.total_fixed_prize}"
+            f"  浮动奖: {record.float_prize_count}  中奖: {record.hit_count}  盈亏: {record.profit:+d}"),
             "",
             "投注明细:",
         ]
@@ -219,7 +215,7 @@ class BacktestHistoryDialog(QDialog):
             f"第 {idx + 1} 注: {count} 次"
             for idx, count in sorted(record.ticket_index_hits.items())
         ]
-        lines: List[str] = [
+        lines: list[str] = [
             f"ID: {record.id}",
             f"时间: {record.created_at}",
             f"彩种: {get_profile(record.profile_key).name} ({record.profile_key})",
@@ -227,9 +223,9 @@ class BacktestHistoryDialog(QDialog):
             f"日期区间: {record.start_date} ~ {record.end_date}",
             f"每期注数: {record.tickets_per_round}",
             f"参数: {record.options}",
-            f"总期数: {record.total_rounds}  总花费: {record.total_cost}"
+            (f"总期数: {record.total_rounds}  总花费: {record.total_cost}"
             f"  固定奖: {record.total_fixed_prize}  浮动奖: {record.float_prize_count}"
-            f"  中奖: {record.hit_count}  首注中奖: {record.first_ticket_hit_count}",
+            f"  中奖: {record.hit_count}  首注中奖: {record.first_ticket_hit_count}"),
             f"盈亏: {record.profit:+d} 元",
             "",
             "各注中奖次数:",
@@ -265,4 +261,4 @@ class BacktestHistoryDialog(QDialog):
             self._refresh_all()
 
 
-import json  # noqa: E402
+import json

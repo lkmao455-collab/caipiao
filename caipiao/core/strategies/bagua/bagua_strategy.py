@@ -6,24 +6,23 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any
 
+from ....calendar.almanac import get_lucky_hours
+from ....calendar.heavenly_earthly import (
+    EARTHLY_BRANCHES,
+    HEAVENLY_STEMS,
+    get_ganzhi_day,
+)
+from ....divination.divination_engine import (
+    batch_time_divination,
+    random_divination,
+    time_divination,
+)
 from ...profile import LotteryProfile, get_profile
 from ...strategy import GenerationStrategy, StrategyMetadata
 from ...ticket import Ticket
-from ....calendar.heavenly_earthly import (
-    get_ganzhi_year,
-    get_ganzhi_month,
-    get_ganzhi_day,
-    get_ganzhi_hour,
-    get_shichen,
-    HEAVENLY_STEMS,
-    EARTHLY_BRANCHES,
-)
-from ....divination.bagua import get_yao_from_number, get_trigram_by_yao
-from ....divination.yijing import get_hexagram, get_changed_hexagram, HEXAGRAMS
-from ....divination.divination_engine import time_divination, random_divination
 
 
 class BaguaStrategy(GenerationStrategy):
@@ -50,7 +49,7 @@ class BaguaStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         return {
             "method": {
                 "type": "choice",
@@ -58,9 +57,49 @@ class BaguaStrategy(GenerationStrategy):
                 "default": "time",
                 "choices": [
                     ("time", "时间起卦（梅花易数）"),
+                    ("time_batch", "时间起卦（批量，按时辰）"),
+                    ("time_lucky", "时间起卦（自动吉时）"),
                     ("random", "随机起卦"),
                 ],
-                "tooltip": "时间起卦：依当前年、月、日、时成卦；随机起卦：系统随机掷出六爻。",
+                "tooltip": "时间起卦：依当前年、月、日、时成卦；批量按时辰：每个选中时辰生成一卦；自动吉时：根据日干支自动选择吉时；随机起卦：系统随机掷出六爻。",
+            },
+            "time_mode": {
+                "type": "choice",
+                "label": "时间选择模式",
+                "default": "shichen",
+                "choices": [
+                    ("hour", "按小时选择（24小时）"),
+                    ("shichen", "按时辰选择（12时辰）"),
+                ],
+                "tooltip": "选择小时模式或时辰模式来指定起卦时间。",
+            },
+            "selected_hours": {
+                "type": "str",
+                "label": "选择的小时",
+                "default": "",
+                "tooltip": "逗号分隔的小时列表（24小时制），如 0,1,2 或 23,0,1。仅在批量时间起卦时生效。",
+            },
+            "selected_shichen": {
+                "type": "str",
+                "label": "选择的时辰",
+                "default": "",
+                "tooltip": "逗号分隔的时辰地支，如 子,丑,寅。仅在批量时间起卦按时辰模式时生效。",
+            },
+            "lucky_min_score": {
+                "type": "int",
+                "label": "吉时最低分数",
+                "default": 60,
+                "min": 50,
+                "max": 100,
+                "tooltip": "自动吉时模式下，低于此分数的时辰不选。分数越高，选择的时辰越吉利。",
+            },
+            "lucky_max_count": {
+                "type": "int",
+                "label": "最多选择吉时数",
+                "default": 6,
+                "min": 1,
+                "max": 12,
+                "tooltip": "自动吉时模式下，最多选择几个吉时。",
             },
             "seed": {
                 "type": "int",
@@ -78,14 +117,65 @@ class BaguaStrategy(GenerationStrategy):
             },
         }
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         method = options.get("method", "time")
-        if method not in ("time", "random"):
+        if method not in ("time", "time_batch", "time_lucky", "random"):
             raise ValueError(f"不支持的起卦方式: {method}")
 
+    def _parse_selected_hours(self, options: dict[str, Any]) -> list[int]:
+        """解析选中的小时列表."""
+        time_mode = options.get("time_mode", "shichen")
+
+        if time_mode == "hour":
+            selected_str = options.get("selected_hours", "")
+            if not selected_str:
+                return []
+            return [int(h.strip()) for h in selected_str.split(",") if h.strip()]
+        else:
+            # 时辰模式
+            selected_str = options.get("selected_shichen", "")
+            if not selected_str:
+                return []
+
+            shichen_hours = {
+                "子": [23, 0], "丑": [1, 2], "寅": [3, 4], "卯": [5, 6],
+                "辰": [7, 8], "巳": [9, 10], "午": [11, 12], "未": [13, 14],
+                "申": [15, 16], "酉": [17, 18], "戌": [19, 20], "亥": [21, 22],
+            }
+
+            hours = []
+            for branch in selected_str.split(","):
+                branch = branch.strip()
+                if branch in shichen_hours:
+                    hours.extend(shichen_hours[branch])
+            return sorted(set(hours))
+
+    def _get_lucky_hours(self, options: dict[str, Any]) -> list[int]:
+        """获取自动吉时的小时列表."""
+        now = datetime.now(timezone.utc).astimezone()
+        min_score = options.get("lucky_min_score", 60)
+        max_count = options.get("lucky_max_count", 6)
+
+        lucky_info = get_lucky_hours(
+            year=now.year, month=now.month, day=now.day,
+            min_score=min_score
+        )
+
+        # 取前max_count个吉时
+        lucky_hours = []
+        for item in lucky_info[:max_count]:
+            lucky_hours.extend(item["hours"])
+
+        return sorted(set(lucky_hours))
+
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
+        """生成号码.
+
+        对于时间起卦（time_batch/time_lucky），注数由选中的时间数量决定，
+        count参数被忽略。对于随机起卦（random），使用count参数。
+        """
         options = options or {}
         self.validate_options(options)
 
@@ -97,28 +187,56 @@ class BaguaStrategy(GenerationStrategy):
         rng = random.Random(seed)
 
         # 生成号码
-        tickets: List[Ticket] = []
-        for _ in range(count):
-            # 起卦
-            if method == "time":
-                result = time_divination()
-            else:
-                result = random_divination(seed=seed)
+        tickets: list[Ticket] = []
 
-            # 获取当前彩种信息（通过参数传递）
-            # 由于策略需要知道目标彩种，我们使用一个默认的映射
-            # 实际使用时，UI会传递profile_key
+        if method in ("time_batch", "time_lucky"):
+            # 批量时间起卦：根据选中的小时/时辰生成，注数=选中时间数量
+            if method == "time_batch":
+                selected_hours = self._parse_selected_hours(options)
+            else:
+                # 自动吉时模式
+                selected_hours = self._get_lucky_hours(options)
+
+            if not selected_hours:
+                # 没有选中时间，使用当前小时
+                now = datetime.now(timezone.utc).astimezone()
+                selected_hours = [now.hour]
+
+            now = datetime.now(timezone.utc).astimezone()
+            results = batch_time_divination(
+                year=now.year, month=now.month, day=now.day,
+                hours=selected_hours
+            )
+
             profile_key = options.get("profile_key", "ssq")
             profile = get_profile(profile_key)
 
-            # 基于卦象生成号码
-            numbers = self._generate_numbers_from_hexagram(
-                result, profile, use_ganzhi, rng
-            )
+            for result in results:
+                numbers = self._generate_numbers_from_hexagram(
+                    result, profile, use_ganzhi, rng
+                )
+                ticket = self._build_ticket(profile, numbers, result, options)
+                tickets.append(ticket)
 
-            # 构建投注单
-            ticket = self._build_ticket(profile, numbers, result, options)
-            tickets.append(ticket)
+        else:
+            # 时间起卦（单次）或随机起卦
+            for i in range(count):
+                if method == "time":
+                    now = datetime.now(timezone.utc).astimezone()
+                    result = time_divination(hour=(now.hour + i) % 24)
+                else:
+                    effective_seed = (seed + i) if seed is not None else None
+                    result = random_divination(seed=effective_seed)
+
+                profile_key = options.get("profile_key", "ssq")
+                profile = get_profile(profile_key)
+
+                numbers = self._generate_numbers_from_hexagram(
+                    result, profile, use_ganzhi, rng
+                )
+
+                ticket = self._build_ticket(profile, numbers, result, options)
+                tickets.append(ticket)
 
         return tickets
 
@@ -128,12 +246,12 @@ class BaguaStrategy(GenerationStrategy):
         profile: LotteryProfile,
         use_ganzhi: bool,
         rng: random.Random,
-    ) -> Dict[str, List[int]]:
+    ) -> dict[str, list[int]]:
         """从卦象生成号码."""
         numbers = {}
 
         # 获取卦象信息
-        hexagram = result.hexagram
+        _hexagram = result.hexagram
         yao = result.yao
         upper = result.upper_trigram
         lower = result.lower_trigram
@@ -176,7 +294,7 @@ class BaguaStrategy(GenerationStrategy):
 
         # 天干地支影响
         if use_ganzhi:
-            now = datetime.now()
+            now = datetime.now(timezone.utc).astimezone()
             day_gz = get_ganzhi_day(now.year, now.month, now.day)
             day_stem = day_gz[0]
             day_branch = day_gz[1]
@@ -232,9 +350,9 @@ class BaguaStrategy(GenerationStrategy):
     def _build_ticket(
         self,
         profile: LotteryProfile,
-        numbers: Dict[str, List[int]],
+        numbers: dict[str, list[int]],
         result,
-        options: Dict[str, Any],
+        options: dict[str, Any],
     ) -> Ticket:
         """构建投注单."""
         # 生成说明文本

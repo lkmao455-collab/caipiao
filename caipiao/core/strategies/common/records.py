@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, List
+from datetime import datetime, timezone
+from typing import Any
 
 from ....data.models import DrawRecord
 
 
-def records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
+def records_from_options(options: dict[str, Any]) -> list[DrawRecord]:
     """从 options['history'] 提取 DrawRecord 列表。"""
     history = options.get("history") or []
-    records: List[DrawRecord] = []
+    records: list[DrawRecord] = []
     for r in history:
         if isinstance(r, DrawRecord):
             records.append(r)
@@ -19,9 +19,9 @@ def records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
             # 处理字典格式的历史记录
             draw_date = r.get("draw_date")
             if isinstance(draw_date, str):
-                draw_date = datetime.strptime(draw_date, "%Y-%m-%d")
+                draw_date = datetime.strptime(draw_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
             elif not isinstance(draw_date, datetime):
-                draw_date = datetime.now()
+                draw_date = datetime.now(timezone.utc).astimezone()
             records.append(
                 DrawRecord(
                     issue=r.get("issue", ""),
@@ -35,7 +35,7 @@ def records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
             records.append(
                 DrawRecord(
                     issue=getattr(r, "issue", ""),
-                    draw_date=getattr(r, "draw_date", datetime.now()),
+                    draw_date=getattr(r, "draw_date", datetime.now(timezone.utc).astimezone()),
                     profile=getattr(r, "profile", None),
                     groups=getattr(r, "groups", {}),
                 )

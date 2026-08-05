@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import logging
+from typing import Any
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from itertools import permutations
 from pathlib import Path
-import logging
 
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QClipboard, QKeySequence
-from PySide6.QtGui import QIcon, QPageSize, QPdfWriter
+from PySide6.QtGui import (
+    QAction,
+    QClipboard,
+    QIcon,
+    QKeySequence,
+    QPageSize,
+    QPdfWriter,
+)
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QApplication,
@@ -40,16 +47,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..core.prize import fc3d_bet_type
 from ..core.profile import (
     category_label,
-    list_profiles,
     list_profiles_by_category,
     profile_keys,
 )
-from ..core.prize import fc3d_bet_type
 from ..core.strategies import is_ml_strategy, needs_history
 from ..data.models import DrawRecord
-from ..data.repository import DrawRepository
 from ..ml.catboost_model import LotteryCatBoostModel
 from ..ml.common.model_store import compute_lookback, is_model_current, new_model_path
 from ..ml.lgbm_model import LotteryLightGBMModel
@@ -65,21 +70,21 @@ from .chart_utils import (
     build_group_probability_charts_html,
     build_probability_charts_html,
 )
+from .components.auto_update_dialog import AutoUpdateDialog
 from .components.backtest_dialog import BacktestDialog
 from .components.ball_display import TicketRowWidget
 from .components.batch_backtest_dialog import BatchBacktestDialog
+from .components.divination_tab import DivinationTab
 from .components.draw_analysis_dialog import DrawAnalysisDialog
 from .components.history_panel import HistoryPanel
 from .components.hotkey_edit import HotkeyEdit, validate_hotkey_dialog
+from .components.latest_results_dialog import LatestResultsDialog
+from .components.lunar_calendar_widget import LunarCalendarWidget
 from .components.parameter_group_panel import ParameterGroupPanel
 from .components.strategy_panel import StrategyPanel
-from .components.auto_update_dialog import AutoUpdateDialog
 from .components.today_draws_dialog import TodayDrawsDialog
-from .components.latest_results_dialog import LatestResultsDialog
 from .components.training_progress_dialog import TrainingProgressDialog
-from .components.lunar_calendar_widget import LunarCalendarWidget
-from .components.divination_tab import DivinationTab
-from .lottery_context import ContextManager, LotteryContext
+from .lottery_context import ContextManager
 from .markdown_view import MarkdownDialog
 from .workers import (
     FetchAllDataThread,
@@ -529,7 +534,7 @@ class MainWindow(QMainWindow):
             return
         params, reasons = strategy.recommend_parameters(records)
         self.strategy_panel.set_options(params)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y%m%d_%H%M%S")
         report_path = Path("docs/reports") / f"consensus_constraint_{timestamp}.html"
         report_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -968,12 +973,12 @@ class MainWindow(QMainWindow):
                 f"最近 30 期热红球: {' '.join(f'{n:02d}' for n in summary['hot_reds_30'])}",
                 f"最近 30 期冷红球: {' '.join(f'{n:02d}' for n in summary['cold_reds_30'])}",
                 f"最近 30 期热蓝球: {' '.join(f'{n:02d}' for n in summary['hot_blues_30'])}",
-                f"红球遗漏值 TOP5: "
+                "红球遗漏值 TOP5: "
                 + ", ".join(f"{n:02d}({v})" for n, v in summary['missing_reds_50'][:5]),
                 f"最近 100 期奇偶比: {summary['odd_even_ratio'][0]:.2%} : {summary['odd_even_ratio'][1]:.2%}",
                 f"最近 100 期大小比: {summary['high_low_ratio'][0]:.2%} : {summary['high_low_ratio'][1]:.2%}",
-                f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
-                f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}",
+                (f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
+                f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}"),
                 f"最近 100 期连号出现比例: {summary['consecutive_ratio']:.2%}",
             ]
         else:
@@ -986,8 +991,8 @@ class MainWindow(QMainWindow):
                 + ", ".join(f"{n:0{primary.pad}d}({v})" for n, v in summary['missing_50'][:5]),
                 f"最近 100 期奇偶比: {summary['odd_even_ratio'][0]:.2%} : {summary['odd_even_ratio'][1]:.2%}",
                 f"最近 100 期大小比: {summary['high_low_ratio'][0]:.2%} : {summary['high_low_ratio'][1]:.2%}",
-                f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
-                f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}",
+                (f"最近 100 期和值: 最小={summary['sum_stats']['min']}, 最大={summary['sum_stats']['max']}, "
+                f"平均={summary['sum_stats']['avg']:.1f}, 中位数={summary['sum_stats']['median']}"),
                 f"最近 100 期连号出现比例: {summary['consecutive_ratio']:.2%}",
             ]
             if self.current.profile.key == "3d" and hasattr(self.current.data_analyzer, "span"):
@@ -1015,7 +1020,7 @@ class MainWindow(QMainWindow):
         if not model_files:
             return "尚未训练模型。首次使用 ML 策略时会自动训练，或点击“训练模型”提前准备。"
         latest = max(model_files, key=lambda p: p.stat().st_mtime)
-        mtime = datetime.fromtimestamp(latest.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        mtime = datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
         return f"已找到训练好的模型：{latest.name}\n训练时间：{mtime}"
 
     # ------------------------------------------------------------------ #
@@ -1216,7 +1221,7 @@ class MainWindow(QMainWindow):
         try:
             last = datetime.fromisoformat(last_update)
             interval = timedelta(days=self.settings.auto_update_interval_days)
-            return datetime.now() - last >= interval
+            return datetime.now(timezone.utc).astimezone() - last >= interval
         except ValueError:
             return True
 
@@ -1242,6 +1247,12 @@ class MainWindow(QMainWindow):
         self.xgboost_status_label.setText(self._model_status_text())
         # 显示今日开奖彩种提示
         self._show_today_draws()
+
+    def _update_all_draw_data(self) -> None:
+        """从工具栏手动更新所有彩种最新开奖数据."""
+        dialog = AutoUpdateDialog(self)
+        dialog.update_finished.connect(self._on_auto_update_dialog_closed)
+        dialog.exec()
 
     def _show_today_draws(self) -> None:
         """显示今日开奖彩种提示小窗口."""
@@ -1280,13 +1291,13 @@ class MainWindow(QMainWindow):
             local_latest = self.current.data_repository.get_latest()
             if local_latest is None or latest.draw_date > local_latest.draw_date:
                 self.current.update_data([latest])
-                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.last_data_update = datetime.now(timezone.utc).astimezone().isoformat()
                 self.settings.sync()
                 self.data_status_label.setText(self._data_status_text(offline=False))
                 self._refresh_data_stats()
                 self.xgboost_status_label.setText(self._model_status_text())
             else:
-                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.last_data_update = datetime.now(timezone.utc).astimezone().isoformat()
                 self.settings.sync()
                 self.data_status_label.setText(self._data_status_text(offline=False))
         except Exception as exc:  # noqa: BLE001
@@ -1331,7 +1342,7 @@ class MainWindow(QMainWindow):
             local_latest = self.current.data_repository.get_latest()
             if local_latest is None or latest.draw_date > local_latest.draw_date:
                 self.current.update_data([latest])
-                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.last_data_update = datetime.now(timezone.utc).astimezone().isoformat()
                 self.settings.sync()
                 self.data_status_label.setText(self._data_status_text(offline=False))
                 self._refresh_data_stats()
@@ -1342,7 +1353,7 @@ class MainWindow(QMainWindow):
                     self._latest_draw_message(latest),
                 )
             else:
-                self.settings.last_data_update = datetime.now().isoformat()
+                self.settings.last_data_update = datetime.now(timezone.utc).astimezone().isoformat()
                 self.settings.sync()
                 self.data_status_label.setText(self._data_status_text(offline=False))
                 QMessageBox.information(self, "已是最新", f"当前数据已是最新一期 {local_latest.issue}")
@@ -1473,6 +1484,7 @@ class MainWindow(QMainWindow):
         actions = [
             ("today", "今日开奖", "查看今日会开奖的彩种列表。", self._show_today_draws),
             ("results", "最近开奖", "查看各彩种最近一次的开奖结果。", self._show_latest_results),
+            ("update_all", "更新全部", "从网络更新所有彩种最新开奖数据。", self._update_all_draw_data),
             ("generate", "立即生成", "根据当前策略生成号码。ML 策略首次会训练模型，请稍候。", self._generate),
             ("copy", "复制全部号码", "将生成的号码复制到剪贴板。", self._copy_all),
             ("print", "打印结果", "将生成的号码打印或导出为 PDF。", self._print_results),
@@ -1873,7 +1885,7 @@ class MainWindow(QMainWindow):
             "target_date": next_date.strftime("%Y-%m-%d"),
             "base_issue": info["base_issue"],
             "base_date": info["base_date"].strftime("%Y-%m-%d"),
-            "stale": next_date.date() < datetime.now().date(),
+            "stale": next_date.date() < datetime.now(timezone.utc).astimezone().date(),
         }
         for ticket in tickets:
             ticket.details.update(meta)
@@ -1884,7 +1896,7 @@ class MainWindow(QMainWindow):
         if not target_date:
             return []
         lines: list[str] = []
-        tdate = datetime.strptime(target_date, "%Y-%m-%d")
+        tdate = datetime.strptime(target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         target_issue = details.get("target_issue")
         issue_txt = f"第 {target_issue} 期" if target_issue else "下一期"
         lines.append(
@@ -1893,7 +1905,7 @@ class MainWindow(QMainWindow):
         base_date = details.get("base_date")
         base_issue = details.get("base_issue")
         if base_date:
-            bdate = datetime.strptime(base_date, "%Y-%m-%d")
+            bdate = datetime.strptime(base_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
             base_txt = f"第 {base_issue} 期" if base_issue else ""
             lines.append(
                 f"基于最新数据：{base_txt}（{base_date} 周{_WEEKDAY_CN[bdate.weekday()]}）"
@@ -1926,8 +1938,8 @@ class MainWindow(QMainWindow):
         if tickets and tickets[0].profile.key == "3d":
             fc3d_prob = self._calc_fc3d_probability(tickets)
             label_lines = [
-                f"🎯 覆盖概率：{fc3d_prob['total_coverage']}/1000 = {fc3d_prob['abs_p']:.2f}%"
-                f"（{fc3d_prob['breakdown']}）"
+                (f"🎯 覆盖概率：{fc3d_prob['total_coverage']}/1000 = {fc3d_prob['abs_p']:.2f}%"
+                f"（{fc3d_prob['breakdown']}）")
             ]
             if fc3d_prob["confidence"] is not None:
                 label_lines.append(
@@ -2228,11 +2240,7 @@ class MainWindow(QMainWindow):
             for ticket in self._editable_tickets:
                 nums = ticket.groups.get("pos", [])
                 bet_type = fc3d_bet_type(nums)
-                if bet_type == "组选6" and show_zu6:
-                    filtered_tickets.append(ticket)
-                elif bet_type == "组选3" and show_zu3:
-                    filtered_tickets.append(ticket)
-                elif bet_type == "豹子号" and show_baozi:
+                if bet_type == "组选6" and show_zu6 or bet_type == "组选3" and show_zu3 or bet_type == "豹子号" and show_baozi:
                     filtered_tickets.append(ticket)
             self.filter_count_label.setText(f"共 {len(filtered_tickets)} 注")
         else:
@@ -2451,6 +2459,7 @@ class MainWindow(QMainWindow):
     def _add_random_number(self) -> None:
         """随机添加一个号码（通用）."""
         import random
+
         from ..core.ticket import Ticket
 
         profile = self.current.profile
@@ -2544,10 +2553,10 @@ class MainWindow(QMainWindow):
             self._show_print_error_once(str(exc))
 
     def _export_tickets_to_pdf(self, tickets: list, title: str) -> None:
-        from PySide6.QtGui import QPainter, QFont, QColor, QPen
-        from PySide6.QtCore import Qt, QRectF, QPointF
+        from PySide6.QtCore import QPointF, QRectF, Qt
+        from PySide6.QtGui import QColor, QFont, QPainter, QPen
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y%m%d_%H%M%S")
         default_name = f"caipiao_{self.current.profile.key}_result_{timestamp}.pdf"
         path, _ = QFileDialog.getSaveFileName(
             self, "导出 PDF", default_name, "PDF 文件 (*.pdf)"
@@ -2592,7 +2601,7 @@ class MainWindow(QMainWindow):
         meta_h = int(18 * PX)
         painter.drawText(QRectF(margin_l, y, content_w, meta_h),
                          Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-                         f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                         f"生成时间：{datetime.now(timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M:%S')}")
         y += meta_h + int(4 * PX)
 
         # === 分隔线 ===
@@ -2747,7 +2756,7 @@ class MainWindow(QMainWindow):
         </head>
         <body>
             <h1>{title}</h1>
-            <p class="meta">生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p class="meta">生成时间：{datetime.now(timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M:%S')}</p>
             {target_html}
             {details_html}
             <div style="border:1pt solid #999;border-radius:4pt;">

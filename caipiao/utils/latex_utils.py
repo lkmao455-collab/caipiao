@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 LaTeX 公式保护工具 - 防止 Markdown 解析器破坏数学公式。
 """

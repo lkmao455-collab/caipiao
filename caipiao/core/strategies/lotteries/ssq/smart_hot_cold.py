@@ -11,15 +11,15 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ....profile import SSQ
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
 from ...common.records import records_from_options
 from .stability import (
-    RED_POOL,
     BLUE_POOL,
+    RED_POOL,
     chi_square_uniform_test,
     deterministic_seed,
     geometric_blue_missing_zscore,
@@ -57,7 +57,7 @@ class SSQSmartHotColdStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         return {
             "history": {
                 "type": "history",
@@ -107,14 +107,14 @@ class SSQSmartHotColdStrategy(GenerationStrategy):
             },
         }
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         records = records_from_options(options)
         if len(records) < 20:
             raise ValueError("智能冷热号策略需要至少 20 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = records_from_options(options)
@@ -187,7 +187,7 @@ class SSQSmartHotColdStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "red_chi_square": round(red_chi2, 2),
             "red_is_uniform": red_is_uniform,
             "blue_chi_square": round(blue_chi2, 2),
@@ -196,7 +196,7 @@ class SSQSmartHotColdStrategy(GenerationStrategy):
         }
 
         # === 生成号码 ===
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         for _ in range(count):
             reds = weighted_sample_reds(red_probs, 6, rng)
             blue = rng.choices(BLUE_POOL, weights=blue_probs, k=1)[0]

@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Coroutine, List, Optional, TypeVar
+from typing import Any, TypeVar
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, QThread, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,10 @@ class AsyncWorker(QObject):
     finished = Signal(object, object)  # (result, error)
     progress = Signal(str)
 
-    def __init__(self, parent: Optional[QObject] = None) -> None:
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._thread: Optional[QThread] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: QThread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._executor = ThreadPoolExecutor(max_workers=4)
 
     def start_async(self, coro: Coroutine) -> None:
@@ -48,7 +48,7 @@ class AsyncWorker(QObject):
         try:
             result = self._loop.run_until_complete(coro)
             self.finished.emit(result, None)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self.finished.emit(None, exc)
         finally:
             self._loop.close()
@@ -78,7 +78,7 @@ class AsyncFetcher:
         self,
         profile: Any,
         timeout: int = 60,
-        callback: Optional[Callable[[str], None]] = None,
+        callback: Callable[[str], None] | None = None,
     ) -> Any:
         """异步获取全部历史数据."""
         from ..data.fetcher import LotteryDataFetcher
@@ -96,7 +96,7 @@ class AsyncFetcher:
         self,
         profile: Any,
         timeout: int = 15,
-        callback: Optional[Callable[[str], None]] = None,
+        callback: Callable[[str], None] | None = None,
     ) -> Any:
         """异步获取最新一期数据."""
         from ..data.fetcher import LotteryDataFetcher
@@ -112,9 +112,9 @@ class AsyncFetcher:
 
     async def fetch_multiple_async(
         self,
-        tasks: List[Callable[[], Any]],
-        callback: Optional[Callable[[str], None]] = None,
-    ) -> List[Any]:
+        tasks: list[Callable[[], Any]],
+        callback: Callable[[str], None] | None = None,
+    ) -> list[Any]:
         """异步执行多个任务."""
         results = []
         for i, task in enumerate(tasks):
@@ -135,7 +135,7 @@ class AsyncTrainWorker(AsyncWorker):
 
     def start_training(
         self,
-        records: List[Any],
+        records: list[Any],
         lookback: int,
         model_path: Any,
         model_class: Any,
@@ -151,7 +151,7 @@ class AsyncTrainWorker(AsyncWorker):
 
     async def _train_coroutine(
         self,
-        records: List[Any],
+        records: list[Any],
         lookback: int,
         model_path: Any,
         model_class: Any,
@@ -161,7 +161,6 @@ class AsyncTrainWorker(AsyncWorker):
     ) -> Any:
         """训练协程."""
         from ..ml.predictor import MLPredictor
-        from ..ml.common.model_store import compute_lookback
 
         def _train():
             self.progress.emit("正在训练模型...")
@@ -235,7 +234,7 @@ class AsyncBatchWorker(AsyncWorker):
 
     def start_batch(
         self,
-        tasks: List[Callable[[], Any]],
+        tasks: list[Callable[[], Any]],
         description: str = "批量处理",
     ) -> None:
         """启动批量任务."""
@@ -244,9 +243,9 @@ class AsyncBatchWorker(AsyncWorker):
 
     async def _batch_coroutine(
         self,
-        tasks: List[Callable[[], Any]],
+        tasks: list[Callable[[], Any]],
         description: str,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """批量处理协程."""
         results = []
         for i, task in enumerate(tasks):
@@ -259,7 +258,7 @@ class AsyncBatchWorker(AsyncWorker):
 
 def run_async_in_thread(
     coro: Coroutine,
-    callback: Optional[Callable[[Any, Exception | None], None]] = None,
+    callback: Callable[[Any, Exception | None], None] | None = None,
 ) -> QThread:
     """在后台线程中运行协程.
 
@@ -277,7 +276,7 @@ def run_async_in_thread(
             result = loop.run_until_complete(coro)
             if callback:
                 callback(result, None)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             if callback:
                 callback(None, exc)
         finally:

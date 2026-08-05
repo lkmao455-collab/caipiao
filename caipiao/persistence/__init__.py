@@ -3,4 +3,4 @@
 from .history import HistoryManager
 from .settings import AppSettings
 
-__all__ = ["HistoryManager", "AppSettings"]
+__all__ = ["AppSettings", "HistoryManager"]

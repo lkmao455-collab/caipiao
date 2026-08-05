@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime
-from functools import partial
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor, QFont, QTextCharFormat
@@ -26,16 +25,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...core.profile import LotteryProfile
+from ...core.strategies import needs_history
 from ...persistence.backtest_db import BacktestDatabase
 from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.parameter_group_store import ParameterGroupStore
 from ...persistence.settings import AppSettings
-from ...core.profile import LotteryProfile
-from ...core.strategies import needs_history
 from ...utils import app_data_dir
 from ..batch_backtest_thread import BatchBacktestThread
 from ..optimal_period_scan_thread import OptimalPeriodScanThread
 from ..optimal_strategy_scan_thread import OptimalStrategyScanThread, StrategyScanResult
+from ...ui.optimal_period_config import resolve_optimal_param
 from .parameter_group_save_dialog import ParameterGroupSaveDialog
 from .strategy_panel import StrategyPanel
 
@@ -58,10 +58,10 @@ class BatchBacktestDialog(QDialog):
         self._optimal_param_store = optimal_param_store or OptimalParamStore()
         self._db = BacktestDatabase()
         self._param_group_store = ParameterGroupStore(app_data_dir())
-        self._last_strategy_scan_result: Optional[StrategyScanResult] = None
+        self._last_strategy_scan_result: StrategyScanResult | None = None
         self._start_date_for_scan: str = ""
         self._end_date_for_scan: str = ""
-        self._thread: Optional[BatchBacktestThread] = None
+        self._thread: BatchBacktestThread | None = None
         self.settings = AppSettings()
 
         self.setWindowTitle(f"{self.profile.name}批量历史回测")
@@ -312,8 +312,8 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "日期错误", "起始日期不能晚于结束日期")
             return
 
-        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
-        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
+        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day(), tzinfo=timezone.utc)
+        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day(), tzinfo=timezone.utc)
 
         strategy_id = self.strategy_panel.current_strategy_id()
         if not strategy_id:
@@ -367,14 +367,14 @@ class BatchBacktestDialog(QDialog):
         self.detail_text.clear()
         self.status_text.clear()
         self._set_summary("正在批量回测，请稍候...")
-        self._detail_lines: List[str] = []
+        self._detail_lines: list[str] = []
         self._running_cost = 0
         self._running_fixed_prize = 0
         self._running_float_count = 0
         self._running_hit_count = 0
         self._running_first_hit_count = 0
         self._running_rounds = 0
-        self._running_ticket_index_hits: Dict[int, int] = {}
+        self._running_ticket_index_hits: dict[int, int] = {}
 
         if self.profile.key == "3d" and options.get("_fc3d_filter_enabled"):
             self.status_text.append(
@@ -437,8 +437,8 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "日期错误", "起始日期不能晚于结束日期")
             return
 
-        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
-        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
+        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day(), tzinfo=timezone.utc)
+        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day(), tzinfo=timezone.utc)
 
         threshold = self.filter_threshold_spin.value()
         compare_periods = self.filter_periods_spin.value()
@@ -616,7 +616,7 @@ class BatchBacktestDialog(QDialog):
 
                 # 高频号码：在超过50%的近期出现（快乐8号码分散，用50%更实用）
                 hot_threshold = len(recent) * 0.5
-                hot_numbers = set(num for num, freq in num_freq.items() if freq >= hot_threshold)
+                hot_numbers = {num for num, freq in num_freq.items() if freq >= hot_threshold}
 
                 # 2. 计算重合过滤比例
                 filtered_pairs = 0
@@ -740,8 +740,8 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "日期错误", "起始日期不能晚于结束日期")
             return
 
-        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
-        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
+        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day(), tzinfo=timezone.utc)
+        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day(), tzinfo=timezone.utc)
 
         strategy_id = self.strategy_panel.current_strategy_id()
         if not strategy_id:
@@ -759,7 +759,7 @@ class BatchBacktestDialog(QDialog):
             )
             return
 
-        from ...ui.optimal_period_config import resolve_optimal_param
+        resolved = resolve_optimal_param(strategy_id)
         if resolved is None:
             QMessageBox.information(
                 self,
@@ -826,8 +826,8 @@ class BatchBacktestDialog(QDialog):
             QMessageBox.warning(self, "日期错误", "起始日期不能晚于结束日期")
             return
 
-        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day())
-        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
+        start_date = datetime(start_qdate.year(), start_qdate.month(), start_qdate.day(), tzinfo=timezone.utc)
+        end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day(), tzinfo=timezone.utc)
 
         self._start_date_for_scan = self.start_date_edit.date().toString("yyyy-MM-dd")
         self._end_date_for_scan = self.end_date_edit.date().toString("yyyy-MM-dd")
@@ -1009,7 +1009,7 @@ class BatchBacktestDialog(QDialog):
             scrollbar.setValue(scrollbar.maximum())
 
     def _on_round_ready(
-        self, current: int, total: int, winners: List[Dict[str, Any]]
+        self, current: int, total: int, winners: list[dict[str, Any]]
     ) -> None:
         """每期结束后追加中奖详情，并更新实时汇总."""
         self._running_rounds += 1
@@ -1050,7 +1050,7 @@ class BatchBacktestDialog(QDialog):
 
         self._update_running_summary(current, total)
 
-    def _render_winner_details(self, winner_details: List[Dict[str, Any]]) -> None:
+    def _render_winner_details(self, winner_details: list[dict[str, Any]]) -> None:
         """把中奖明细写入「详细结果（中奖记录）」面板.
 
         一键找最优策略 / 最优期数扫描完成后复用此方法，
@@ -1229,7 +1229,7 @@ class BatchBacktestDialog(QDialog):
             import logging
             logging.getLogger(__name__).warning("保存批量回测结果失败: %s", exc)
 
-    def closeEvent(self, event) -> None:  # noqa: N802
+    def closeEvent(self, event) -> None:
         # 先把线程对象快照到局部变量：等待/终止期间，finished 信号槽可能把
         # 对应属性置为 None（如 _cleanup_finished_strategy_scan_thread），
         # 再次访问 self._xxx_thread 会抛 AttributeError。

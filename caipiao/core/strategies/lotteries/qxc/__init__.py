@@ -4,6 +4,6 @@ from .balanced import QXCBalancedStrategy
 from .smart_hot_cold import QXCSmartHotColdStrategy
 
 __all__ = [
-    "QXCSmartHotColdStrategy",
     "QXCBalancedStrategy",
+    "QXCSmartHotColdStrategy",
 ]

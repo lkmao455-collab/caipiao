@@ -70,14 +70,14 @@ class TrainingProgressDialog(QDialog):
         """标记训练已结束，此后允许关闭窗口."""
         self._finished = True
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt 命名)
+    def keyPressEvent(self, event) -> None:
         # 训练中屏蔽 Esc 关闭
         if event.key() == Qt.Key.Key_Escape and not self._finished:
             event.ignore()
             return
         super().keyPressEvent(event)
 
-    def closeEvent(self, event) -> None:  # noqa: N802 (Qt 命名)
+    def closeEvent(self, event) -> None:
         # 训练中拒绝关闭
         if not self._finished:
             event.ignore()

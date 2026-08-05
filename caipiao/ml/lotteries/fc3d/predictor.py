@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from ....core.profile import FC3D
 from ....data.models import DrawRecord
@@ -21,9 +20,9 @@ class FC3DPredictor(GenericMLPredictor):
         self,
         records: list[DrawRecord],
         lookback: int = 50,
-        model_path: Optional[Path] = None,
+        model_path: Path | None = None,
         backend: str = "xgboost",
-        temp_dir: Optional[str] = None,
+        temp_dir: str | None = None,
     ) -> None:
         super().__init__(
             records=records,

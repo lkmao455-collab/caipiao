@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import List
 
+import matplotlib
 from PySide6.QtCore import QByteArray, QEvent, Qt
 from PySide6.QtGui import QPainter, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
@@ -21,8 +21,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-import matplotlib
 
 matplotlib.use("Agg")  # 无头后端，适合服务器/后台生成
 
@@ -38,7 +36,7 @@ def _configure_matplotlib_fonts() -> None:
 
 def _plot_single(
     ax,
-    probabilities: List[float],
+    probabilities: list[float],
     title: str,
     xlabel: str,
     color: str,
@@ -79,7 +77,7 @@ def _plot_single(
 
 
 def build_group_probability_chart_pixmap(
-    group_probabilities: List[tuple[str, List[float], str, int, str]],
+    group_probabilities: list[tuple[str, list[float], str, int, str]],
     lookback: int | str = "-",
     diversity_boost: int | str = "-",
     model_name: str = "XGBoost",
@@ -120,7 +118,7 @@ def build_group_probability_chart_pixmap(
 
 
 def build_group_probability_charts_html(
-    group_probabilities: List[tuple[str, List[float], str, int, str]],
+    group_probabilities: list[tuple[str, list[float], str, int, str]],
     lookback: int | str = "-",
     diversity_boost: int | str = "-",
     model_name: str = "XGBoost",
@@ -179,8 +177,8 @@ def build_group_probability_charts_html(
 
 
 def build_probability_chart_pixmap(
-    red_probabilities: List[float],
-    blue_probabilities: List[float],
+    red_probabilities: list[float],
+    blue_probabilities: list[float],
     lookback: int | str = "-",
     diversity_boost: int | str = "-",
 ) -> QPixmap:
@@ -197,8 +195,8 @@ def build_probability_chart_pixmap(
 
 
 def build_probability_charts_html(
-    red_probabilities: List[float],
-    blue_probabilities: List[float],
+    red_probabilities: list[float],
+    blue_probabilities: list[float],
     lookback: int | str = "-",
     diversity_boost: int | str = "-",
 ) -> str:

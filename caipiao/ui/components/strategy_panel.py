@@ -2,29 +2,53 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import logging
+from datetime import datetime, timezone
+from typing import Any, ClassVar
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from ...calendar.almanac import get_lucky_hours
 from ...core.engine import GenerationEngine
 from ...core.strategy import GenerationStrategy
 from ...persistence.optimal_param_store import OptimalParamStore
 from ...persistence.settings import AppSettings
 from ...utils.validators import parse_int_list
+
+logger = logging.getLogger(__name__)
+
+# 时辰定义：(地支, 起始小时, 结束小时)
+_SHICHEN_LIST = [
+    ("子", 23, 1), ("丑", 1, 3), ("寅", 3, 5), ("卯", 5, 7),
+    ("辰", 7, 9), ("巳", 9, 11), ("午", 11, 13), ("未", 13, 15),
+    ("申", 15, 17), ("酉", 17, 19), ("戌", 19, 21), ("亥", 21, 23),
+]
+
+# 时辰对应的小时列表
+_SHICHEN_HOURS = {
+    "子": [23, 0], "丑": [1, 2], "寅": [3, 4], "卯": [5, 6],
+    "辰": [7, 8], "巳": [9, 10], "午": [11, 12], "未": [13, 14],
+    "申": [15, 16], "酉": [17, 18], "戌": [19, 20], "亥": [21, 22],
+}
+
+# 地支列表
+_EARTHLY_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
 
 
 class StrategyPanel(QWidget):
@@ -48,7 +72,7 @@ class StrategyPanel(QWidget):
         self._locked_params = locked_params or []
         self._settings = AppSettings()
         self._current_strategy: GenerationStrategy | None = None
-        self._option_widgets: Dict[str, Any] = {}
+        self._option_widgets: dict[str, Any] = {}
 
         self._setup_ui()
         self._refresh_strategies()
@@ -534,7 +558,7 @@ class StrategyPanel(QWidget):
         self.recommend_requested.emit(self.current_strategy_id())
 
     # 快乐8保留智能冷热号、历史均衡和XGBoost策略
-    _KL8_ALLOWED_STRATEGIES = {"smart_hot_cold_kl8", "balanced_kl8", "xgboost_kl8"}
+    _KL8_ALLOWED_STRATEGIES: ClassVar[set[str]] = {"smart_hot_cold_kl8", "balanced_kl8", "xgboost_kl8"}
 
     def _refresh_strategies(self) -> None:
         self.strategy_combo.clear()
@@ -578,6 +602,7 @@ class StrategyPanel(QWidget):
         self.filter_pl5_group.setVisible(filter_pk == "pl5")
         self.filter_qxc_group.setVisible(filter_pk == "qxc")
         self.filter_kl8_group.setVisible(filter_pk == "kl8")
+
         self.options_changed.emit()
 
     def _on_filter_ssq_changed(self, _=None) -> None:
@@ -643,9 +668,199 @@ class StrategyPanel(QWidget):
         self._settings.kl8_filter_max_sum = self.kl8_max_sum_spin.value()
         self._settings.sync()
 
-    def _get_locked_for_strategy(self, strategy_id: str) -> Dict[str, Any]:
+    # ──────────────────────────────────────────────────────────────────────
+    # 八卦占卜时间选择相关方法（合并到策略参数 GroupBox 内）
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _cleanup_bagua_widgets(self) -> None:
+        """清理之前动态创建的八卦占卜控件（removeRow 已移除布局引用）."""
+        for attr in (
+            "_bagua_mode_widget", "_bagua_hour_scroll", "_bagua_shichen_scroll",
+            "_bagua_btn_widget", "_bagua_lucky_info",
+        ):
+            if hasattr(self, attr):
+                delattr(self, attr)
+        self.bagua_hour_checkboxes = []
+        self.bagua_shichen_checkboxes = []
+
+    def _build_bagua_time_widgets(self) -> None:
+        """在策略参数 GroupBox 内构建八卦占卜时间选择控件."""
+        self.bagua_hour_checkboxes = []
+        self.bagua_shichen_checkboxes = []
+
+        # ── 时间选择模式 ──
+        self._bagua_mode_widget = QWidget()
+        mode_layout = QHBoxLayout(self._bagua_mode_widget)
+        mode_layout.setContentsMargins(0, 4, 0, 0)
+        mode_layout.addWidget(QLabel("时间模式:"))
+        self.bagua_hour_mode_radio = QRadioButton("按小时")
+        self.bagua_hour_mode_radio.setChecked(True)
+        self.bagua_hour_mode_radio.toggled.connect(self._on_bagua_mode_changed)
+        mode_layout.addWidget(self.bagua_hour_mode_radio)
+        self.bagua_shichen_mode_radio = QRadioButton("按时辰")
+        self.bagua_shichen_mode_radio.toggled.connect(self._on_bagua_mode_changed)
+        mode_layout.addWidget(self.bagua_shichen_mode_radio)
+        mode_layout.addStretch()
+        self.options_layout.addRow(self._bagua_mode_widget)
+
+        # ── 小时复选框 ──
+        self._bagua_hour_scroll = QScrollArea()
+        self._bagua_hour_scroll.setWidgetResizable(True)
+        self._bagua_hour_scroll.setMaximumHeight(100)
+        self._bagua_hour_scroll.setStyleSheet("QScrollArea { border: none; }")
+        hour_widget = QWidget()
+        hour_grid = QGridLayout(hour_widget)
+        hour_grid.setSpacing(4)
+        hour_grid.setContentsMargins(2, 2, 2, 2)
+        for i in range(24):
+            cb = QCheckBox(f"{i:02d}")
+            cb.setToolTip(f"选择 {i}:00 - {i}:59")
+            self.bagua_hour_checkboxes.append(cb)
+            hour_grid.addWidget(cb, i // 6, i % 6)
+        self._bagua_hour_scroll.setWidget(hour_widget)
+        self.options_layout.addRow("小时:", self._bagua_hour_scroll)
+
+        # ── 时辰复选框 ──
+        self._bagua_shichen_scroll = QScrollArea()
+        self._bagua_shichen_scroll.setWidgetResizable(True)
+        self._bagua_shichen_scroll.setMaximumHeight(80)
+        self._bagua_shichen_scroll.setStyleSheet("QScrollArea { border: none; }")
+        shichen_widget = QWidget()
+        shichen_grid = QGridLayout(shichen_widget)
+        shichen_grid.setSpacing(4)
+        shichen_grid.setContentsMargins(2, 2, 2, 2)
+        for i, (name, start, end) in enumerate(_SHICHEN_LIST):
+            if name == "子":
+                label = f"{name}(23-{end})"
+            else:
+                label = f"{name}({start}-{end})"
+            cb = QCheckBox(label)
+            cb.setToolTip(f"{name}时 {start}-{end}点")
+            self.bagua_shichen_checkboxes.append(cb)
+            shichen_grid.addWidget(cb, i // 4, i % 4)
+        self._bagua_shichen_scroll.setWidget(shichen_widget)
+        self._bagua_shichen_scroll.setVisible(False)
+        self.options_layout.addRow("时辰:", self._bagua_shichen_scroll)
+
+        # ── 操作按钮 ──
+        self._bagua_btn_widget = QWidget()
+        btn_layout = QHBoxLayout(self._bagua_btn_widget)
+        btn_layout.setContentsMargins(0, 4, 0, 0)
+        select_all_btn = QPushButton("全选")
+        select_all_btn.clicked.connect(self._bagua_select_all)
+        btn_layout.addWidget(select_all_btn)
+        clear_all_btn = QPushButton("取消全选")
+        clear_all_btn.clicked.connect(self._bagua_clear_all)
+        btn_layout.addWidget(clear_all_btn)
+        lucky_btn = QPushButton("自动填入吉时")
+        lucky_btn.setToolTip("根据今日天干地支自动选择吉时")
+        lucky_btn.setStyleSheet(
+            "QPushButton{background:#4CAF50;color:white;border:1px solid #2E7D32;"
+            "padding:3px 8px;font-weight:bold;border-radius:4px;}"
+            "QPushButton:hover{background:#45a049;}"
+        )
+        lucky_btn.clicked.connect(self._bagua_auto_fill_lucky)
+        btn_layout.addWidget(lucky_btn)
+        btn_layout.addStretch()
+        self.options_layout.addRow(self._bagua_btn_widget)
+
+        # ── 吉时信息 ──
+        self._bagua_lucky_info = QLabel()
+        self._bagua_lucky_info.setWordWrap(True)
+        self._bagua_lucky_info.setStyleSheet(
+            "color:#2E7D32;font-size:9pt;background:#E8F5E9;"
+            "border:1px solid #A5D6A7;border-radius:4px;padding:4px;"
+        )
+        self._bagua_lucky_info.setVisible(False)
+        self.options_layout.addRow(self._bagua_lucky_info)
+
+    def _on_bagua_mode_changed(self) -> None:
+        """八卦占卜时间模式切换."""
+        is_hour = self.bagua_hour_mode_radio.isChecked()
+        self._bagua_hour_scroll.setVisible(is_hour)
+        self._bagua_shichen_scroll.setVisible(not is_hour)
+        self._bagua_lucky_info.setVisible(False)
+
+    def _bagua_select_all(self) -> None:
+        """全选八卦占卜时间复选框."""
+        if self.bagua_hour_mode_radio.isChecked():
+            for cb in self.bagua_hour_checkboxes:
+                cb.setChecked(True)
+        else:
+            for cb in self.bagua_shichen_checkboxes:
+                cb.setChecked(True)
+
+    def _bagua_clear_all(self) -> None:
+        """取消全选八卦占卜时间复选框."""
+        if self.bagua_hour_mode_radio.isChecked():
+            for cb in self.bagua_hour_checkboxes:
+                cb.setChecked(False)
+        else:
+            for cb in self.bagua_shichen_checkboxes:
+                cb.setChecked(False)
+
+    def _bagua_auto_fill_lucky(self) -> None:
+        """自动填入今日吉时."""
+        now = datetime.now(timezone.utc).astimezone()
+        lucky_hours = get_lucky_hours(now.year, now.month, now.day, min_score=60)
+
+        if not lucky_hours:
+            self._bagua_lucky_info.setText("今日暂无吉时数据")
+            self._bagua_lucky_info.setVisible(True)
+            return
+
+        if self.bagua_hour_mode_radio.isChecked():
+            for cb in self.bagua_hour_checkboxes:
+                cb.setChecked(False)
+            filled = []
+            for item in lucky_hours:
+                for h in item["hours"]:
+                    if 0 <= h <= 23:
+                        self.bagua_hour_checkboxes[h].setChecked(True)
+                        filled.append(h)
+            self._bagua_lucky_info.setText(
+                f"已填入吉时（{len(filled)}小时）："
+                + "、".join(f"{h:02d}" for h in sorted(filled))
+            )
+        else:
+            for cb in self.bagua_shichen_checkboxes:
+                cb.setChecked(False)
+            filled = []
+            for item in lucky_hours:
+                branch = item["branch"]
+                if branch in _EARTHLY_BRANCHES:
+                    idx = _EARTHLY_BRANCHES.index(branch)
+                    self.bagua_shichen_checkboxes[idx].setChecked(True)
+                    filled.append(item["name"])
+            self._bagua_lucky_info.setText(
+                f"已填入吉时（{len(filled)}时辰）：" + "、".join(filled)
+            )
+        self._bagua_lucky_info.setVisible(True)
+
+    def get_bagua_time_options(self) -> dict[str, Any]:
+        """获取八卦占卜时间选择的配置选项."""
+        options: dict[str, Any] = {}
+        if not self.bagua_hour_checkboxes:
+            return options
+        if self.bagua_hour_mode_radio.isChecked():
+            options["time_mode"] = "hour"
+            selected = [
+                str(i) for i, cb in enumerate(self.bagua_hour_checkboxes)
+                if cb.isChecked()
+            ]
+            options["selected_hours"] = ",".join(selected)
+        else:
+            options["time_mode"] = "shichen"
+            selected = [
+                _SHICHEN_LIST[i][0] for i, cb in enumerate(self.bagua_shichen_checkboxes)
+                if cb.isChecked()
+            ]
+            options["selected_shichen"] = ",".join(selected)
+        return options
+
+    def _get_locked_for_strategy(self, strategy_id: str) -> dict[str, Any]:
         """读取某策略的锁定参数；优先使用内存缓存，缺失时回退到持久化存储."""
-        locked: Dict[str, Any] = {}
+        locked: dict[str, Any] = {}
         if self._locked_params:
             locked = {
                 p.param_name: p.param_value
@@ -666,6 +881,7 @@ class StrategyPanel(QWidget):
         while self.options_layout.rowCount() > 0:
             self.options_layout.removeRow(0)
         self._option_widgets.clear()
+        self._cleanup_bagua_widgets()
 
         if strategy is None:
             self.options_group.setVisible(False)
@@ -673,7 +889,9 @@ class StrategyPanel(QWidget):
             return
 
         schema = strategy.get_config_schema()
-        if not schema:
+        is_bagua = strategy.metadata.id == "bagua"
+
+        if not schema and not is_bagua:
             self.options_group.setVisible(False)
             self.reset_defaults_btn.setVisible(False)
             return
@@ -689,7 +907,7 @@ class StrategyPanel(QWidget):
             self.layout.insertWidget(4, self._recommend_btn)
             self._recommend_btn.setVisible(True)
 
-        for key, meta in schema.items():
+        for key, meta in (schema or {}).items():
             locked_value = locked.get(key)
             effective_meta = meta
             if locked_value is not None:
@@ -717,7 +935,11 @@ class StrategyPanel(QWidget):
                 else:
                     self.options_layout.addRow(label, widget)
 
-    def _create_option_widget(self, key: str, meta: Dict[str, Any]):
+        # 八卦策略：将时间选择控件合并到策略参数 GroupBox 内
+        if is_bagua:
+            self._build_bagua_time_widgets()
+
+    def _create_option_widget(self, key: str, meta: dict[str, Any]):
         type_ = meta.get("type", "string")
         default = meta.get("default")
 
@@ -796,7 +1018,7 @@ class StrategyPanel(QWidget):
         if idx >= 0:
             self.strategy_combo.setCurrentIndex(idx)
 
-    def set_options(self, options: Dict[str, Any]) -> None:
+    def set_options(self, options: dict[str, Any]) -> None:
         """根据当前策略的 schema 恢复参数值."""
         if not self._current_strategy or not options:
             return
@@ -828,12 +1050,13 @@ class StrategyPanel(QWidget):
                         widget.setText(str(value) if value is not None else "")
                 else:
                     widget.setText(str(value) if value is not None else "")
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("读取参数失败: %s", exc)
                 continue
 
-    def current_options(self) -> Dict[str, Any]:
+    def current_options(self) -> dict[str, Any]:
         """读取当前参数值."""
-        options: Dict[str, Any] = {}
+        options: dict[str, Any] = {}
         schema = (
             self._current_strategy.get_config_schema()
             if self._current_strategy
@@ -863,4 +1086,10 @@ class StrategyPanel(QWidget):
                     raise ValueError(f"{meta.get('label', key)} 格式错误: {exc}") from exc
             else:
                 options[key] = widget.text()
+
+        # 八卦占卜：额外获取时间选择配置
+        if self.current_strategy_id() == "bagua":
+            bagua_time_opts = self.get_bagua_time_options()
+            options.update(bagua_time_opts)
+
         return options

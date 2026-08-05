@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from ..profile import LotteryProfile
-from .registry import STRATEGY_REGISTRY
 from ..strategy import GenerationStrategy
+from .registry import STRATEGY_REGISTRY
 
 
-def build_strategies(profile: LotteryProfile) -> List[GenerationStrategy]:
+def build_strategies(profile: LotteryProfile) -> list[GenerationStrategy]:
     """为指定彩种生成全部策略实例。"""
     classes = STRATEGY_REGISTRY.get(profile.key)
     if classes is None:

@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from ...core.profile import LotteryProfile, NumberGroup
 from ...data.models import DrawRecord
 from . import model_store
-from .features import build_features, build_prediction_features
 from .base import LotteryGenericModel
+from .features import build_features, build_prediction_features
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,12 @@ class BaseMLPredictor:
 
     def __init__(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         profile: LotteryProfile,
         lookback: int = 50,
-        model_path: Optional[Path] = None,
+        model_path: Path | None = None,
         backend: str = "xgboost",
-        temp_dir: Optional[str] = None,
+        temp_dir: str | None = None,
     ) -> None:
         self.profile = profile
         self.records = sorted(records, key=lambda r: r.draw_date)
@@ -43,7 +43,7 @@ class BaseMLPredictor:
         self.backend = backend
         self.model = LotteryGenericModel(profile, lookback=lookback, backend=backend, temp_dir=temp_dir)
         self._needs_training = True
-        self._feature_count: Optional[int] = None
+        self._feature_count: int | None = None
 
         if model_path and model_path.exists():
             if self._metadata_matches():
@@ -62,7 +62,7 @@ class BaseMLPredictor:
     def _data_fingerprint(self) -> str:
         return model_store.data_fingerprint(self.records)
 
-    def _metadata_path(self) -> Optional[Path]:
+    def _metadata_path(self) -> Path | None:
         if not self.model_path:
             return None
         return Path(str(self.model_path) + ".meta.json")
@@ -117,7 +117,7 @@ class BaseMLPredictor:
     # ------------------------------------------------------------------ #
     def train(
         self,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
         X, y_dict = build_features(self.records, self.profile, self.lookback)
         if X.shape[0] == 0:
@@ -129,7 +129,7 @@ class BaseMLPredictor:
             self._save_metadata()
             logger.info("模型已保存，数据指纹：%s", self._data_fingerprint())
 
-    def predict(self) -> Dict[str, np.ndarray]:
+    def predict(self) -> dict[str, np.ndarray]:
         if self._needs_training:
             self.train()
         X = build_prediction_features(self.records, self.profile, self.lookback)
@@ -142,10 +142,10 @@ class BaseMLPredictor:
     # ------------------------------------------------------------------ #
     def recommend(
         self,
-        group_picks: Optional[Dict[str, int]] = None,
+        group_picks: dict[str, int] | None = None,
         diversity_boost: float = 0.3,
-        rng: Optional[np.random.RandomState] = None,
-    ) -> Dict[str, List[int]]:
+        rng: np.random.RandomState | None = None,
+    ) -> dict[str, list[int]]:
         """推荐号码组合.
 
         Args:
@@ -163,7 +163,7 @@ class BaseMLPredictor:
         X_pred = build_prediction_features(self.records, self.profile, self.lookback)
         if X_pred.size == 0:
             raise ValueError("历史数据不足，无法预测")
-        result: Dict[str, List[int]] = {}
+        result: dict[str, list[int]] = {}
         for g in self.profile.pick_groups:
             pick = (
                 group_picks[g.key]
@@ -186,7 +186,7 @@ class BaseMLPredictor:
         pick: int,
         diversity_boost: float,
         rng: np.random.RandomState,
-    ) -> List[int]:
+    ) -> list[int]:
         pick = min(pick, len(group.values))
         if pick <= 0:
             return []
@@ -194,7 +194,7 @@ class BaseMLPredictor:
         weights = weights / weights.sum()
         available = group.values[:]
         p = weights.copy()
-        selected: List[int] = []
+        selected: list[int] = []
         while len(selected) < pick:
             if selected and diversity_boost > 0:
                 for s in selected:
@@ -215,7 +215,7 @@ class BaseMLPredictor:
         group: NumberGroup,
         proba: np.ndarray,
         rng: np.random.RandomState,
-    ) -> List[int]:
+    ) -> list[int]:
         """按位组：每位按概率取最高或加权采样。"""
         if proba.ndim != 2 or proba.shape != (group.count, group.size):
             raise ValueError("按位概率矩阵形状与组定义不匹配")

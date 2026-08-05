@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -41,7 +39,7 @@ class ParameterGroupPanel(QWidget):
         super().__init__(parent)
         self._store = store
         self._profile_key = profile_key
-        self._groups: List[ParameterGroup] = []
+        self._groups: list[ParameterGroup] = []
         self._item_checkboxes: dict[str, QCheckBox] = {}
 
         self._setup_ui()
@@ -204,7 +202,7 @@ class ParameterGroupPanel(QWidget):
         for cb in self._item_checkboxes.values():
             cb.setChecked(False)
 
-    def _enabled_items(self) -> List[StrategyParameterItem]:
+    def _enabled_items(self) -> list[StrategyParameterItem]:
         current = self.group_list.currentItem()
         if current is None:
             return []
@@ -236,11 +234,10 @@ class ParameterGroupPanel(QWidget):
         new_name, ok = QInputDialog.getText(
             self, "重命名", "新名称:", text=group.name
         )
-        if ok and new_name.strip():
-            if self._store.rename(
-                self._profile_key, group_id, new_name.strip()
-            ):
-                self.refresh()
+        if ok and new_name.strip() and self._store.rename(
+            self._profile_key, group_id, new_name.strip()
+        ):
+            self.refresh()
 
     def _on_delete(self) -> None:
         current = self.group_list.currentItem()

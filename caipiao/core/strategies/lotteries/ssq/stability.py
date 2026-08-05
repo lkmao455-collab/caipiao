@@ -10,10 +10,9 @@ import hashlib
 import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .....data.models import DrawRecord
-from ....profile import SSQ
 
 RED_POOL = list(range(1, 34))   # 1-33
 BLUE_POOL = list(range(1, 17))  # 1-16
@@ -22,15 +21,15 @@ BLUE_COUNT = 1
 
 
 def _slice_records(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> List[DrawRecord]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> list[DrawRecord]:
     if lookback is None or lookback >= len(records):
         return records
     return records[-lookback:]
 
 
 def _history_content_hash(
-    records: List[DrawRecord], lookback: Optional[int] = None
+    records: list[DrawRecord], lookback: int | None = None
 ) -> str:
     sliced = _slice_records(records, lookback)
     parts = []
@@ -44,26 +43,26 @@ def _history_content_hash(
 
 def deterministic_seed(
     options: dict,
-    history: List[DrawRecord],
-    lookback: Optional[int] = None,
+    history: list[DrawRecord],
+    lookback: int | None = None,
     strategy_id: str = "",
 ) -> int:
     seed = options.get("seed")
     if seed is not None:
         return int(seed)
     h = _history_content_hash(history, lookback)
-    raw = hashlib.sha256(f"{strategy_id}:{h}".encode("utf-8")).hexdigest()
+    raw = hashlib.sha256(f"{strategy_id}:{h}".encode()).hexdigest()
     return int(raw, 16) % (2**31)
 
 
 def stable_frequency(
-    records: List[DrawRecord],
-    lookback: Optional[int] = None,
+    records: list[DrawRecord],
+    lookback: int | None = None,
     smoothing: float = 1.0,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """返回拉普拉斯平滑后的红球概率分布 {number: probability}."""
     sliced = _slice_records(records, lookback)
-    counter: Dict[int, int] = {n: 0 for n in RED_POOL}
+    counter: dict[int, int] = {n: 0 for n in RED_POOL}
     for r in sliced:
         for n in r.groups.get("red", []):
             if n in counter:
@@ -73,13 +72,13 @@ def stable_frequency(
 
 
 def stable_blue_frequency(
-    records: List[DrawRecord],
-    lookback: Optional[int] = None,
+    records: list[DrawRecord],
+    lookback: int | None = None,
     smoothing: float = 1.0,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """返回拉普拉斯平滑后的蓝球概率分布 {number: probability}."""
     sliced = _slice_records(records, lookback)
-    counter: Dict[int, int] = {n: 0 for n in BLUE_POOL}
+    counter: dict[int, int] = {n: 0 for n in BLUE_POOL}
     for r in sliced:
         for n in r.groups.get("blue", []):
             if n in counter:
@@ -89,12 +88,12 @@ def stable_blue_frequency(
 
 
 def raw_missing_periods(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> Dict[int, int]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> dict[int, int]:
     """返回红球原始遗漏期数 {number: periods}."""
     sliced = _slice_records(records, lookback)
     window = len(sliced) if sliced else 1
-    missing: Dict[int, int] = {n: window for n in RED_POOL}
+    missing: dict[int, int] = {n: window for n in RED_POOL}
     red_records = [r.groups.get("red", []) for r in sliced]
     for idx, reds in enumerate(reversed(red_records)):
         for n in reds:
@@ -104,12 +103,12 @@ def raw_missing_periods(
 
 
 def raw_blue_missing_periods(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> Dict[int, int]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> dict[int, int]:
     """返回蓝球原始遗漏期数 {number: periods}."""
     sliced = _slice_records(records, lookback)
     window = len(sliced) if sliced else 1
-    missing: Dict[int, int] = {n: window for n in BLUE_POOL}
+    missing: dict[int, int] = {n: window for n in BLUE_POOL}
     blue_records = [r.groups.get("blue", []) for r in sliced]
     for idx, blues in enumerate(reversed(blue_records)):
         for n in blues:
@@ -119,8 +118,8 @@ def raw_blue_missing_periods(
 
 
 def geometric_missing_zscore(
-    missing_periods: Dict[int, int], p: float = 1 / 33
-) -> Dict[int, float]:
+    missing_periods: dict[int, int], p: float = 1 / 33
+) -> dict[int, float]:
     """将红球遗漏期数转为几何分布 z-score.
 
     在均匀假设(p=1/33)下:
@@ -136,8 +135,8 @@ def geometric_missing_zscore(
 
 
 def geometric_blue_missing_zscore(
-    missing_periods: Dict[int, int], p: float = 1 / 16
-) -> Dict[int, float]:
+    missing_periods: dict[int, int], p: float = 1 / 16
+) -> dict[int, float]:
     """将蓝球遗漏期数转为几何分布 z-score.
 
     在均匀假设(p=1/16)下:
@@ -151,7 +150,7 @@ def geometric_blue_missing_zscore(
     return {n: (v - expected) / sigma for n, v in missing_periods.items()}
 
 
-def _zscore_normalize(scores: Dict[int, float]) -> Dict[int, float]:
+def _zscore_normalize(scores: dict[int, float]) -> dict[int, float]:
     """z-score 标准化: z = (x - mean) / std."""
     vals = list(scores.values())
     if len(vals) < 2:
@@ -166,7 +165,7 @@ def _zscore_normalize(scores: Dict[int, float]) -> Dict[int, float]:
     return {n: (scores[n] - mean) / std for n in scores}
 
 
-def softmax_scores(values: List[float], temperature: float = 1.0) -> List[float]:
+def softmax_scores(values: list[float], temperature: float = 1.0) -> list[float]:
     """带温度参数的 softmax."""
     if temperature <= 0:
         temperature = 1.0
@@ -177,12 +176,12 @@ def softmax_scores(values: List[float], temperature: float = 1.0) -> List[float]
 
 
 def stable_scores(
-    hot_scores: Dict[int, float],
-    cold_scores: Dict[int, float],
+    hot_scores: dict[int, float],
+    cold_scores: dict[int, float],
     hot_weight: float,
     cold_weight: float,
     temperature: float = 1.0,
-) -> List[float]:
+) -> list[float]:
     """合并热分和冷分，输出 softmax 概率分布（红球 1-33）."""
     weight_sum = hot_weight + cold_weight
     if weight_sum <= 0:
@@ -197,12 +196,12 @@ def stable_scores(
 
 
 def stable_blue_scores(
-    hot_scores: Dict[int, float],
-    cold_scores: Dict[int, float],
+    hot_scores: dict[int, float],
+    cold_scores: dict[int, float],
     hot_weight: float,
     cold_weight: float,
     temperature: float = 1.0,
-) -> List[float]:
+) -> list[float]:
     """合并热分和冷分，输出 softmax 概率分布（蓝球 1-16）."""
     weight_sum = hot_weight + cold_weight
     if weight_sum <= 0:
@@ -216,7 +215,7 @@ def stable_blue_scores(
     return softmax_scores(logits, temperature)
 
 
-def chi_square_uniform_test(counts: List[int]) -> Tuple[float, bool]:
+def chi_square_uniform_test(counts: list[int]) -> tuple[float, bool]:
     """χ² 拟合优度检验: 观测频率是否偏离均匀分布.
 
     H0: 每个号码出现概率相等。
@@ -241,7 +240,7 @@ def chi_square_uniform_test(counts: List[int]) -> Tuple[float, bool]:
 
 
 def sample_weighted(
-    rng: random.Random, values: List[Any], probabilities: List[float]
+    rng: random.Random, values: list[Any], probabilities: list[float]
 ) -> Any:
     """加权采样."""
     total = sum(probabilities)
@@ -251,10 +250,10 @@ def sample_weighted(
 
 
 def weighted_sample_reds(
-    red_probs: List[float],
+    red_probs: list[float],
     count: int,
     rng: random.Random,
-) -> List[int]:
+) -> list[int]:
     """按概率分布无放回采样红球.
 
     使用 Gumbel-max trick (等价于 log-uniform + argmax) 实现无放回采样，

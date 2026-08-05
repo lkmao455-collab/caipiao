@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -21,16 +20,16 @@ class MarkovChainModel:
             order: 马尔可夫链阶数（1=一阶，2=二阶）。
         """
         self.order = order
-        self.red_transition: Optional[np.ndarray] = None
-        self.blue_transition: Optional[np.ndarray] = None
-        self.red_initial: Optional[np.ndarray] = None
-        self.blue_initial: Optional[np.ndarray] = None
+        self.red_transition: np.ndarray | None = None
+        self.blue_transition: np.ndarray | None = None
+        self.red_initial: np.ndarray | None = None
+        self.blue_initial: np.ndarray | None = None
         self.is_trained = False
 
     def fit(
         self,
-        red_sequences: List[List[int]],
-        blue_sequences: List[int],
+        red_sequences: list[list[int]],
+        blue_sequences: list[int],
         red_count: int = 33,
         blue_count: int = 16,
         smoothing: float = 0.01,
@@ -67,7 +66,7 @@ class MarkovChainModel:
 
     def predict_proba(
         self, lookback: int = 10
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """基于最近 lookback 期预测下一期各号码出现概率."""
         if not self.is_trained:
             raise RuntimeError("模型尚未训练")
@@ -79,8 +78,8 @@ class MarkovChainModel:
     # 内部方法
     # ------------------------------------------------------------------ #
     def _to_binary_sequence(
-        self, sequences: List[List[int]], size: int
-    ) -> List[np.ndarray]:
+        self, sequences: list[list[int]], size: int
+    ) -> list[np.ndarray]:
         """将号码列表序列转为二值向量序列。"""
         result = []
         for nums in sequences:
@@ -92,8 +91,8 @@ class MarkovChainModel:
         return result
 
     def _to_onehot_sequence(
-        self, sequences: List[int], size: int
-    ) -> List[np.ndarray]:
+        self, sequences: list[int], size: int
+    ) -> list[np.ndarray]:
         """将单值序列转为 one-hot 向量序列。"""
         result = []
         for n in sequences:
@@ -105,10 +104,10 @@ class MarkovChainModel:
 
     def _build_transition(
         self,
-        binary_seq: List[np.ndarray],
+        binary_seq: list[np.ndarray],
         size: int,
         smoothing: float,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """构建状态转移矩阵和初始概率向量."""
         # 状态数 = 2^min(order, max_reasonable) ，但这里简化为基于最近N期的滑动窗口
         # 使用加权历史频率作为转移概率

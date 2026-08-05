@@ -14,16 +14,9 @@ import random
 import numpy as np
 
 from caipiao.core.backtest_worker import (
-    _build_engine,
     _cleanup_worker_temp_dir,
     _configure_worker_threads,
-    _detect_ml_strategy,
     _get_worker_temp_dir,
-    _is_winner,
-    _ticket_is_first,
-    merge_round_results,
-    prepare_ml_options,
-    worker_round_backtest,
 )
 
 

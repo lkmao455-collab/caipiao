@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 from .heavenly_earthly import (
-    HEAVENLY_STEMS,
+    BRANCH_WUXING,
     EARTHLY_BRANCHES,
-    get_ganzhi_day,
+    STEM_WUXING,
     get_chongsha,
+    get_ganzhi_day,
 )
 
 # ──────────────────────────────────────────────────────────────────────
@@ -392,3 +393,280 @@ def get_festivals(month: int, day: int) -> list[str]:
     if key in SOLAR_FESTIVALS:
         festivals.append(SOLAR_FESTIVALS[key])
     return festivals
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 吉时推算
+# ──────────────────────────────────────────────────────────────────────
+
+# 五行相生关系
+_WUXING_SHENG = {
+    "木": "火", "火": "土", "土": "金", "金": "水", "水": "木"
+}
+
+# 五行相克关系
+_WUXING_KE = {
+    "木": "土", "土": "水", "水": "火", "火": "金", "金": "木"
+}
+
+# 地支六合
+_SIX_COMBOS = {
+    "子": "丑", "丑": "子",
+    "寅": "亥", "亥": "寅",
+    "卯": "戌", "戌": "卯",
+    "辰": "酉", "酉": "辰",
+    "巳": "申", "申": "巳",
+    "午": "未", "未": "午",
+}
+
+# 地支六冲
+_SIX_CLASHES = {
+    "子": "午", "午": "子",
+    "丑": "未", "未": "丑",
+    "寅": "申", "申": "寅",
+    "卯": "酉", "酉": "卯",
+    "辰": "戌", "戌": "辰",
+    "巳": "亥", "亥": "巳",
+}
+
+# 地支三合
+_THREE_COMBOS = [
+    ("申", "子", "辰"),  # 水局
+    ("亥", "卯", "未"),  # 木局
+    ("寅", "午", "戌"),  # 火局
+    ("巳", "酉", "丑"),  # 金局
+]
+
+# 时辰地支列表
+_SHICHEN_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+
+
+def _get_wuxing_relation(wx1: str, wx2: str) -> str:
+    """获取两个五行之间的关系."""
+    if wx1 == wx2:
+        return "比和"
+    if _WUXING_SHENG.get(wx1) == wx2:
+        return "相生"
+    if _WUXING_SHENG.get(wx2) == wx1:
+        return "相生"
+    if _WUXING_KE.get(wx1) == wx2:
+        return "相克"
+    if _WUXING_KE.get(wx2) == wx1:
+        return "相克"
+    return "无"
+
+
+def _get_shichen_score(day_stem: str, day_branch: str, shichen_branch: str) -> int:
+    """计算某个时辰对当日的吉利程度评分.
+
+    评分规则：
+    - 日支与时支六合：+30分
+    - 日支与时支三合：+20分
+    - 日干与时干相生：+15分
+    - 日支五行与时支五行相生：+10分
+    - 日支与时支六冲：-30分
+    - 日干五行与时支五行相克：-10分
+    - 基础分：50分
+    """
+    score = 50
+
+    # 六合
+    if _SIX_COMBOS.get(day_branch) == shichen_branch:
+        score += 30
+
+    # 三合
+    for combo in _THREE_COMBOS:
+        if day_branch in combo and shichen_branch in combo:
+            score += 20
+            break
+
+    # 六冲
+    if _SIX_CLASHES.get(day_branch) == shichen_branch:
+        score -= 30
+
+    # 日干与时干相生
+    day_stem_wx = STEM_WUXING.get(day_stem, "")
+    shichen_wx = BRANCH_WUXING.get(shichen_branch, "")
+    if day_stem_wx and shichen_wx:
+        relation = _get_wuxing_relation(day_stem_wx, shichen_wx)
+        if relation == "相生":
+            score += 15
+        elif relation == "相克":
+            score -= 10
+
+    # 日支五行与时支五行相生
+    day_branch_wx = BRANCH_WUXING.get(day_branch, "")
+    if day_branch_wx and shichen_wx:
+        relation = _get_wuxing_relation(day_branch_wx, shichen_wx)
+        if relation == "相生":
+            score += 10
+        elif relation == "相克":
+            score -= 10
+
+    return score
+
+
+def get_lucky_hours(year: int, month: int, day: int, min_score: int = 60) -> list[dict]:
+    """获取当日吉时.
+
+    基于日干支与时辰的五行生克、六合六冲等关系推算。
+
+    Args:
+        year: 公历年
+        month: 公历月
+        day: 公历日
+        min_score: 最低吉利分数阈值（默认60分以上为吉时）
+
+    Returns:
+        吉时列表，每项包含：
+        - branch: 时辰地支
+        - name: 时辰名称
+        - hours: 对应的24小时制小时列表
+        - score: 吉利评分
+        - description: 吉利描述
+    """
+    day_gz = get_ganzhi_day(year, month, day)
+    day_stem = day_gz[0]
+    day_branch = day_gz[1]
+
+    lucky_hours = []
+
+    for branch in _SHICHEN_BRANCHES:
+        score = _get_shichen_score(day_stem, day_branch, branch)
+
+        # 确定对应的小时
+        if branch == "子":
+            hours = [23, 0]
+        else:
+            idx = _SHICHEN_BRANCHES.index(branch)
+            hours = [idx * 2 - 1, idx * 2]
+            if branch == "丑":
+                hours = [1, 2]
+            elif branch == "寅":
+                hours = [3, 4]
+            elif branch == "卯":
+                hours = [5, 6]
+            elif branch == "辰":
+                hours = [7, 8]
+            elif branch == "巳":
+                hours = [9, 10]
+            elif branch == "午":
+                hours = [11, 12]
+            elif branch == "未":
+                hours = [13, 14]
+            elif branch == "申":
+                hours = [15, 16]
+            elif branch == "酉":
+                hours = [17, 18]
+            elif branch == "戌":
+                hours = [19, 20]
+            elif branch == "亥":
+                hours = [21, 22]
+
+        # 生成描述
+        description = _get_lucky_description(day_stem, day_branch, branch, score)
+
+        if score >= min_score:
+            lucky_hours.append({
+                "branch": branch,
+                "name": f"{branch}时",
+                "hours": hours,
+                "score": score,
+                "description": description,
+            })
+
+    # 按分数从高到低排序
+    lucky_hours.sort(key=lambda x: x["score"], reverse=True)
+
+    return lucky_hours
+
+
+def _get_lucky_description(day_stem: str, day_branch: str, shichen_branch: str, score: int) -> str:
+    """生成吉利描述."""
+    reasons = []
+
+    if _SIX_COMBOS.get(day_branch) == shichen_branch:
+        reasons.append("六合")
+    for combo in _THREE_COMBOS:
+        if day_branch in combo and shichen_branch in combo:
+            reasons.append("三合")
+            break
+    if _SIX_CLASHES.get(day_branch) == shichen_branch:
+        reasons.append("六冲")
+
+    day_stem_wx = STEM_WUXING.get(day_stem, "")
+    shichen_wx = BRANCH_WUXING.get(shichen_branch, "")
+    if day_stem_wx and shichen_wx:
+        relation = _get_wuxing_relation(day_stem_wx, shichen_wx)
+        if relation == "相生":
+            reasons.append("干支相生")
+        elif relation == "相克":
+            reasons.append("干支相克")
+
+    if score >= 80:
+        level = "大吉"
+    elif score >= 70:
+        level = "吉"
+    elif score >= 60:
+        level = "小吉"
+    else:
+        level = "平"
+
+    if reasons:
+        return f"{level}（{'、'.join(reasons)}）"
+    return level
+
+
+def get_all_shichen_scores(year: int, month: int, day: int) -> list[dict]:
+    """获取当日所有时辰的评分（用于展示）.
+
+    Returns:
+        所有时辰的评分列表
+    """
+    day_gz = get_ganzhi_day(year, month, day)
+    day_stem = day_gz[0]
+    day_branch = day_gz[1]
+
+    all_scores = []
+
+    for branch in _SHICHEN_BRANCHES:
+        score = _get_shichen_score(day_stem, day_branch, branch)
+        description = _get_lucky_description(day_stem, day_branch, branch, score)
+
+        if branch == "子":
+            hours = [23, 0]
+        else:
+            idx = _SHICHEN_BRANCHES.index(branch)
+            hours = [idx * 2 - 1, idx * 2]
+            if branch == "丑":
+                hours = [1, 2]
+            elif branch == "寅":
+                hours = [3, 4]
+            elif branch == "卯":
+                hours = [5, 6]
+            elif branch == "辰":
+                hours = [7, 8]
+            elif branch == "巳":
+                hours = [9, 10]
+            elif branch == "午":
+                hours = [11, 12]
+            elif branch == "未":
+                hours = [13, 14]
+            elif branch == "申":
+                hours = [15, 16]
+            elif branch == "酉":
+                hours = [17, 18]
+            elif branch == "戌":
+                hours = [19, 20]
+            elif branch == "亥":
+                hours = [21, 22]
+
+        all_scores.append({
+            "branch": branch,
+            "name": f"{branch}时",
+            "hours": hours,
+            "score": score,
+            "description": description,
+        })
+
+    return all_scores

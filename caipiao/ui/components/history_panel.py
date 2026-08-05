@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import Signal
@@ -24,6 +26,8 @@ from PySide6.QtWidgets import (
 from ...core.ticket import Ticket
 from ...persistence.history import HistoryManager
 from .ball_display import TicketRowWidget
+
+logger = logging.getLogger(__name__)
 
 
 class HistoryPanel(QWidget):
@@ -131,7 +135,8 @@ class HistoryPanel(QWidget):
                     self, "缺少依赖",
                     "需要安装 openpyxl 才能导出 Excel 文件。\n请运行: pip install openpyxl"
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("导出 Excel 失败")
                 QMessageBox.critical(self, "导出失败", f"导出 Excel 失败:\n{exc}")
 
     def _import_json(self) -> None:
@@ -283,7 +288,7 @@ class HistoryPanel(QWidget):
         </head>
         <body>
             <h1>{title}</h1>
-            <p style="text-align:center;color:#666;">打印时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p style="text-align:center;color:#666;">打印时间：{datetime.now(timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M:%S')}</p>
             <table>
                 <tr>
                     <th style="width:60px;">序号</th>

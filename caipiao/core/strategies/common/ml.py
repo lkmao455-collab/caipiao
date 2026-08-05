@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 import numpy as np
 
@@ -16,7 +16,11 @@ from ....core.profile import LotteryProfile
 from ....core.strategy import GenerationStrategy
 from ....core.ticket import Ticket
 from ....data.models import DrawRecord
-from ....ml.common.model_store import compute_lookback, find_current_model, new_model_path
+from ....ml.common.model_store import (
+    compute_lookback,
+    find_current_model,
+    new_model_path,
+)
 from ....ml.common.predictor import BaseMLPredictor as GenericMLPredictor
 from .records import records_from_options
 
@@ -24,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 def _deterministic_seed(
-    options: Dict[str, Any],
-    records: List[DrawRecord],
+    options: dict[str, Any],
+    records: list[DrawRecord],
     strategy_id: str,
 ) -> int:
     """若 options 中无显式 seed，则基于历史数据与策略 ID 派生确定性 seed."""
@@ -37,14 +41,14 @@ def _deterministic_seed(
         parts.append(f"{r.issue or ''}:{r.draw_date.isoformat()}")
     content = ";".join(parts)
     h = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
-    raw = hashlib.sha256(f"{strategy_id}:{h}".encode("utf-8")).hexdigest()
+    raw = hashlib.sha256(f"{strategy_id}:{h}".encode()).hexdigest()
     return int(raw, 16) % (2**31)
 
 
 def make_generic_ml_base(
     profile: LotteryProfile,
-    predictor_class: Optional[Type[GenericMLPredictor]] = None,
-) -> Type[GenerationStrategy]:
+    predictor_class: type[GenericMLPredictor] | None = None,
+) -> type[GenerationStrategy]:
     """为指定彩种创建基于 GenericMLPredictor 的 ML 策略私有基类.
 
     Args:
@@ -58,7 +62,7 @@ def make_generic_ml_base(
         _backend: str = "xgboost"
         is_ml: bool = True
 
-        def get_config_schema(self) -> Dict[str, Any]:
+        def get_config_schema(self) -> dict[str, Any]:
             return {
                 "diversity_boost": {
                     "type": "int",
@@ -79,7 +83,7 @@ def make_generic_ml_base(
                 },
             }
 
-        def validate_options(self, options: Dict[str, Any]) -> None:
+        def validate_options(self, options: dict[str, Any]) -> None:
             if len(options.get("history", [])) < 100:
                 raise ValueError(f"{self.metadata.name} 策略需要至少 100 期历史数据")
             history_count = options.get("history_count", -1)
@@ -87,8 +91,8 @@ def make_generic_ml_base(
                 raise ValueError("使用历史记录期数必须大于等于 -1")
 
         def generate(
-            self, count: int = 1, options: Optional[Dict[str, Any]] = None
-        ) -> List[Ticket]:
+            self, count: int = 1, options: dict[str, Any] | None = None
+        ) -> list[Ticket]:
             options = options or {}
             self.validate_options(options)
             records = records_from_options(options)
@@ -125,7 +129,7 @@ def make_generic_ml_base(
                 predictor.train()
 
             proba = predictor.predict()
-            proba_lists: Dict[str, Any] = {}
+            proba_lists: dict[str, Any] = {}
             for k, v in proba.items():
                 if v.ndim == 1:
                     proba_lists[k] = [round(float(p), 4) for p in v]
@@ -149,7 +153,7 @@ def make_generic_ml_base(
             }
             base_seed = _deterministic_seed(options, records, self.metadata.id)
 
-            tickets: List[Ticket] = []
+            tickets: list[Ticket] = []
             for i in range(count):
                 np_rng = np.random.RandomState(base_seed + i)
                 rec_groups = predictor.recommend(
@@ -171,7 +175,7 @@ def make_generic_ml_base(
 
 def make_placeholder_ml_base(
     profile: LotteryProfile, reason: str
-) -> Type[GenerationStrategy]:
+) -> type[GenerationStrategy]:
     """为当前后端暂不支持的彩种创建占位 ML 策略私有基类.
 
     占位类仍具有正确的 metadata / schema，可在注册表中正常注册；
@@ -183,7 +187,7 @@ def make_placeholder_ml_base(
         is_ml: bool = True
         _placeholder: bool = True
 
-        def get_config_schema(self) -> Dict[str, Any]:
+        def get_config_schema(self) -> dict[str, Any]:
             return {
                 "diversity_boost": {
                     "type": "int",
@@ -202,13 +206,13 @@ def make_placeholder_ml_base(
                 },
             }
 
-        def validate_options(self, options: Dict[str, Any]) -> None:
+        def validate_options(self, options: dict[str, Any]) -> None:
             if len(options.get("history", [])) < 100:
                 raise ValueError(f"{self.metadata.name} 策略需要至少 100 期历史数据")
 
         def generate(
-            self, count: int = 1, options: Optional[Dict[str, Any]] = None
-        ) -> List[Ticket]:
+            self, count: int = 1, options: dict[str, Any] | None = None
+        ) -> list[Ticket]:
             raise NotImplementedError(
                 f"{profile.name} 的 {self.metadata.name} 尚未实现：{reason}"
             )

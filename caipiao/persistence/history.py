@@ -5,9 +5,9 @@ from __future__ import annotations
 import csv
 import json
 import logging
-from datetime import datetime, timedelta
+from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, List
 
 from ..core.ticket import Ticket
 
@@ -23,7 +23,7 @@ class HistoryManager:
             self.max_entries = max(1, int(max_entries))
         except (ValueError, TypeError):
             self.max_entries = 1000
-        self._tickets: List[Ticket] = []
+        self._tickets: list[Ticket] = []
         self._load()
 
     def _load(self) -> None:
@@ -34,10 +34,13 @@ class HistoryManager:
             with self.storage_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, list):
-                raise ValueError("JSON root must be a list")
+                raise TypeError("JSON root must be a list")
             self._tickets = [Ticket.from_dict(item) for item in data]
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
             logger.error("加载历史记录失败: %s", exc)
+            self._tickets = []
+        except TypeError as exc:
+            logger.error("加载历史记录失败（类型错误）: %s", exc)
             self._tickets = []
 
     def save(self) -> None:
@@ -92,17 +95,26 @@ class HistoryManager:
         if len(self._tickets) > self.max_entries:
             self._tickets = self._tickets[-self.max_entries :]
 
-    def get_all(self) -> List[Ticket]:
+    def get_all(self) -> list[Ticket]:
         """获取全部记录."""
         return self._tickets[:]
 
-    def get_recent(self, days: int = 30) -> List[Ticket]:
+    def get_recent(self, days: int = 30) -> list[Ticket]:
         """获取最近 N 天的记录."""
-        now = datetime.now()
-        if self._tickets and self._tickets[0].generated_at and self._tickets[0].generated_at.tzinfo is not None:
-            now = now.astimezone(self._tickets[0].generated_at.tzinfo)
+        now = datetime.now(timezone.utc).astimezone()
         cutoff = now - timedelta(days=days)
-        return [t for t in self._tickets if t.generated_at and t.generated_at >= cutoff]
+        result = []
+        for t in self._tickets:
+            if not t.generated_at:
+                continue
+            gt = t.generated_at
+            # 统一为带时区的 datetime 进行比较
+            if gt.tzinfo is None:
+                # 无时区 -> 视为本地时间
+                gt = gt.replace(tzinfo=timezone.utc).astimezone()
+            if gt >= cutoff:
+                result.append(t)
+        return result
 
     def clear(self) -> None:
         """清空历史."""
@@ -153,7 +165,7 @@ class HistoryManager:
     def export_excel(self, path: Path | str) -> None:
         """导出为 Excel (.xlsx)。"""
         from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
         path = Path(path)
         wb = Workbook()
@@ -227,10 +239,13 @@ class HistoryManager:
             with path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, list):
-                raise ValueError("JSON root must be a list")
+                raise TypeError("JSON root must be a list")
             imported = [Ticket.from_dict(item) for item in data]
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
             logger.error("导入历史记录失败: %s", exc)
+            return 0
+        except TypeError as exc:
+            logger.error("导入历史记录失败（类型错误）: %s", exc)
             return 0
         self.add_many(imported)
         return len(imported)

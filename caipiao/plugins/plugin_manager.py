@@ -10,9 +10,9 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import Callable, List
 
 from ..core.engine import GenerationEngine
 from ..core.strategy import GenerationStrategy
@@ -26,10 +26,10 @@ class PluginManager:
     def __init__(self, engine: GenerationEngine, plugin_dir: Path | str) -> None:
         self.engine = engine
         self.plugin_dir = Path(plugin_dir)
-        self._loaded_plugins: List[ModuleType] = []
-        self._plugin_strategy_ids: List[str] = []
+        self._loaded_plugins: list[ModuleType] = []
+        self._plugin_strategy_ids: list[str] = []
 
-    def discover(self) -> List[Path]:
+    def discover(self) -> list[Path]:
         """发现插件文件."""
         if not self.plugin_dir.is_dir():
             return []
@@ -40,9 +40,9 @@ class PluginManager:
         ]
         return sorted(files)
 
-    def load_all(self) -> List[str]:
+    def load_all(self) -> list[str]:
         """加载所有插件，返回加载的策略 ID 列表."""
-        loaded_ids: List[str] = []
+        loaded_ids: list[str] = []
         for plugin_path in self.discover():
             try:
                 ids = self.load(plugin_path)
@@ -51,7 +51,7 @@ class PluginManager:
                 logger.error("加载插件失败 %s: %s", plugin_path, exc)
         return loaded_ids
 
-    def load(self, plugin_path: Path) -> List[str]:
+    def load(self, plugin_path: Path) -> list[str]:
         """加载单个插件文件."""
         before_ids = {
             s.metadata.id
@@ -71,7 +71,7 @@ class PluginManager:
             raise ImportError(f"无法执行插件: {plugin_path}") from exc
         self._loaded_plugins.append(module)
 
-        loaded_ids: List[str] = []
+        loaded_ids: list[str] = []
 
         # 方式1：通过 register_strategies(engine) 函数注册
         register_func: Callable[[GenerationEngine], None] | None = getattr(

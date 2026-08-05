@@ -7,46 +7,45 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Dict, List, Optional, Tuple
 
-from ..core.profile import SSQ, LotteryProfile, NumberGroup
+from ..core.profile import SSQ, LotteryProfile
 from .models import DrawRecord
 
 
 class DrawAnalyzer:
     """基于历史开奖数据进行统计分析（彩种无关）."""
 
-    def __init__(self, records: List[DrawRecord], profile: LotteryProfile | None = None) -> None:
+    def __init__(self, records: list[DrawRecord], profile: LotteryProfile | None = None) -> None:
         self.profile = profile or (records[0].profile if records else SSQ)
         self.records = sorted(records, key=lambda r: r.draw_date)
 
     # ------------------------------------------------------------------ #
     # 按组频率 / 热冷 / 遗漏
     # ------------------------------------------------------------------ #
-    def frequency(self, group_key: str, last_n: Optional[int] = None) -> Dict[int, int]:
+    def frequency(self, group_key: str, last_n: int | None = None) -> dict[int, int]:
         records = self._slice(last_n)
         counter: Counter = Counter()
         for record in records:
             counter.update(record.groups.get(group_key, []))
         return dict(counter)
 
-    def hot(self, group_key: str, top_n: int = 10, last_n: Optional[int] = None) -> List[int]:
+    def hot(self, group_key: str, top_n: int = 10, last_n: int | None = None) -> list[int]:
         freq = self.frequency(group_key, last_n)
         return [n for n, _ in Counter(freq).most_common(top_n)]
 
-    def cold(self, group_key: str, top_n: int = 10, last_n: Optional[int] = None) -> List[int]:
+    def cold(self, group_key: str, top_n: int = 10, last_n: int | None = None) -> list[int]:
         freq = self.frequency(group_key, last_n)
         if group_key not in self.profile.group_keys:
             raise ValueError(f"Group {group_key} not found in profile {self.profile.key}")
         group = self.profile.group(group_key)
         return sorted(group.values, key=lambda n: freq.get(n, 0))[:top_n]
 
-    def missing(self, group_key: str, last_n: int = 50) -> List[Tuple[int, int]]:
+    def missing(self, group_key: str, last_n: int = 50) -> list[tuple[int, int]]:
         records = self._slice(last_n)
         if group_key not in self.profile.group_keys:
             raise ValueError(f"Group {group_key} not found in profile {self.profile.key}")
         group = self.profile.group(group_key)
-        missing: Dict[int, int] = {n: last_n for n in group.values}
+        missing: dict[int, int] = {n: last_n for n in group.values}
         for idx, record in enumerate(reversed(records)):
             for ball in record.groups.get(group_key, []):
                 if ball in missing and missing[ball] == last_n:
@@ -56,12 +55,12 @@ class DrawAnalyzer:
     # ------------------------------------------------------------------ #
     # 主号码组综合统计（奇偶、大小、和值、连号、常见组合）
     # ------------------------------------------------------------------ #
-    def _primary_numbers(self, record: DrawRecord) -> List[int]:
+    def _primary_numbers(self, record: DrawRecord) -> list[int]:
         """取出用于整体统计的号码（默认主组，3D 取 pos 组全部，kl8 取 main 组全部）。"""
         g = self.profile.primary_group
         return list(record.groups.get(g.key, []))
 
-    def odd_even_ratio(self, last_n: Optional[int] = None) -> Tuple[float, float]:
+    def odd_even_ratio(self, last_n: int | None = None) -> tuple[float, float]:
         records = self._slice(last_n)
         odd = sum(1 for r in records for b in self._primary_numbers(r) if b % 2 == 1)
         even = sum(1 for r in records for b in self._primary_numbers(r) if b % 2 == 0)
@@ -70,7 +69,7 @@ class DrawAnalyzer:
             return 0.5, 0.5
         return odd / total, even / total
 
-    def high_low_ratio(self, last_n: Optional[int] = None) -> Tuple[float, float]:
+    def high_low_ratio(self, last_n: int | None = None) -> tuple[float, float]:
         records = self._slice(last_n)
         border = self.profile.primary_group.high_low_border
         high = sum(1 for r in records for b in self._primary_numbers(r) if b >= border)
@@ -80,7 +79,7 @@ class DrawAnalyzer:
             return 0.5, 0.5
         return high / total, low / total
 
-    def sum_statistics(self, last_n: Optional[int] = None) -> Dict[str, float]:
+    def sum_statistics(self, last_n: int | None = None) -> dict[str, float]:
         records = self._slice(last_n)
         sums = [sum(self._primary_numbers(r)) for r in records]
         if not sums:
@@ -95,7 +94,7 @@ class DrawAnalyzer:
             "median": median,
         }
 
-    def consecutive_frequency(self, last_n: Optional[int] = None) -> float:
+    def consecutive_frequency(self, last_n: int | None = None) -> float:
         records = self._slice(last_n)
         if not records:
             return 0.0
@@ -108,12 +107,12 @@ class DrawAnalyzer:
                     break
         return count / len(records)
 
-    def consecutive_count_distribution(self, last_n: Optional[int] = None) -> Dict[int, float]:
+    def consecutive_count_distribution(self, last_n: int | None = None) -> dict[int, float]:
         """返回每注连号对数的分布 {连号对数: 概率}。"""
         records = self._slice(last_n)
         if not records:
             return {0: 1.0}
-        counter: Dict[int, int] = {}
+        counter: dict[int, int] = {}
         for record in records:
             nums = sorted(self._primary_numbers(record))
             pairs = sum(1 for i in range(len(nums) - 1) if nums[i] + 1 == nums[i + 1])
@@ -121,7 +120,7 @@ class DrawAnalyzer:
         total = len(records)
         return {k: v / total for k, v in counter.items()}
 
-    def zone_distribution(self, last_n: Optional[int] = None) -> Dict[str, float]:
+    def zone_distribution(self, last_n: int | None = None) -> dict[str, float]:
         """返回三区分布比例: {zone1(1-11): 比例, zone2(12-22): 比例, zone3(23-33): 比例}。"""
         records = self._slice(last_n)
         if not records:
@@ -140,7 +139,7 @@ class DrawAnalyzer:
             return {"zone1": 1 / 3, "zone2": 1 / 3, "zone3": 1 / 3}
         return {"zone1": zone1 / total, "zone2": zone2 / total, "zone3": zone3 / total}
 
-    def common_pairs(self, top_n: int = 10, last_n: Optional[int] = None) -> List[Tuple[Tuple[int, int], int]]:
+    def common_pairs(self, top_n: int = 10, last_n: int | None = None) -> list[tuple[tuple[int, int], int]]:
         records = self._slice(last_n)
         pair_counter: Counter = Counter()
         for record in records:
@@ -154,17 +153,17 @@ class DrawAnalyzer:
     # ------------------------------------------------------------------ #
     # 按位组（3D）辅助统计
     # ------------------------------------------------------------------ #
-    def positional_frequency(self, last_n: Optional[int] = None) -> Dict[int, Dict[int, int]]:
+    def positional_frequency(self, last_n: int | None = None) -> dict[int, dict[int, int]]:
         """返回按位的频率，如 {0: {0:12, 1:15...}, ...}，仅对 positional 彩种有意义。"""
         records = self._slice(last_n)
-        result: Dict[int, Counter] = {}
+        result: dict[int, Counter] = {}
         for record in records:
             nums = record.groups.get(self.profile.primary_group.key, [])
             for idx, n in enumerate(nums):
                 result.setdefault(idx, Counter())[n] += 1
         return {idx: dict(counter) for idx, counter in result.items()}
 
-    def span(self, last_n: Optional[int] = None) -> Dict[str, float]:
+    def span(self, last_n: int | None = None) -> dict[str, float]:
         """跨度统计（仅对按位/有主组号码的彩种）：每期最大号-最小号。"""
         records = self._slice(last_n)
         spans = []
@@ -182,17 +181,17 @@ class DrawAnalyzer:
     # ------------------------------------------------------------------ #
     # 工具
     # ------------------------------------------------------------------ #
-    def last_draw(self) -> Optional[DrawRecord]:
+    def last_draw(self) -> DrawRecord | None:
         return self.records[-1] if self.records else None
 
-    def _slice(self, last_n: Optional[int]) -> List[DrawRecord]:
+    def _slice(self, last_n: int | None) -> list[DrawRecord]:
         if last_n is None or last_n >= len(self.records):
             return self.records
         if last_n <= 0:
             return []
         return self.records[-last_n:]
 
-    def summary(self) -> Dict:
+    def summary(self) -> dict:
         """返回综合统计摘要（尽量与原 LotteryAnalyzer.summary 字段一致）。"""
         primary = self.profile.primary_group.key
         result = {
@@ -226,29 +225,29 @@ class _LegacyLotteryAnalyzer(DrawAnalyzer):
     内部委托到 :class:`DrawAnalyzer` 的通用实现。
     """
 
-    def __init__(self, records: List[DrawRecord]) -> None:
+    def __init__(self, records: list[DrawRecord]) -> None:
         super().__init__(records, profile=SSQ)
 
     # 原 SSQ 专用方法
-    def red_frequency(self, last_n: Optional[int] = None) -> Dict[int, int]:
+    def red_frequency(self, last_n: int | None = None) -> dict[int, int]:
         return self.frequency("red", last_n)
 
-    def blue_frequency(self, last_n: Optional[int] = None) -> Dict[int, int]:
+    def blue_frequency(self, last_n: int | None = None) -> dict[int, int]:
         return self.frequency("blue", last_n)
 
-    def hot_reds(self, top_n: int = 10, last_n: Optional[int] = None) -> List[int]:
+    def hot_reds(self, top_n: int = 10, last_n: int | None = None) -> list[int]:
         return self.hot("red", top_n, last_n)
 
-    def cold_reds(self, top_n: int = 10, last_n: Optional[int] = None) -> List[int]:
+    def cold_reds(self, top_n: int = 10, last_n: int | None = None) -> list[int]:
         return self.cold("red", top_n, last_n)
 
-    def hot_blues(self, top_n: int = 5, last_n: Optional[int] = None) -> List[int]:
+    def hot_blues(self, top_n: int = 5, last_n: int | None = None) -> list[int]:
         return self.hot("blue", top_n, last_n)
 
-    def missing_reds(self, last_n: int = 50) -> List[Tuple[int, int]]:
+    def missing_reds(self, last_n: int = 50) -> list[tuple[int, int]]:
         return self.missing("red", last_n)
 
-    def missing_blues(self, last_n: int = 50) -> List[Tuple[int, int]]:
+    def missing_blues(self, last_n: int = 50) -> list[tuple[int, int]]:
         return self.missing("blue", last_n)
 
 

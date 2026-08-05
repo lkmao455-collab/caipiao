@@ -1,8 +1,23 @@
 """参数组保存对话框测试."""
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from PySide6.QtWidgets import QApplication, QMessageBox
+
+
+@contextmanager
+def _no_modal(question=QMessageBox.StandardButton.Yes, info=QMessageBox.StandardButton.Ok):
+    """屏蔽 _on_save 中弹出的模态消息框，避免无显示环境下阻塞。
+
+    _on_save 在保存后会无条件调用 ``QMessageBox.information``，且可能先调用
+    ``QMessageBox.question``；offscreen 下这些真实模态框会永久挂起测试。
+    原本的用例只 patch 了 question，导致 information 的真实弹窗一直等待用户点击。
+    """
+    with patch.object(QMessageBox, "question", return_value=question), \
+         patch.object(QMessageBox, "information", return_value=info), \
+         patch.object(QMessageBox, "warning", return_value=QMessageBox.StandardButton.Ok):
+        yield
 
 from caipiao.core.parameter_group import ParameterGroup
 from caipiao.ui.batch_backtest_result import BatchBacktestResult
@@ -58,7 +73,7 @@ def test_save_emits_group_saved(qtbot):
     qtbot.addWidget(dialog)
     spy = []
     dialog.group_saved.connect(lambda g: spy.append(g))
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+    with _no_modal():
         dialog._on_save()
     assert len(spy) == 1
     assert isinstance(spy[0], ParameterGroup)
@@ -123,7 +138,7 @@ def test_save_locks_only_overall_best_params(qtbot, tmp_path):
         scan_result, "3d", group_store, optimal_param_store=param_store
     )
     qtbot.addWidget(dialog)
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+    with _no_modal():
         dialog._on_save()
 
     # 仅排名第一的策略被锁定
@@ -181,7 +196,7 @@ def test_save_locks_best_params_for_single_strategy(qtbot, tmp_path):
         scan_result, "3d", group_store, optimal_param_store=param_store
     )
     qtbot.addWidget(dialog)
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+    with _no_modal():
         dialog._on_save()
 
     locked = param_store.get_locked("3d", "smart_hot_cold_3d")
@@ -230,7 +245,7 @@ def test_save_does_not_overwrite_same_value_lock(qtbot, tmp_path):
         scan_result, "3d", group_store, optimal_param_store=param_store
     )
     qtbot.addWidget(dialog)
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+    with _no_modal():
         dialog._on_save()
 
     locked = param_store.load("3d").locked
@@ -281,7 +296,7 @@ def test_save_does_not_lock_when_user_declines(qtbot, tmp_path):
         scan_result, "3d", group_store, optimal_param_store=param_store
     )
     qtbot.addWidget(dialog)
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No):
+    with _no_modal(question=QMessageBox.StandardButton.No):
         dialog._on_save()
 
     locked = param_store.get_locked("3d", "smart_hot_cold_3d")

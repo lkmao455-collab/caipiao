@@ -9,10 +9,16 @@ from __future__ import annotations
 
 import logging
 import pickle
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
+from torch import nn
+
+if TYPE_CHECKING:
+    from sklearn.preprocessing import LabelEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +34,13 @@ class LotteryTransformerModel:
     蓝球：为每个蓝球训练二分类器，输出下一期出现的概率。
     """
 
-    def __init__(self, lookback: int = 50, temp_dir: Optional[str] = None) -> None:
+    def __init__(self, lookback: int = 50, temp_dir: str | None = None) -> None:
         self.lookback = lookback
         self.temp_dir = temp_dir
         self.red_sequence_model = None
         self.red_sequence_encoder = None
         self.blue_model = None
-        self._base_feature_dim: Optional[int] = None
+        self._base_feature_dim: int | None = None
         self.is_trained = False
         self._device = None
         self._torch_available = False
@@ -60,12 +66,12 @@ class LotteryTransformerModel:
 
     def _build_sequence_training_data(
         self, X: np.ndarray, y_red: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, "LabelEncoder"]:
+    ) -> tuple[np.ndarray, np.ndarray, LabelEncoder]:
         """从 one-hot 红球标签构造顺序生成训练数据."""
         from sklearn.preprocessing import LabelEncoder
 
-        X_seq: List[np.ndarray] = []
-        y_seq: List[int] = []
+        X_seq: list[np.ndarray] = []
+        y_seq: list[int] = []
         for i in range(X.shape[0]):
             nums = [idx for idx, val in enumerate(y_red[i]) if val]
             nums.sort()
@@ -84,7 +90,6 @@ class LotteryTransformerModel:
             raise RuntimeError("PyTorch 未安装，无法创建 Transformer 模型")
 
         import torch
-        import torch.nn as nn
 
         class TransformerClassifier(nn.Module):
             def __init__(self, input_dim: int, num_class: int):
@@ -112,7 +117,6 @@ class LotteryTransformerModel:
         if not self._torch_available:
             raise RuntimeError("PyTorch 未安装，无法创建 Transformer 模型")
 
-        import torch.nn as nn
 
         class BinaryClassifier(nn.Module):
             def __init__(self, input_dim: int):
@@ -140,7 +144,7 @@ class LotteryTransformerModel:
         X: np.ndarray,
         y_red: np.ndarray,
         y_blue: np.ndarray,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
         incremental: bool = False,
     ) -> None:
         """训练模型."""
@@ -148,7 +152,6 @@ class LotteryTransformerModel:
             raise RuntimeError("PyTorch 未安装，无法训练 Transformer 模型")
 
         import torch
-        import torch.nn as nn
         from torch.utils.data import DataLoader, TensorDataset
 
         if X.shape[0] == 0:
@@ -246,7 +249,7 @@ class LotteryTransformerModel:
 
     def predict_proba(
         self, X: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """预测下一期各号码出现概率.
 
         Returns:
@@ -277,7 +280,7 @@ class LotteryTransformerModel:
         X_pred: np.ndarray,
         count: int,
         rng: np.random.RandomState,
-    ) -> List[int]:
+    ) -> list[int]:
         """使用顺序生成模型采样 count 个不重复红球."""
         import torch
 
@@ -285,7 +288,7 @@ class LotteryTransformerModel:
             raise RuntimeError("模型尚未训练")
 
         encoder = self.red_sequence_encoder
-        selected: List[int] = []
+        selected: list[int] = []
         mask = np.zeros(RED_COUNT, dtype=np.float32)
 
         self.red_sequence_model.eval()
@@ -317,7 +320,6 @@ class LotteryTransformerModel:
 
     def save(self, path: Path | str) -> None:
         """保存模型到文件."""
-        import torch
 
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -344,7 +346,6 @@ class LotteryTransformerModel:
 
     def load(self, path: Path | str) -> None:
         """从文件加载模型."""
-        import torch
 
         path = Path(path)
         with path.open("rb") as f:

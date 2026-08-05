@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
@@ -24,7 +24,7 @@ from ..core.engine import (
     pl5_filtered_gen_count,
     qxc_filtered_gen_count,
 )
-from ..core.profile import LotteryProfile, SSQ, list_profiles
+from ..core.profile import SSQ, LotteryProfile, list_profiles
 from ..data.fetcher import LotteryDataFetcher
 from ..utils import app_data_dir
 
@@ -66,7 +66,7 @@ class FetchAllLotteriesThread(QThread):
                         results.append((profile, latest, None))
                     else:
                         results.append((profile, None, "未获取到数据"))
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     results.append((profile, None, str(exc)))
                     logger.warning("更新 %s 失败: %s", profile.name, exc)
 
@@ -162,7 +162,7 @@ class GenerateTicketsThread(QThread):
         engine: GenerationEngine,
         strategy_id: str,
         count: int,
-        options: Dict[str, Any],
+        options: dict[str, Any],
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -177,7 +177,6 @@ class GenerateTicketsThread(QThread):
             profile_key = self.options.get("_profile_key")
             has_records = bool(self.options.get("_draw_records"))
             # 双色球：所有策略均启用过滤
-            strategy_id = self.options.get("_strategy_id", "")
             need_filter = has_records and profile_key == "ssq"
             need_3d_filter = (
                 has_records
@@ -402,12 +401,12 @@ class TrainModelThread(QThread):
 
     def __init__(
         self,
-        records: List[Any],
+        records: list[Any],
         lookback: int = 50,
-        model_path: Optional[Path] = None,
-        model_class: Optional[type] = None,
+        model_path: Path | None = None,
+        model_class: type | None = None,
         prefix: str = "xgboost",
-        profile: Optional[LotteryProfile] = None,
+        profile: LotteryProfile | None = None,
         backend: str = "xgboost",
         parent=None,
         incremental: bool = False,

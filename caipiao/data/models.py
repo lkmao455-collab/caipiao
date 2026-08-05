@@ -12,8 +12,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Dict, List, Optional
+from datetime import datetime, timezone
 
 from ..core.profile import SSQ, LotteryProfile, get_profile
 
@@ -28,11 +27,11 @@ class DrawRecord:
         self,
         issue: str,
         draw_date: datetime,
-        red_balls: Optional[List[int]] = None,
-        blue_ball: Optional[int] = None,
+        red_balls: list[int] | None = None,
+        blue_ball: int | None = None,
         *,
         profile: LotteryProfile | str | None = None,
-        groups: Optional[Dict[str, List[int]]] = None,
+        groups: dict[str, list[int]] | None = None,
     ) -> None:
         self.issue = issue
         self.draw_date = draw_date
@@ -43,7 +42,7 @@ class DrawRecord:
                 else get_profile(profile or "ssq")
             )
             self.profile = prof
-            self.groups: Dict[str, List[int]] = {
+            self.groups: dict[str, list[int]] = {
                 k: [int(x) for x in v] for k, v in (groups or {}).items()
             }
         else:
@@ -57,11 +56,11 @@ class DrawRecord:
 
     # --- 双色球兼容访问器 ---
     @property
-    def red_balls(self) -> List[int]:
+    def red_balls(self) -> list[int]:
         return self.groups.get("red", [])
 
     @property
-    def blue_ball(self) -> Optional[int]:
+    def blue_ball(self) -> int | None:
         """双色球蓝球；仅在包含 blue 组时返回，否则为 None。"""
         blues = self.groups.get("blue")
         return blues[0] if blues else None
@@ -87,8 +86,8 @@ class DrawRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DrawRecord":
-        draw_date = datetime.strptime(data["draw_date"], "%Y-%m-%d")
+    def from_dict(cls, data: dict) -> DrawRecord:
+        draw_date = datetime.strptime(data["draw_date"], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         if "groups" in data:
             return cls(
                 issue=data["issue"],

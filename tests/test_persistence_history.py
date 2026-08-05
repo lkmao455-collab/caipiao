@@ -1,6 +1,6 @@
 """持久化历史记录测试."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -50,7 +50,8 @@ class TestHistoryManager:
 
     def test_get_recent(self, tmp_path):
         hm = HistoryManager(tmp_path / "history.json")
-        now = datetime.now()
+        # 使用带时区的 datetime
+        now = datetime.now(timezone.utc).astimezone()
         tickets = [
             Ticket(
                 red_balls=[i + 1, i + 2, i + 3, i + 4, i + 5, i + 6],

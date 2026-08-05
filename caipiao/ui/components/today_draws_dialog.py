@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import List
+from datetime import datetime, timezone
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -93,9 +92,9 @@ class TodayDrawsDialog(QDialog):
         self._today_profiles = self._get_today_profiles()
         self._setup_ui()
 
-    def _get_today_profiles(self) -> List[LotteryProfile]:
+    def _get_today_profiles(self) -> list[LotteryProfile]:
         """获取今日开奖的彩种列表."""
-        today_weekday = datetime.now().weekday()  # 0=周一, 6=周日
+        today_weekday = datetime.now(timezone.utc).astimezone().weekday()  # 0=周一, 6=周日
         result = []
         for p in list_profiles():
             if p.is_daily or today_weekday in p.draw_weekdays:
@@ -108,9 +107,9 @@ class TodayDrawsDialog(QDialog):
         layout.setSpacing(8)
 
         # 标题
-        today_str = datetime.now().strftime("%Y年%m月%d日")
+        today_str = datetime.now(timezone.utc).astimezone().strftime("%Y年%m月%d日")
         weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        today_weekday = weekday_names[datetime.now().weekday()]
+        today_weekday = weekday_names[datetime.now(timezone.utc).astimezone().weekday()]
 
         title = QLabel(f"今日 ({today_str} {today_weekday}) 开奖彩种")
         title.setStyleSheet(

@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .....data.analyzer import LotteryAnalyzer
 from ....profile import SSQ
@@ -18,8 +18,8 @@ from ...common.records import records_from_options
 
 
 def _weighted_sample_without_replacement(
-    rng: random.Random, values: List[int], weights: List[float], k: int
-) -> List[int]:
+    rng: random.Random, values: list[int], weights: list[float], k: int
+) -> list[int]:
     """无放回加权采样（Gumbel-max trick）。
 
     等价于从概率分布中无放回采样 k 个号码，保持概率分布形状。
@@ -50,7 +50,7 @@ class SSQBalancedStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         return {
             "history": {
                 "type": "history",
@@ -122,14 +122,14 @@ class SSQBalancedStrategy(GenerationStrategy):
             },
         }
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         records = records_from_options(options)
         if not records:
             raise ValueError("历史均衡策略需要历史开奖数据，请先更新数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         records = records_from_options(options)
         lookback = int(options.get("lookback", 200))
@@ -144,16 +144,16 @@ class SSQBalancedStrategy(GenerationStrategy):
 
         analyzer = LotteryAnalyzer(records)
 
-        odd_ratio, even_ratio = analyzer.odd_even_ratio(lookback)
-        high_ratio, low_ratio = analyzer.high_low_ratio(lookback)
+        odd_ratio, _ = analyzer.odd_even_ratio(lookback)
+        high_ratio, _ = analyzer.high_low_ratio(lookback)
         sum_stats = analyzer.sum_statistics(lookback)
         avg_sum = sum_stats["avg"]
         # 计算真正标准差而非极差/6
         sliced = analyzer.records[-lookback:] if lookback and lookback < len(analyzer.records) else analyzer.records
         all_sums = [sum(r.groups.get("red", [])) for r in sliced]
         std_sum = statistics.stdev(all_sums) if len(all_sums) > 1 else 10.0
-        sum_min = max(avg_sum - 1.5 * std_sum, sum_stats["min"])
-        sum_max = min(avg_sum + 1.5 * std_sum, sum_stats["max"])
+        _sum_min = max(avg_sum - 1.5 * std_sum, sum_stats["min"])
+        _sum_max = min(avg_sum + 1.5 * std_sum, sum_stats["max"])
 
         target_odd = round(6 * odd_ratio)
         target_high = round(6 * high_ratio)
@@ -223,9 +223,9 @@ class SSQBalancedStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         for _ in range(count):
-            best_candidate: Optional[Ticket] = None
+            best_candidate: Ticket | None = None
             best_score = float("inf")
 
             for _ in range(max_attempts):

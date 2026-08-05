@@ -9,15 +9,14 @@ from __future__ import annotations
 import os
 import random
 import shutil
-from pathlib import Path
 
 import numpy as np
 
 from caipiao.core.backtest_data import (
     BatchBacktestResult,
     RoundBacktestContext,
-    RoundTask,
     RoundResult,
+    RoundTask,
 )
 from caipiao.core.engine import (
     GenerationEngine,
@@ -27,12 +26,12 @@ from caipiao.core.engine import (
     fc3d_filtered_gen_count,
 )
 from caipiao.core.prize import calculate_prize
-from caipiao.core.profile import LotteryProfile, get_profile
+from caipiao.core.profile import get_profile
 from caipiao.core.strategies import build_strategies
 from caipiao.ml.catboost_model import LotteryCatBoostModel
+from caipiao.ml.common.model_store import compute_lookback, new_model_path
 from caipiao.ml.common.predictor import BaseMLPredictor as GenericMLPredictor
 from caipiao.ml.lgbm_model import LotteryLightGBMModel
-from caipiao.ml.common.model_store import compute_lookback, new_model_path
 from caipiao.ml.model import LotteryXGBoostModel
 from caipiao.ml.predictor import MLPredictor
 
@@ -334,7 +333,7 @@ def worker_round_backtest(context: RoundBacktestContext, task: RoundTask) -> Rou
             actual_groups=dict(task.actual.groups),
             tickets=list(tickets),
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - worker must catch all exceptions
         return RoundResult(index=task.index, error=repr(e))
 
 

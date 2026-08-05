@@ -11,7 +11,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils import app_data_dir
 
@@ -25,35 +25,35 @@ def _db_path() -> Path:
 class SingleBacktestRecord:
     """单期回测记录."""
 
-    id: Optional[int] = None
-    created_at: Optional[datetime] = None
+    id: int | None = None
+    created_at: datetime | None = None
     profile_key: str = ""
     strategy_id: str = ""
     target_date: str = ""  # YYYY-MM-DD
     issue: str = ""
     tickets_count: int = 0
-    options: Dict[str, Any] = field(default_factory=dict)
-    actual_groups: Dict[str, List[int]] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+    actual_groups: dict[str, list[int]] = field(default_factory=dict)
     total_cost: int = 0
     total_fixed_prize: int = 0
     float_prize_count: int = 0
     hit_count: int = 0
     profit: int = 0
-    tickets: List[Dict[str, Any]] = field(default_factory=list)
+    tickets: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
 class BatchBacktestRecord:
     """批量回测汇总记录."""
 
-    id: Optional[int] = None
-    created_at: Optional[datetime] = None
+    id: int | None = None
+    created_at: datetime | None = None
     profile_key: str = ""
     strategy_id: str = ""
     start_date: str = ""  # YYYY-MM-DD
     end_date: str = ""  # YYYY-MM-DD
     tickets_per_round: int = 0
-    options: Dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
     total_cost: int = 0
     total_fixed_prize: int = 0
     float_prize_count: int = 0
@@ -61,13 +61,13 @@ class BatchBacktestRecord:
     total_rounds: int = 0
     first_ticket_hit_count: int = 0
     profit: int = 0
-    ticket_index_hits: Dict[int, int] = field(default_factory=dict)
+    ticket_index_hits: dict[int, int] = field(default_factory=dict)
 
 
 class BacktestDatabase:
     """回测结果数据库访问类."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self.path = path or _db_path()
         self._ensure_tables()
 
@@ -156,13 +156,13 @@ class BacktestDatabase:
         target_date: str,
         issue: str,
         tickets_count: int,
-        options: Dict[str, Any],
-        actual_groups: Dict[str, List[int]],
+        options: dict[str, Any],
+        actual_groups: dict[str, list[int]],
         total_cost: int,
         total_fixed_prize: int,
         float_prize_count: int,
         hit_count: int,
-        tickets: List[Dict[str, Any]],
+        tickets: list[dict[str, Any]],
     ) -> int:
         """保存一条单期回测记录，返回记录 ID."""
         profit = total_fixed_prize - total_cost
@@ -213,7 +213,7 @@ class BacktestDatabase:
             conn.commit()
             return backtest_id or 0
 
-    def get_single(self, backtest_id: int) -> Optional[SingleBacktestRecord]:
+    def get_single(self, backtest_id: int) -> SingleBacktestRecord | None:
         """按 ID 读取单期回测记录（含所有投注明细）."""
         with self._connect() as conn:
             row = conn.execute(
@@ -248,15 +248,15 @@ class BacktestDatabase:
 
     def list_single(
         self,
-        profile_key: Optional[str] = None,
-        strategy_id: Optional[str] = None,
-        target_date: Optional[str] = None,
+        profile_key: str | None = None,
+        strategy_id: str | None = None,
+        target_date: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[SingleBacktestRecord]:
+    ) -> list[SingleBacktestRecord]:
         """分页查询单期回测记录（不含投注明细）."""
         where_parts = ["1=1"]
-        params: List[Any] = []
+        params: list[Any] = []
         if profile_key:
             where_parts.append("profile_key = ?")
             params.append(profile_key)
@@ -313,14 +313,14 @@ class BacktestDatabase:
         start_date: str,
         end_date: str,
         tickets_per_round: int,
-        options: Dict[str, Any],
+        options: dict[str, Any],
         total_cost: int,
         total_fixed_prize: int,
         float_prize_count: int,
         hit_count: int,
         total_rounds: int,
         first_ticket_hit_count: int,
-        ticket_index_hits: Dict[int, int],
+        ticket_index_hits: dict[int, int],
     ) -> int:
         """保存一条批量回测汇总记录，返回记录 ID."""
         profit = total_fixed_prize - total_cost
@@ -355,7 +355,7 @@ class BacktestDatabase:
             conn.commit()
             return cur.lastrowid or 0
 
-    def get_batch(self, backtest_id: int) -> Optional[BatchBacktestRecord]:
+    def get_batch(self, backtest_id: int) -> BatchBacktestRecord | None:
         """按 ID 读取批量回测记录."""
         with self._connect() as conn:
             row = conn.execute(
@@ -384,16 +384,16 @@ class BacktestDatabase:
 
     def list_batch(
         self,
-        profile_key: Optional[str] = None,
-        strategy_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        profile_key: str | None = None,
+        strategy_id: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[BatchBacktestRecord]:
+    ) -> list[BatchBacktestRecord]:
         """分页查询批量回测记录."""
         where_parts = ["1=1"]
-        params: List[Any] = []
+        params: list[Any] = []
         if profile_key:
             where_parts.append("profile_key = ?")
             params.append(profile_key)
@@ -447,7 +447,7 @@ class BacktestDatabase:
     # ------------------------------------------------------------------ #
     # 统计
     # ------------------------------------------------------------------ #
-    def summary(self) -> Dict[str, int]:
+    def summary(self) -> dict[str, int]:
         """返回当前数据库中两种回测记录的条数."""
         with self._connect() as conn:
             single = conn.execute(

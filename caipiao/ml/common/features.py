@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 import numpy as np
 
 from ...core.profile import LotteryProfile, NumberGroup
@@ -15,10 +13,10 @@ from ...data.models import DrawRecord
 
 
 def build_features(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     profile: LotteryProfile,
     lookback: int = 50,
-) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """构建训练特征与标签.
 
     Returns:
@@ -32,7 +30,7 @@ def build_features(
         return np.array([]), {}
 
     X = []
-    y_dict: Dict[str, List[np.ndarray]] = {g.key: [] for g in profile.groups}
+    y_dict: dict[str, list[np.ndarray]] = {g.key: [] for g in profile.groups}
     for i in range(lookback, len(records)):
         window = records[i - lookback : i]
         rec = records[i]
@@ -55,7 +53,7 @@ def build_features(
 
 
 def build_prediction_features(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     profile: LotteryProfile,
     lookback: int = 50,
 ) -> np.ndarray:
@@ -69,8 +67,8 @@ def build_prediction_features(
     return features.reshape(1, -1)
 
 
-def _extract_window_features(window: List[DrawRecord], profile: LotteryProfile) -> np.ndarray:
-    features: List[float] = []
+def _extract_window_features(window: list[DrawRecord], profile: LotteryProfile) -> np.ndarray:
+    features: list[float] = []
     for g in profile.groups:
         for n in g.values:
             features.extend(_number_features(window, g, n))
@@ -86,7 +84,7 @@ def _extract_window_features(window: List[DrawRecord], profile: LotteryProfile) 
     return np.array(features, dtype=np.float32)
 
 
-def _number_features(window: List[DrawRecord], group: NumberGroup, number: int) -> List[float]:
+def _number_features(window: list[DrawRecord], group: NumberGroup, number: int) -> list[float]:
     appears = []
     for idx, record in enumerate(window):
         nums = record.groups.get(group.key, [])
@@ -98,7 +96,7 @@ def _number_features(window: List[DrawRecord], group: NumberGroup, number: int) 
     return [count / 10.0, last_distance / len(window), freq]
 
 
-def _window_stats(window: List[DrawRecord], profile: LotteryProfile) -> List[float]:
+def _window_stats(window: list[DrawRecord], profile: LotteryProfile) -> list[float]:
     primary = profile.primary_group
     if primary is None:
         raise ValueError("profile 缺少 primary_group")

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
@@ -23,11 +23,11 @@ class SSQPredictor(GenericMLPredictor):
 
     def __init__(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         lookback: int = 50,
-        model_path: Optional[Path] = None,
+        model_path: Path | None = None,
         backend: str = "xgboost",
-        temp_dir: Optional[str] = None,
+        temp_dir: str | None = None,
     ) -> None:
         super().__init__(
             records=records,
@@ -40,12 +40,12 @@ class SSQPredictor(GenericMLPredictor):
 
     def train(
         self,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
         """使用全部历史数据训练模型."""
         super().train(progress_callback=progress_callback)
 
-    def predict(self) -> Tuple[np.ndarray, np.ndarray]:
+    def predict(self) -> tuple[np.ndarray, np.ndarray]:
         """预测下一期各号码出现概率.
 
         Returns:
@@ -60,8 +60,8 @@ class SSQPredictor(GenericMLPredictor):
         red_count: int = 6,
         blue_count: int = 1,
         diversity_boost: float = 0.3,
-        rng: Optional[np.random.RandomState] = None,
-    ) -> Tuple[List[int], List[int]]:
+        rng: np.random.RandomState | None = None,
+    ) -> tuple[list[int], list[int]]:
         """推荐号码组合.
 
         Args:

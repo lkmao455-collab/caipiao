@@ -4,6 +4,6 @@ from .balanced import SSQBalancedStrategy
 from .smart_hot_cold import SSQSmartHotColdStrategy
 
 __all__ = [
-    "SSQSmartHotColdStrategy",
     "SSQBalancedStrategy",
+    "SSQSmartHotColdStrategy",
 ]

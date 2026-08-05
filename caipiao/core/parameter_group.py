@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
@@ -19,7 +19,7 @@ class StrategyParameterItem:
     param_name: str | None
     param_value: int | None
     enabled: bool = True
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -30,8 +30,8 @@ class ParameterGroup:
     name: str
     profile_key: str
     created_at: str
-    items: List[StrategyParameterItem]
-    scan_context: Dict[str, Any] = field(default_factory=dict)
+    items: list[StrategyParameterItem]
+    scan_context: dict[str, Any] = field(default_factory=dict)
 
 
 def parameter_group_to_dict(group: ParameterGroup) -> dict:

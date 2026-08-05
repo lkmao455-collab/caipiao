@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
 from ..data.models import DrawRecord
 from .common.model_store import data_fingerprint
-from .features import build_features, build_prediction_features
+from .features import (
+    build_features,
+    build_incremental_features,
+    build_prediction_features,
+)
 from .model import LotteryXGBoostModel
 
 logger = logging.getLogger(__name__)
@@ -22,18 +26,18 @@ class MLPredictor:
 
     def __init__(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         lookback: int = 50,
-        model_path: Optional[Path] = None,
+        model_path: Path | None = None,
         model_class: type = LotteryXGBoostModel,
-        temp_dir: Optional[str] = None,
+        temp_dir: str | None = None,
     ) -> None:
         self.records = sorted(records, key=lambda r: r.draw_date)
         self.lookback = lookback
         self.model = model_class(lookback=lookback, temp_dir=temp_dir)
         self.model_path = model_path
         self._needs_training = True
-        self._feature_count: Optional[int] = None
+        self._feature_count: int | None = None
 
         if model_path and model_path.exists():
             if self._metadata_matches():
@@ -60,7 +64,7 @@ class MLPredictor:
         """基于记录数量和最新一期生成数据指纹."""
         return data_fingerprint(self.records)
 
-    def _metadata_path(self) -> Optional[Path]:
+    def _metadata_path(self) -> Path | None:
         if not self.model_path:
             return None
         return self.model_path.with_suffix(self.model_path.suffix + ".meta.json")
@@ -112,7 +116,7 @@ class MLPredictor:
 
     def train(
         self,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
         """使用全部历史数据训练模型.
 
@@ -133,7 +137,7 @@ class MLPredictor:
     def train_incremental(
         self,
         new_count: int = 1,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> bool:
         """增量训练模型（仅使用新数据更新已有模型）。
 
@@ -154,7 +158,7 @@ class MLPredictor:
 
         try:
             self.model.load(self.model_path)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("加载已有模型失败: %s", exc)
             return False
 
@@ -180,7 +184,7 @@ class MLPredictor:
             logger.info("增量训练完成，新数据指纹：%s", self._data_fingerprint())
         return True
 
-    def predict(self) -> Tuple[np.ndarray, np.ndarray]:
+    def predict(self) -> tuple[np.ndarray, np.ndarray]:
         """预测下一期各号码出现概率.
 
         Returns:
@@ -199,8 +203,8 @@ class MLPredictor:
         red_count: int = 6,
         blue_count: int = 1,
         diversity_boost: float = 0.3,
-        rng: Optional[np.random.RandomState] = None,
-    ) -> Tuple[List[int], List[int]]:
+        rng: np.random.RandomState | None = None,
+    ) -> tuple[list[int], list[int]]:
         """推荐号码组合.
 
         红球使用顺序生成模型不放回采样；蓝球使用预测概率加权采样。
@@ -213,7 +217,7 @@ class MLPredictor:
         if not 0 <= blue_count <= 16:
             raise ValueError("blue_count 必须在 0..16 之间")
 
-        red_proba, blue_proba = self.predict()
+        _, blue_proba = self.predict()  # 预览预测概率（内部已缓存）
         X_pred = build_prediction_features(self.records, self.lookback)
         if X_pred.size == 0:
             raise ValueError("历史数据不足，无法预测")
@@ -222,7 +226,7 @@ class MLPredictor:
 
         blue_weights = blue_proba + 0.05
         blue_weights = blue_weights / blue_weights.sum()
-        selected_blues: List[int] = []
+        selected_blues: list[int] = []
         if blue_count > 0:
             selected_blues = rng.choice(
                 range(1, 17), size=blue_count, replace=False, p=blue_weights

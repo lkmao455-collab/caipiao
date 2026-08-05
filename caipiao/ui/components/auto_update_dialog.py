@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
-from typing import List, Tuple
+from datetime import datetime, timezone
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -40,7 +39,7 @@ class AutoUpdateDialog(QDialog):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowCloseButtonHint)
 
         self.settings = AppSettings()
-        self._results: List[Tuple[LotteryProfile, DrawRecord | None, str | None]] = []
+        self._results: list[tuple[LotteryProfile, DrawRecord | None, str | None]] = []
         self._success_count = 0
         self._fail_count = 0
         self._start_time = time.time()
@@ -120,7 +119,7 @@ class AutoUpdateDialog(QDialog):
         self.skip_btn.setText("关闭")
 
         # 记录更新时间
-        self.settings.last_data_update = datetime.now().isoformat()
+        self.settings.last_data_update = datetime.now(timezone.utc).astimezone().isoformat()
         self.settings.sync()
 
         # 确保进度条至少显示 MIN_DISPLAY_TIME_MS
@@ -134,7 +133,7 @@ class AutoUpdateDialog(QDialog):
         if remaining_ms > 0:
             # 还需要等待
             self.skip_btn.setEnabled(False)
-            self.skip_btn.setText(f"请稍候...")
+            self.skip_btn.setText("请稍候...")
             QTimer.singleShot(remaining_ms, self._enable_close)
         else:
             # 已经显示够了，可以立即关闭
@@ -154,8 +153,8 @@ class AutoUpdateDialog(QDialog):
 
             try:
                 # 获取上下文并更新数据
-                from ...ui.lottery_context import ContextManager
                 from ...persistence.history import HistoryManager
+                from ...ui.lottery_context import ContextManager
                 from ...utils import app_data_dir
 
                 data_dir = app_data_dir()
@@ -164,7 +163,7 @@ class AutoUpdateDialog(QDialog):
                 context = context_manager.get(profile.key)
                 context.update_data([record])
                 logger.info("已更新 %s 数据: %s", profile.name, record)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("保存 %s 数据失败: %s", profile.name, exc)
 
     def _on_skip(self) -> None:

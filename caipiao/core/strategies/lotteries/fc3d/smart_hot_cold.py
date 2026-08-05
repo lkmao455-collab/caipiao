@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
@@ -35,7 +35,7 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         return {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
@@ -57,13 +57,13 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
             },
         }
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         if len(options.get("history", [])) < 20:
             raise ValueError("智能冷热号策略需要至少 20 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = _records_from_options(options)
@@ -84,15 +84,15 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
 
         # χ² 均匀性检验守卫: 判断各位置是否统计显著偏离均匀分布
         pos_freq_counts = positional_frequency(records, lookback)
-        chi2_values: List[float] = []
-        uniform_flags: List[bool] = []
+        chi2_values: list[float] = []
+        uniform_flags: list[bool] = []
         for pos in range(3):
             counts = [pos_freq_counts[pos].get(d, 0) for d in range(10)]
             chi2, is_uniform = chi_square_uniform_test(counts)
             chi2_values.append(round(chi2, 2))
             uniform_flags.append(is_uniform)
 
-        pos_probs: List[List[float]] = []
+        pos_probs: list[list[float]] = []
         for pos in range(3):
             pos_probs.append(stable_scores(
                 freq[pos], geo_z[pos], hot_weight, cold_weight, temperature
@@ -117,7 +117,7 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "pos_probabilities": pos_probs,
             "chi_square": chi2_values,
             "is_uniform": uniform_flags,
@@ -137,7 +137,7 @@ class FC3DSmartHotColdStrategy(GenerationStrategy):
                 for _ in range(count)
             ]
 
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         for result in results:
             tickets.append(
                 Ticket(

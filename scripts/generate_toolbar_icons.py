@@ -197,6 +197,27 @@ def draw_symbol(img: Image.Image, name: str, size: int) -> None:
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
         draw.text((cx - tw // 2 + size // 24, cy - th // 2 + size // 24), text, fill=(180, 30, 30, 255), font=font)
 
+    elif name == "update_all":
+        # 金色环形刷新箭头
+        r = size // 3
+        bbox = (cx - r, cy - r, cx + r, cy + r)
+        arc_width = max(3, size // 16)
+        draw.arc(bbox, start=300, end=240, fill=gold_color, width=arc_width)
+
+        # 箭头位于 240°（顺时针终点），指向继续旋转的方向
+        theta = math.radians(240)
+        ex = cx + r * math.cos(theta)
+        ey = cy + r * math.sin(theta)
+        # PIL 角度顺时针递增，切线方向为 (-sinθ, cosθ)
+        dx, dy = -math.sin(theta), math.cos(theta)
+        px, py = -dy, dx
+        L = size // 6
+        hw = size // 10
+        tip = (ex + dx * L, ey + dy * L)
+        c1 = (ex + px * hw, ey + py * hw)
+        c2 = (ex - px * hw, ey - py * hw)
+        draw.polygon([tip, c1, c2], fill=gold_color)
+
 
 def create_icon(name: str, size: int = 64) -> Image.Image:
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -216,6 +237,7 @@ def main() -> None:
         "print": "打印结果",
         "pdf": "导出 PDF",
         "save": "保存历史",
+        "update_all": "更新全部",
         "backtest": "历史回测",
         "batch_backtest": "批量回测",
     }

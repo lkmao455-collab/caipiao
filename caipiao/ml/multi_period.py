@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import numpy as np
 
@@ -32,17 +33,17 @@ class PeriodPrediction:
 class MultiPeriodResult:
     """多期预测结果."""
 
-    predictions: List[PeriodPrediction] = field(default_factory=list)
-    trend_analysis: Dict[str, Any] = field(default_factory=dict)
-    recommendation: Dict[str, Any] = field(default_factory=dict)
+    predictions: list[PeriodPrediction] = field(default_factory=list)
+    trend_analysis: dict[str, Any] = field(default_factory=dict)
+    recommendation: dict[str, Any] = field(default_factory=dict)
 
     @property
     def period_count(self) -> int:
         return len(self.predictions)
 
-    def get_red_trend(self) -> Dict[int, List[float]]:
+    def get_red_trend(self) -> dict[int, list[float]]:
         """获取各红球在多期中的概率趋势."""
-        trend: Dict[int, List[float]] = {}
+        trend: dict[int, list[float]] = {}
         for pred in self.predictions:
             for i, prob in enumerate(pred.red_proba):
                 if i not in trend:
@@ -50,9 +51,9 @@ class MultiPeriodResult:
                 trend[i].append(float(prob))
         return trend
 
-    def get_blue_trend(self) -> Dict[int, List[float]]:
+    def get_blue_trend(self) -> dict[int, list[float]]:
         """获取各蓝球在多期中的概率趋势."""
-        trend: Dict[int, List[float]] = {}
+        trend: dict[int, list[float]] = {}
         for pred in self.predictions:
             for i, prob in enumerate(pred.blue_proba):
                 if i not in trend:
@@ -60,7 +61,7 @@ class MultiPeriodResult:
                 trend[i].append(float(prob))
         return trend
 
-    def get_stable_numbers(self, threshold: float = 0.7) -> List[int]:
+    def get_stable_numbers(self, threshold: float = 0.7) -> list[int]:
         """获取在多期中稳定出现的号码（概率波动小且较高）."""
         red_trend = self.get_red_trend()
         stable = []
@@ -72,7 +73,7 @@ class MultiPeriodResult:
                     stable.append(num + 1)  # 转换为 1-33
         return sorted(stable)
 
-    def get_rising_numbers(self) -> List[int]:
+    def get_rising_numbers(self) -> list[int]:
         """获取概率上升趋势的号码."""
         red_trend = self.get_red_trend()
         rising = []
@@ -85,7 +86,7 @@ class MultiPeriodResult:
                     rising.append(num + 1)
         return sorted(rising)
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """返回预测摘要."""
         return {
             "预测期数": self.period_count,
@@ -149,7 +150,7 @@ def predict_multi_period(
 
         try:
             red_proba, blue_proba = predictor.model.predict_proba(X)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("第 %d 期预测失败: %s", i + 1, exc)
             break
 
@@ -169,15 +170,13 @@ def predict_multi_period(
 
         # 为下一期预测生成虚拟记录
         # 使用当前预测的高概率号码作为虚拟开奖记录
-        from ..core.ticket import Ticket
-        from datetime import datetime, timedelta
 
         # 选择概率最高的号码
         top_reds = np.argsort(red_proba)[-red_count:] + 1
         top_blue = np.argmax(blue_proba) + 1
 
         # 创建虚拟记录
-        last_date = current_records[-1].draw_date if current_records else datetime.now()
+        last_date = current_records[-1].draw_date if current_records else datetime.now(timezone.utc).astimezone()
         next_date = last_date + timedelta(days=1)
 
         virtual_record = DrawRecord(

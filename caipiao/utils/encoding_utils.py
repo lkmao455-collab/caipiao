@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 编码检测工具 - 自动检测文件编码并读取文本，防止乱码。
 """
 
-import os
 
 try:
     import chardet

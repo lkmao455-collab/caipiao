@@ -11,8 +11,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from typing import Callable, List, Optional
+from collections.abc import Callable
+from datetime import datetime, timezone
 
 import requests
 
@@ -55,18 +55,18 @@ class LotteryDataFetcher:
         }
         if self.profile.parser_key not in parser_map:
             raise ValueError(f"Unsupported parser_key: {self.profile.parser_key}")
-        self._parser: Callable[[List[str], str], Optional[DrawRecord]] = parser_map[self.profile.parser_key]
+        self._parser: Callable[[list[str], str], DrawRecord | None] = parser_map[self.profile.parser_key]
         if max_retries < 1:
             raise ValueError("max_retries must be >= 1")
 
     # ------------------------------------------------------------------ #
     # 行解析器
     # ------------------------------------------------------------------ #
-    def _parse_ssq(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_ssq(self, parts: list[str], line: str) -> DrawRecord | None:
         if len(parts) < 9:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         red_balls = sorted(int(parts[i]) for i in range(2, 8))
         blue_ball = int(parts[8])
         return DrawRecord(
@@ -76,11 +76,11 @@ class LotteryDataFetcher:
             blue_ball=blue_ball,
         )
 
-    def _parse_3d(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_3d(self, parts: list[str], line: str) -> DrawRecord | None:
         if len(parts) < 5:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         digits = [int(parts[i]) for i in range(2, 5)]
         return DrawRecord(
             issue=issue,
@@ -89,11 +89,11 @@ class LotteryDataFetcher:
             groups={"pos": digits},
         )
 
-    def _parse_kl8(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_kl8(self, parts: list[str], line: str) -> DrawRecord | None:
         if len(parts) < 22:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         nums = sorted(int(parts[i]) for i in range(2, 22))
         return DrawRecord(
             issue=issue,
@@ -102,12 +102,12 @@ class LotteryDataFetcher:
             groups={"main": nums},
         )
 
-    def _parse_dlt(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_dlt(self, parts: list[str], line: str) -> DrawRecord | None:
         """超级大乐透：期号 日期 前区5码 后区2码 ...统计尾列。"""
         if len(parts) < 9:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         front = sorted(int(parts[i]) for i in range(2, 7))
         back = sorted(int(parts[i]) for i in range(7, 9))
         return DrawRecord(
@@ -117,12 +117,12 @@ class LotteryDataFetcher:
             groups={"front": front, "back": back},
         )
 
-    def _parse_pl3(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_pl3(self, parts: list[str], line: str) -> DrawRecord | None:
         """排列3：期号 日期 3位数字 ...统计尾列。"""
         if len(parts) < 5:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         digits = [int(parts[i]) for i in range(2, 5)]
         return DrawRecord(
             issue=issue,
@@ -131,12 +131,12 @@ class LotteryDataFetcher:
             groups={"pos": digits},
         )
 
-    def _parse_pl5(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_pl5(self, parts: list[str], line: str) -> DrawRecord | None:
         """排列5：期号 日期 5位数字 ...统计尾列。"""
         if len(parts) < 7:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         digits = [int(parts[i]) for i in range(2, 7)]
         return DrawRecord(
             issue=issue,
@@ -145,12 +145,12 @@ class LotteryDataFetcher:
             groups={"pos": digits},
         )
 
-    def _parse_qxc(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_qxc(self, parts: list[str], line: str) -> DrawRecord | None:
         """7星彩：期号 日期 7位数字 ...统计尾列。"""
         if len(parts) < 9:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         digits = [int(parts[i]) for i in range(2, 9)]
         # 七星彩每位为 0-9；历史上个别数据存在越界值（如第 7 位为 10-14），
         # 属脏数据，跳过该行以免污染统计与生成逻辑。
@@ -163,12 +163,12 @@ class LotteryDataFetcher:
             groups={"pos": digits},
         )
 
-    def _parse_gd36x7(self, parts: List[str], line: str) -> Optional[DrawRecord]:
+    def _parse_gd36x7(self, parts: list[str], line: str) -> DrawRecord | None:
         """广东36选7：期号 日期 基本号7码 特别号1码 ...统计尾列。"""
         if len(parts) < 10:
             return None
         issue = parts[0]
-        draw_date = datetime.strptime(parts[1], "%Y-%m-%d")
+        draw_date = datetime.strptime(parts[1], "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
         basic = sorted(int(parts[i]) for i in range(2, 9))
         special = [int(parts[9])]
         return DrawRecord(
@@ -219,7 +219,7 @@ class LotteryDataFetcher:
     # ------------------------------------------------------------------ #
     # 公共接口
     # ------------------------------------------------------------------ #
-    def fetch_all(self) -> List[DrawRecord]:
+    def fetch_all(self) -> list[DrawRecord]:
         """获取全部历史记录."""
         logger.info("正在从 %s 获取数据", self.profile.data_url)
         response = self._get_with_retry(self.profile.data_url)
@@ -228,7 +228,7 @@ class LotteryDataFetcher:
         finally:
             response.close()
 
-        records: List[DrawRecord] = []
+        records: list[DrawRecord] = []
         for line in text.strip().split("\n"):
             parts = line.strip().split()
             if len(parts) < 3:
@@ -246,7 +246,7 @@ class LotteryDataFetcher:
         logger.info("成功获取 %d 条 %s 记录", len(records), self.profile.name)
         return records
 
-    def fetch_latest(self) -> Optional[DrawRecord]:
+    def fetch_latest(self) -> DrawRecord | None:
         """获取最新一期开奖记录."""
         try:
             response = self._get_with_retry(self.profile.data_url)

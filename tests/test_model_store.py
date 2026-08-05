@@ -27,7 +27,7 @@ def _write_model(directory, lookback, fingerprint, when, prefix="xgboost"):
     records = make_records(120)
     path = model_store.new_model_path(records, lookback, directory=directory, when=when, prefix=prefix)
     path.write_bytes(b"fake-model")
-    meta = model_store._meta_path(path)
+    meta = common_model_store._meta_path(path)
     meta.write_text(json.dumps({"fingerprint": fingerprint}), encoding="utf-8")
     return path
 

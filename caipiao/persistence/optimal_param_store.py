@@ -5,12 +5,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils import app_data_dir
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class LockedParameter:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "LockedParameter":
+    def from_dict(cls, data: dict) -> LockedParameter:
         return cls(
             strategy_id=data.get("strategy_id", ""),
             param_name=data.get("param_name", ""),
@@ -46,8 +45,8 @@ class LockedParameter:
 @dataclass
 class OptimalParamsConfig:
     profile_key: str
-    locked: List[LockedParameter] = field(default_factory=list)
-    last_scan_at: Optional[str] = None
+    locked: list[LockedParameter] = field(default_factory=list)
+    last_scan_at: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -57,7 +56,7 @@ class OptimalParamsConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "OptimalParamsConfig":
+    def from_dict(cls, data: dict) -> OptimalParamsConfig:
         return cls(
             profile_key=data.get("profile_key", ""),
             locked=[LockedParameter.from_dict(p) for p in data.get("locked", [])],
@@ -68,7 +67,7 @@ class OptimalParamsConfig:
 class OptimalParamStore:
     """管理每个彩种的最优锁定参数。"""
 
-    def __init__(self, data_dir: Optional[Path] = None) -> None:
+    def __init__(self, data_dir: Path | None = None) -> None:
         self._base_dir = (data_dir or app_data_dir()) / "optimal_params"
         self._base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -87,7 +86,7 @@ class OptimalParamStore:
             logger.error("读取最优参数文件失败 %s: %s", path, exc)
             if path.exists():
                 backup_path = path.with_suffix(
-                    f".corrupted-{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
+                    f".corrupted-{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d%H%M%S')}.json"
                 )
                 try:
                     path.rename(backup_path)
@@ -125,13 +124,13 @@ class OptimalParamStore:
                 param_name=param_name,
                 param_value=param_value,
                 source=source,
-                locked_at=datetime.now().isoformat(),
+                locked_at=datetime.now(timezone.utc).astimezone().isoformat(),
                 stability_score=stability_score,
                 cv_mean_prize=cv_mean_prize,
                 cv_std_prize=cv_std_prize,
             )
         )
-        config.last_scan_at = datetime.now().isoformat()
+        config.last_scan_at = datetime.now(timezone.utc).astimezone().isoformat()
         self.save(config)
 
     def unlock(self, profile_key: str, strategy_id: str, param_name: str) -> None:
@@ -143,7 +142,7 @@ class OptimalParamStore:
         ]
         self.save(config)
 
-    def get_locked(self, profile_key: str, strategy_id: str) -> Dict[str, Any]:
+    def get_locked(self, profile_key: str, strategy_id: str) -> dict[str, Any]:
         config = self.load(profile_key)
         return {
             p.param_name: p.param_value
@@ -152,8 +151,8 @@ class OptimalParamStore:
         }
 
     def apply_defaults(
-        self, profile_key: str, strategy_id: str, schema: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
+        self, profile_key: str, strategy_id: str, schema: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         """将锁定参数覆盖到 schema 的 default 值中。"""
         locked = self.get_locked(profile_key, strategy_id)
         if not locked:

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from typing import List
 
-
-def parse_int_list(text: str, min_val: int = 1, max_val: int = 33) -> List[int]:
+def parse_int_list(text: str, min_val: int = 1, max_val: int = 33) -> list[int]:
     """解析逗号/空格分隔的整数列表."""
     if min_val > max_val:
         raise ValueError(f"min_val ({min_val}) must not be greater than max_val ({max_val})")
     if text is None:
         raise TypeError("text must be a string")
-    result: List[int] = []
+    result: list[int] = []
     if not text.strip():
         return result
     for part in text.replace("，", ",").replace(" ", ",").split(","):

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import logging
 import time
-from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
@@ -48,7 +48,7 @@ class OptimizedFeatureExtractor:
 
     def __init__(self, window_size: int = 50):
         self.window_size = window_size
-        self._number_cache: Dict[int, np.ndarray] = {}
+        self._number_cache: dict[int, np.ndarray] = {}
 
     @timer
     def extract_features_vectorized(
@@ -85,7 +85,7 @@ class OptimizedFeatureExtractor:
 
     def _extract_red_features_vectorized(
         self, red_balls_matrix: np.ndarray
-    ) -> List[float]:
+    ) -> list[float]:
         """向量化提取红球特征."""
         features = []
 
@@ -105,7 +105,7 @@ class OptimizedFeatureExtractor:
 
     def _extract_blue_features_vectorized(
         self, blue_balls: np.ndarray
-    ) -> List[float]:
+    ) -> list[float]:
         """向量化提取蓝球特征."""
         features = []
 
@@ -125,7 +125,7 @@ class OptimizedFeatureExtractor:
         self,
         red_balls_matrix: np.ndarray,
         blue_balls: np.ndarray,
-    ) -> List[float]:
+    ) -> list[float]:
         """向量化提取窗口统计特征."""
         # 红球总和
         red_sums = np.sum(red_balls_matrix, axis=1)
@@ -151,10 +151,10 @@ class FeatureCache:
 
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
-        self._cache: Dict[str, Tuple[np.ndarray, float]] = {}
-        self._access_count: Dict[str, int] = {}
+        self._cache: dict[str, tuple[np.ndarray, float]] = {}
+        self._access_count: dict[str, int] = {}
 
-    def get(self, key: str) -> Optional[np.ndarray]:
+    def get(self, key: str) -> np.ndarray | None:
         """获取缓存的特征."""
         if key in self._cache:
             self._access_count[key] = self._access_count.get(key, 0) + 1
@@ -206,10 +206,10 @@ class BatchProcessor:
 
     def parallel_process(
         self,
-        data: List[Any],
+        data: list[Any],
         processor: Callable[[Any], Any],
         n_workers: int = 4,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """并行处理数据."""
         from concurrent.futures import ThreadPoolExecutor
 
@@ -230,7 +230,7 @@ class MemoryOptimizer:
         return arr.astype(dtype)
 
     @staticmethod
-    def compress_sparse(features: np.ndarray, threshold: float = 0.01) -> Tuple[np.ndarray, List[int]]:
+    def compress_sparse(features: np.ndarray, threshold: float = 0.01) -> tuple[np.ndarray, list[int]]:
         """压缩稀疏特征."""
         # 找出方差大于阈值的特征
         variances = np.var(features, axis=0)
@@ -245,7 +245,6 @@ class MemoryOptimizer:
 
 def optimize_imports():
     """优化导入（延迟导入）."""
-    pass
 
 
 # 性能监控装饰器
@@ -253,14 +252,14 @@ class PerformanceMonitor:
     """性能监控器."""
 
     def __init__(self):
-        self.metrics: Dict[str, List[float]] = {}
+        self.metrics: dict[str, list[float]] = {}
 
     def record(self, name: str, duration: float):
         if name not in self.metrics:
             self.metrics[name] = []
         self.metrics[name].append(duration)
 
-    def get_stats(self, name: str) -> Dict[str, float]:
+    def get_stats(self, name: str) -> dict[str, float]:
         if name not in self.metrics:
             return {}
         values = self.metrics[name]

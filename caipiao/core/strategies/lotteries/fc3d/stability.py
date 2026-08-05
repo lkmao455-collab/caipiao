@@ -6,14 +6,14 @@ import hashlib
 import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .....data.models import DrawRecord
 from .utils import DIGIT_POOL, POSITION_COUNT, _slice_records
 
 
 def _history_content_hash(
-    records: List[DrawRecord], lookback: Optional[int] = None
+    records: list[DrawRecord], lookback: int | None = None
 ) -> str:
     """根据历史数据内容生成短 hash."""
     sliced = _slice_records(records, lookback)
@@ -27,8 +27,8 @@ def _history_content_hash(
 
 def deterministic_seed(
     options: dict,
-    history: List[DrawRecord],
-    lookback: Optional[int] = None,
+    history: list[DrawRecord],
+    lookback: int | None = None,
     strategy_id: str = "",
 ) -> int:
     """若 options 中无 seed，则基于历史内容派生确定性 seed."""
@@ -36,18 +36,18 @@ def deterministic_seed(
     if seed is not None:
         return int(seed)
     h = _history_content_hash(history, lookback)
-    raw = hashlib.sha256(f"{strategy_id}:{h}".encode("utf-8")).hexdigest()
+    raw = hashlib.sha256(f"{strategy_id}:{h}".encode()).hexdigest()
     return int(raw, 16) % (2**31)
 
 
 def stable_frequency(
-    records: List[DrawRecord], lookback: Optional[int] = None, smoothing: float = 1.0
-) -> Dict[int, Dict[int, float]]:
+    records: list[DrawRecord], lookback: int | None = None, smoothing: float = 1.0
+) -> dict[int, dict[int, float]]:
     """返回拉普拉斯平滑后的按位概率分布 {pos: {digit: probability}}."""
     sliced = _slice_records(records, lookback)
-    result: Dict[int, Dict[int, float]] = {}
+    result: dict[int, dict[int, float]] = {}
     for pos in range(POSITION_COUNT):
-        counter: Dict[int, int] = {d: 0 for d in DIGIT_POOL}
+        counter: dict[int, int] = {d: 0 for d in DIGIT_POOL}
         for r in sliced:
             nums = r.groups.get("pos", [])
             if pos < len(nums) and nums[pos] in DIGIT_POOL:
@@ -58,10 +58,10 @@ def stable_frequency(
 
 
 def stable_missing(
-    records: List[DrawRecord],
-    lookback: Optional[int] = None,
-    cap: Optional[int] = None,
-) -> Dict[int, Dict[int, float]]:
+    records: list[DrawRecord],
+    lookback: int | None = None,
+    cap: int | None = None,
+) -> dict[int, dict[int, float]]:
     """返回截断并归一化到 [0,1] 的按位遗漏值 {pos: {digit: normalized_missing}}.
 
     归一化使用绝对基准（除以 effective_cap = lookback），
@@ -69,7 +69,7 @@ def stable_missing(
     0.0 = 最近一期出现过；1.0 = 整个窗口内从未出现。
     """
     sliced = _slice_records(records, lookback)
-    result: Dict[int, Dict[int, float]] = {}
+    result: dict[int, dict[int, float]] = {}
     effective_cap = cap if cap is not None else (len(sliced) if sliced else 1)
     effective_cap = max(effective_cap, 1)
     for pos in range(POSITION_COUNT):
@@ -78,7 +78,7 @@ def stable_missing(
             for r in sliced
             if len(r.groups.get("pos", [])) > pos
         ]
-        missing: Dict[int, int] = {d: effective_cap for d in DIGIT_POOL}
+        missing: dict[int, int] = {d: effective_cap for d in DIGIT_POOL}
         for idx, n in enumerate(reversed(pos_records)):
             if missing[n] == effective_cap:
                 missing[n] = idx
@@ -87,7 +87,7 @@ def stable_missing(
     return result
 
 
-def _zscore_normalize(scores: Dict[int, float]) -> Dict[int, float]:
+def _zscore_normalize(scores: dict[int, float]) -> dict[int, float]:
     """z-score 标准化: z = (x - mean) / std.
 
     输出均值 0、标准差 1，是 softmax logits 的标准输入形式。
@@ -112,7 +112,7 @@ def _zscore_normalize(scores: Dict[int, float]) -> Dict[int, float]:
     return {d: (scores[d] - mean) / std for d in DIGIT_POOL}
 
 
-def softmax_scores(values: List[float], temperature: float = 1.0) -> List[float]:
+def softmax_scores(values: list[float], temperature: float = 1.0) -> list[float]:
     """带温度参数的 softmax."""
     if temperature <= 0:
         temperature = 1.0
@@ -123,12 +123,12 @@ def softmax_scores(values: List[float], temperature: float = 1.0) -> List[float]
 
 
 def stable_scores(
-    hot_scores: Dict[int, float],
-    cold_scores: Dict[int, float],
+    hot_scores: dict[int, float],
+    cold_scores: dict[int, float],
     hot_weight: float,
     cold_weight: float,
     temperature: float = 1.0,
-) -> List[float]:
+) -> list[float]:
     """合并热分和冷分，输出 0-9 的 softmax 概率分布.
 
     数学原理 (z-score 标准化):
@@ -153,7 +153,7 @@ def stable_scores(
 
 
 def sample_weighted(
-    rng: random.Random, values: List[Any], probabilities: List[float]
+    rng: random.Random, values: list[Any], probabilities: list[float]
 ) -> Any:
     """加权采样，概率全为 0 时退化为均匀随机."""
     if len(values) != len(probabilities):
@@ -170,8 +170,8 @@ def sample_weighted(
 
 
 def raw_missing_periods(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> Dict[int, Dict[int, int]]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> dict[int, dict[int, int]]:
     """返回按位原始遗漏期数 {pos: {digit: periods}}.
 
     与 :func:`stable_missing` 不同，返回未归一化的原始期数，
@@ -182,14 +182,14 @@ def raw_missing_periods(
     """
     sliced = _slice_records(records, lookback)
     window = len(sliced) if sliced else 1
-    result: Dict[int, Dict[int, int]] = {}
+    result: dict[int, dict[int, int]] = {}
     for pos in range(POSITION_COUNT):
         pos_records = [
             r.groups["pos"][pos]
             for r in sliced
             if len(r.groups.get("pos", [])) > pos
         ]
-        missing: Dict[int, int] = {d: window for d in DIGIT_POOL}
+        missing: dict[int, int] = {d: window for d in DIGIT_POOL}
         for idx, n in enumerate(reversed(pos_records)):
             if missing[n] == window:
                 missing[n] = idx
@@ -198,8 +198,8 @@ def raw_missing_periods(
 
 
 def geometric_missing_zscore(
-    missing_periods: Dict[int, Dict[int, int]], p: float = 0.1
-) -> Dict[int, Dict[int, float]]:
+    missing_periods: dict[int, dict[int, int]], p: float = 0.1
+) -> dict[int, dict[int, float]]:
     """将原始遗漏期数转为几何分布的 z-score {pos: {digit: z}}.
 
     数学原理:
@@ -229,7 +229,7 @@ def geometric_missing_zscore(
     }
 
 
-def chi_square_uniform_test(counts: List[int]) -> tuple:
+def chi_square_uniform_test(counts: list[int]) -> tuple:
     """χ² 拟合优度检验: 观测频率是否偏离均匀分布.
 
     数学原理:

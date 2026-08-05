@@ -11,12 +11,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from ...data.models import DrawRecord
 from ...utils import app_data_dir
+
+logger = logging.getLogger(__name__)
 
 
 def model_dir() -> Path:
@@ -47,7 +51,7 @@ def compute_lookback(record_count: int) -> int:
     return max(1, min(raw, record_count - 1))
 
 
-def data_fingerprint(records: List[DrawRecord]) -> str:
+def data_fingerprint(records: list[DrawRecord]) -> str:
     """基于记录数量与最新一期生成数据指纹.
 
     版本前缀 v2 表示顺序组合生成模型；旧版模型会被视为过期并重新训练。
@@ -63,7 +67,7 @@ def _meta_path(model_path: Path) -> Path:
     return Path(str(model_path) + ".meta.json")
 
 
-def _model_fingerprint(model_path: Path) -> Optional[str]:
+def _model_fingerprint(model_path: Path) -> str | None:
     """读取模型元数据中的指纹；缺失或异常返回 None."""
     meta_path = _meta_path(model_path)
     if not meta_path.exists():
@@ -75,7 +79,7 @@ def _model_fingerprint(model_path: Path) -> Optional[str]:
         return None
 
 
-def _model_meta(model_path: Path) -> Dict[str, Any]:
+def _model_meta(model_path: Path) -> dict[str, Any]:
     """读取模型元数据；缺失或异常返回空字典."""
     meta_path = _meta_path(model_path)
     if not meta_path.exists():
@@ -87,7 +91,7 @@ def _model_meta(model_path: Path) -> Dict[str, Any]:
         return {}
 
 
-def _format_prediction_date(records: List[DrawRecord]) -> str:
+def _format_prediction_date(records: list[DrawRecord]) -> str:
     """返回模型预测目标日期的字符串（用于文件名）."""
     if not records:
         return "nodate"
@@ -95,7 +99,7 @@ def _format_prediction_date(records: List[DrawRecord]) -> str:
     return latest.draw_date.strftime("%Y%m%d")
 
 
-def _format_params(options: Optional[Dict[str, Any]]) -> str:
+def _format_params(options: dict[str, Any] | None) -> str:
     """把关键参数编码为文件名片段.
 
     只选取影响模型训练的参数（如 history_count），不影响训练的生成参数
@@ -112,12 +116,12 @@ def _format_params(options: Optional[Dict[str, Any]]) -> str:
 
 
 def new_model_path(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     lookback: int,
-    directory: Optional[Path] = None,
-    when: Optional[datetime] = None,
+    directory: Path | None = None,
+    when: datetime | None = None,
     prefix: str = "xgboost",
-    options: Optional[Dict[str, Any]] = None,
+    options: dict[str, Any] | None = None,
 ) -> Path:
     """生成带参数和目标日期的模型路径.
 
@@ -133,17 +137,17 @@ def new_model_path(
     directory = directory or model_dir()
     predict_date = _format_prediction_date(records)
     params = _format_params(options)
-    ts = (when or datetime.now()).strftime("%Y%m%d_%H%M%S")
+    ts = (when or datetime.now(timezone.utc).astimezone()).strftime("%Y%m%d_%H%M%S")
     return directory / f"{prefix}_{predict_date}_{params}_lookback{lookback}_{ts}.pkl"
 
 
 def _candidate_models(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     lookback: int,
     directory: Path,
     prefix: str = "xgboost",
-    options: Optional[Dict[str, Any]] = None,
-) -> List[Path]:
+    options: dict[str, Any] | None = None,
+) -> list[Path]:
     """列出与当前参数/日期匹配的候选模型."""
     if not directory.exists():
         return []
@@ -159,12 +163,12 @@ def _candidate_models(
 
 
 def find_current_model(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     lookback: int,
-    directory: Optional[Path] = None,
+    directory: Path | None = None,
     prefix: str = "xgboost",
-    options: Optional[Dict[str, Any]] = None,
-) -> Optional[Path]:
+    options: dict[str, Any] | None = None,
+) -> Path | None:
     """返回与当前数据指纹匹配的、最新（按修改时间）的模型路径；无则 None."""
     directory = directory or model_dir()
     fingerprint = data_fingerprint(records)
@@ -179,22 +183,22 @@ def find_current_model(
 
 
 def is_model_current(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     lookback: int,
-    directory: Optional[Path] = None,
+    directory: Path | None = None,
     prefix: str = "xgboost",
-    options: Optional[Dict[str, Any]] = None,
+    options: dict[str, Any] | None = None,
 ) -> bool:
     """当前数据是否已有匹配的最新模型."""
     return find_current_model(records, lookback, directory, prefix, options) is not None
 
 
 def needs_incremental_update(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     lookback: int,
-    directory: Optional[Path] = None,
+    directory: Path | None = None,
     prefix: str = "xgboost",
-    options: Optional[Dict[str, Any]] = None,
+    options: dict[str, Any] | None = None,
     max_incremental: int = 5,
 ) -> tuple[bool, int]:
     """检查是否需要增量更新。
@@ -228,7 +232,7 @@ def needs_incremental_update(
     return True, new_count
 
 
-def model_info(model_path: Path) -> Dict[str, Any]:
+def model_info(model_path: Path) -> dict[str, Any]:
     """读取模型的元数据信息摘要."""
     meta = _model_meta(model_path)
     try:
@@ -238,7 +242,7 @@ def model_info(model_path: Path) -> Dict[str, Any]:
     info = {
         "path": str(model_path),
         "name": model_path.name,
-        "modified": datetime.fromtimestamp(mtime).isoformat(),
+        "modified": datetime.fromtimestamp(mtime, tz=timezone.utc).astimezone().isoformat(),
     }
     info.update(meta)
     return info

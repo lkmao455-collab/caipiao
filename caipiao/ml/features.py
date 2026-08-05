@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
-
 import numpy as np
 
 from ..data.models import DrawRecord
@@ -13,8 +11,8 @@ BLUE_COUNT = 16
 
 
 def build_features(
-    records: List[DrawRecord], lookback: int = 50
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    records: list[DrawRecord], lookback: int = 50
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """构建训练特征和标签（仅支持双色球）.
 
     Args:
@@ -33,7 +31,7 @@ def build_features(
     if len(records) <= lookback:
         return np.array([]), np.array([]), np.array([])
 
-    samples = len(records) - lookback
+    _samples = len(records) - lookback
     X = []
     y_red = []
     y_blue = []
@@ -61,8 +59,8 @@ def build_features(
 
 
 def build_incremental_features(
-    records: List[DrawRecord], lookback: int = 50, new_count: int = 1
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    records: list[DrawRecord], lookback: int = 50, new_count: int = 1
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """构建增量训练特征（仅支持双色球）。
 
     只为最近 new_count 期构建特征，用于增量训练。
@@ -115,7 +113,7 @@ def build_incremental_features(
 
 
 def build_prediction_features(
-    records: List[DrawRecord], lookback: int = 50
+    records: list[DrawRecord], lookback: int = 50
 ) -> np.ndarray:
     """为最新一期构建预测特征（仅支持双色球）。"""
     if any(r.profile.key != "ssq" for r in records):
@@ -129,7 +127,7 @@ def build_prediction_features(
     return features.reshape(1, -1)
 
 
-def _extract_window_features(window: List[DrawRecord]) -> np.ndarray:
+def _extract_window_features(window: list[DrawRecord]) -> np.ndarray:
     """从窗口中提取特征向量."""
     features = []
 
@@ -170,8 +168,8 @@ def _extract_window_features(window: List[DrawRecord]) -> np.ndarray:
 
 
 def _number_features(
-    window: List[DrawRecord], number: int, is_red: bool
-) -> List[float]:
+    window: list[DrawRecord], number: int, is_red: bool
+) -> list[float]:
     """单个号码的特征：出现次数、最近距离、频率 + 间隔统计 + 连续性."""
     appears = []
     for idx, record in enumerate(window):
@@ -225,7 +223,7 @@ def _number_features(
     ]
 
 
-def _window_stats(window: List[DrawRecord]) -> List[float]:
+def _window_stats(window: list[DrawRecord]) -> list[float]:
     """窗口期数的聚合统计."""
     sums = [sum(r.red_balls) for r in window]
     odd_counts = [sum(1 for b in r.red_balls if b % 2 == 1) for r in window]
@@ -242,7 +240,7 @@ def _window_stats(window: List[DrawRecord]) -> List[float]:
     ]
 
 
-def _correlation_features(window: List[DrawRecord]) -> List[float]:
+def _correlation_features(window: list[DrawRecord]) -> list[float]:
     """关联性特征：相邻号码(±1)共现频率、配对共现统计."""
     # 收集所有红球出现的位置
     number_positions: dict[int, list[int]] = {n: [] for n in range(1, RED_COUNT + 1)}
@@ -286,7 +284,7 @@ def _correlation_features(window: List[DrawRecord]) -> List[float]:
     ]
 
 
-def _zone_distribution(window: List[DrawRecord]) -> List[float]:
+def _zone_distribution(window: list[DrawRecord]) -> list[float]:
     """区间分布特征：1-11/12-22/23-33三区出号比例."""
     zone_counts = [0, 0, 0]
     for record in window:
@@ -311,7 +309,7 @@ def _zone_distribution(window: List[DrawRecord]) -> List[float]:
     return ratios + [zone_std]
 
 
-def _ac_value_features(window: List[DrawRecord]) -> List[float]:
+def _ac_value_features(window: list[DrawRecord]) -> list[float]:
     """AC值特征：号码组合差值种类数（彩票界常用指标）.
 
     AC值 = 不同差值的个数 - (n-1)，其中n=6（红球个数）。
@@ -339,7 +337,7 @@ def _ac_value_features(window: List[DrawRecord]) -> List[float]:
     ]
 
 
-def _sum_distribution(window: List[DrawRecord]) -> List[float]:
+def _sum_distribution(window: list[DrawRecord]) -> list[float]:
     """和值区间分布特征：历史和值落入各区间的频率."""
     # 和值区间：0-60, 61-120, 121-180, 181-240
     zone_bounds = [0, 61, 121, 181, 241]

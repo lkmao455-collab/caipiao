@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 OPTIMAL_PERIOD_RANGES: dict[str, list[int]] = {
     "lookback": [20, 50, 80, 100, 150, 200, 300],
@@ -51,7 +50,7 @@ STRATEGY_PARAM_GRID: dict[str, dict[str, list]] = {
 }
 
 
-def resolve_optimal_param(strategy_id: str) -> Tuple[str, list[int]] | None:
+def resolve_optimal_param(strategy_id: str) -> tuple[str, list[int]] | None:
     """根据策略 id 返回要优化的参数名及其扫描范围（向后兼容）."""
     for prefix, param_name in STRATEGY_PARAM_MAP.items():
         if strategy_id.startswith(prefix):
@@ -59,7 +58,7 @@ def resolve_optimal_param(strategy_id: str) -> Tuple[str, list[int]] | None:
     return None
 
 
-def resolve_optimal_param_grid(strategy_id: str) -> Dict[str, List]:
+def resolve_optimal_param_grid(strategy_id: str) -> dict[str, list]:
     """根据策略 id 返回多参数扫描网格。
 
     返回 dict[param_name, list[values]]。若该策略无网格配置，返回空 dict。
@@ -68,8 +67,8 @@ def resolve_optimal_param_grid(strategy_id: str) -> Dict[str, List]:
 
 
 def build_param_combinations(
-    grid: Dict[str, List], locked: Optional[Dict[str, Any]] = None
-) -> List[Dict[str, Any]]:
+    grid: dict[str, list], locked: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """根据网格和已锁定参数生成未锁定参数的组合列表。"""
     locked = locked or {}
     free_grid = {k: v for k, v in grid.items() if k not in locked}

@@ -7,7 +7,7 @@ import math
 import random
 from collections import Counter
 from itertools import product
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .strategy import GenerationStrategy
 from .ticket import Ticket
@@ -22,7 +22,7 @@ class GenerationEngine:
     """
 
     def __init__(self) -> None:
-        self._strategies: Dict[str, GenerationStrategy] = {}
+        self._strategies: dict[str, GenerationStrategy] = {}
 
     def register(self, strategy: GenerationStrategy) -> None:
         """注册一个生成策略."""
@@ -32,11 +32,11 @@ class GenerationEngine:
         """注销指定策略."""
         self._strategies.pop(strategy_id, None)
 
-    def get(self, strategy_id: str) -> Optional[GenerationStrategy]:
+    def get(self, strategy_id: str) -> GenerationStrategy | None:
         """获取指定策略."""
         return self._strategies.get(strategy_id)
 
-    def list_strategies(self) -> List[GenerationStrategy]:
+    def list_strategies(self) -> list[GenerationStrategy]:
         """列出所有已注册策略."""
         return list(self._strategies.values())
 
@@ -44,8 +44,8 @@ class GenerationEngine:
         self,
         strategy_id: str,
         count: int = 1,
-        options: Optional[Dict[str, Any]] = None,
-    ) -> List[Ticket]:
+        options: dict[str, Any] | None = None,
+    ) -> list[Ticket]:
         """使用指定策略生成投注单."""
         strategy = self._strategies.get(strategy_id)
         if strategy is None:
@@ -65,13 +65,13 @@ class GenerationEngine:
 # --------------------------------------------------------------------------- #
 
 def filter_ssq_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 7,
     max_red_overlap: int = 3,
     block_blue_match: bool = False,
     blue_compare_periods: int = 1,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对双色球号码做最后一层过滤：与最近 N 期开奖记录比对。
 
     规则：
@@ -120,7 +120,7 @@ def filter_ssq_by_history(
     if not recent_data and not blue_recent:
         return tickets
 
-    filtered: List[Ticket] = []
+    filtered: list[Ticket] = []
     discarded = 0
 
     for ticket in tickets:
@@ -136,9 +136,8 @@ def filter_ssq_by_history(
                 too_many = True
                 break
         # 蓝球检查
-        if not too_many and block_blue_match and ticket_blue is not None:
-            if ticket_blue in blue_recent:
-                too_many = True
+        if not too_many and block_blue_match and ticket_blue is not None and ticket_blue in blue_recent:
+            too_many = True
 
         if not too_many:
             filtered.append(ticket)
@@ -170,13 +169,13 @@ DLT_BACK_SUM_MAX = 23
 
 
 def filter_dlt_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 7,
     max_front_overlap: int = 0,
     block_back_match: bool = True,
     back_compare_periods: int = 1,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对大乐透号码做最后一层过滤：与最近 N 期开奖记录比对。
 
     规则：
@@ -223,7 +222,7 @@ def filter_dlt_by_history(
     if not recent_data and not back_recent:
         return tickets
 
-    filtered: List[Ticket] = []
+    filtered: list[Ticket] = []
     discarded = 0
 
     for ticket in tickets:
@@ -238,9 +237,8 @@ def filter_dlt_by_history(
                 too_many = True
                 break
         # 后区检查
-        if not too_many and block_back_match and back_recent:
-            if ticket_backs & back_recent:
-                too_many = True
+        if not too_many and block_back_match and back_recent and (ticket_backs & back_recent):
+            too_many = True
 
         if not too_many:
             filtered.append(ticket)
@@ -267,7 +265,7 @@ _DLT_MIN_PASS_RATIO = 0.02
 
 
 def estimate_dlt_pass_ratio(
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_front_overlap: int,
     min_front_sum: int = DLT_FRONT_SUM_MIN,
@@ -282,7 +280,7 @@ def estimate_dlt_pass_ratio(
     """
     import random as _random
 
-    recent_sets: List[set] = []
+    recent_sets: list[set] = []
     if compare_periods > 0 and draw_records:
         recent = (
             draw_records[-compare_periods:]
@@ -317,7 +315,7 @@ def estimate_dlt_pass_ratio(
 
 def dlt_filtered_gen_count(
     count: int,
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_front_overlap: int,
     min_front_sum: int = DLT_FRONT_SUM_MIN,
@@ -341,17 +339,17 @@ def dlt_filtered_gen_count(
 
 
 def apply_dlt_experience_filter(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     count: int,
     compare_periods: int,
     max_front_overlap: int,
-    pass_ratio: Optional[float] = None,
+    pass_ratio: float | None = None,
     min_front_sum: int = DLT_FRONT_SUM_MIN,
     max_front_sum: int = DLT_FRONT_SUM_MAX,
     block_back_match: bool = True,
     back_compare_periods: int = 1,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """大乐透经验策略过滤的完整后处理：过滤 → 截断。
 
     主界面生成与批量历史回测共用，保证两条路径行为一致。
@@ -394,8 +392,8 @@ def apply_dlt_experience_filter(
 # --------------------------------------------------------------------------- #
 
 def _filter_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     group_key: str,
     compare_periods: int,
     max_overlap: int,
@@ -404,7 +402,7 @@ def _filter_by_history(
     sum_range_default: tuple[int, int],
     use_multiset: bool,
     log_label: str,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """通用经验策略过滤：和值范围 + 与最近 N 期开奖记录比对重合数。
 
     Args:
@@ -442,7 +440,7 @@ def _filter_by_history(
     if not history and no_sum_filter:
         return tickets
 
-    filtered: List[Ticket] = []
+    filtered: list[Ticket] = []
     discarded = 0
 
     for ticket in tickets:
@@ -485,13 +483,13 @@ def _filter_by_history(
 # --------------------------------------------------------------------------- #
 
 def filter_fc3d_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 5,
     max_overlap: int = 1,
     min_sum: int = 0,
     max_sum: int = 27,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对福彩3D号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对相同号码数。
 
     规则：
@@ -525,7 +523,7 @@ def filter_fc3d_by_history(
 
 
 def estimate_fc3d_pass_count(
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = 0,
@@ -546,7 +544,7 @@ def estimate_fc3d_pass_count(
     Returns:
         通过过滤的组合数（0-1000）。
     """
-    recent_counters: List[Counter] = []
+    recent_counters: list[Counter] = []
     if compare_periods > 0 and draw_records:
         recent = (
             draw_records[-compare_periods:]
@@ -586,7 +584,7 @@ FC3D_FILTER_MAX_CANDIDATES = 1000
 
 def fc3d_filtered_gen_count(
     count: int,
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = 0,
@@ -610,15 +608,15 @@ def fc3d_filtered_gen_count(
 
 
 def apply_fc3d_experience_filter(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     count: int,
     compare_periods: int,
     max_overlap: int,
-    pass_count: Optional[int] = None,
+    pass_count: int | None = None,
     min_sum: int = 0,
     max_sum: int = 27,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """3D 经验策略过滤的完整后处理：过滤 → 截断 → 重新分配投注方式。
 
     主界面生成与批量历史回测共用，保证两条路径行为一致。
@@ -670,13 +668,13 @@ PL3_SUM_MAX = 27
 
 
 def filter_pl3_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 5,
     max_overlap: int = 1,
     min_sum: int = PL3_SUM_MIN,
     max_sum: int = PL3_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对排列3号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对相同号码数。
 
     规则与福彩3D完全一致：
@@ -710,7 +708,7 @@ def filter_pl3_by_history(
 
 
 def estimate_pl3_pass_count(
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = PL3_SUM_MIN,
@@ -720,7 +718,7 @@ def estimate_pl3_pass_count(
 
     与 ``filter_pl3_by_history`` 使用完全相同的和值范围 + 多集合交集判定逻辑。
     """
-    recent_counters: List[Counter] = []
+    recent_counters: list[Counter] = []
     if compare_periods > 0 and draw_records:
         recent = (
             draw_records[-compare_periods:]
@@ -757,7 +755,7 @@ PL3_FILTER_MAX_CANDIDATES = 1000
 
 def pl3_filtered_gen_count(
     count: int,
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = PL3_SUM_MIN,
@@ -778,15 +776,15 @@ def pl3_filtered_gen_count(
 
 
 def apply_pl3_experience_filter(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     count: int,
     compare_periods: int,
     max_overlap: int,
-    pass_count: Optional[int] = None,
+    pass_count: int | None = None,
     min_sum: int = PL3_SUM_MIN,
     max_sum: int = PL3_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """排列3经验策略过滤的完整后处理：过滤 → 截断。
 
     Args:
@@ -832,13 +830,13 @@ _PL5_PASS_ESTIMATE_SEED = 20260726
 
 
 def filter_pl5_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 5,
     max_overlap: int = 2,
     min_sum: int = PL5_SUM_MIN,
     max_sum: int = PL5_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对排列5号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对相同号码数。
 
     规则：
@@ -872,7 +870,7 @@ def filter_pl5_by_history(
 
 
 def estimate_pl5_pass_ratio(
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = PL5_SUM_MIN,
@@ -884,7 +882,7 @@ def estimate_pl5_pass_ratio(
     号码空间 10^5 = 100000 种组合，用固定种子的均匀采样保证结果确定且可复现。
     判定逻辑与 ``filter_pl5_by_history`` 完全一致。
     """
-    recent_counters: List[Counter] = []
+    recent_counters: list[Counter] = []
     if compare_periods > 0 and draw_records:
         recent = (
             draw_records[-compare_periods:]
@@ -924,7 +922,7 @@ _PL5_MIN_PASS_RATIO = 0.02
 
 def pl5_filtered_gen_count(
     count: int,
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = PL5_SUM_MIN,
@@ -945,15 +943,15 @@ def pl5_filtered_gen_count(
 
 
 def apply_pl5_experience_filter(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     count: int,
     compare_periods: int,
     max_overlap: int,
-    pass_ratio: Optional[float] = None,
+    pass_ratio: float | None = None,
     min_sum: int = PL5_SUM_MIN,
     max_sum: int = PL5_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """排列5经验策略过滤的完整后处理：过滤 → 截断。
 
     Args:
@@ -999,13 +997,13 @@ _QXC_PASS_ESTIMATE_SEED = 20260726
 
 
 def filter_qxc_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 5,
     max_overlap: int = 3,
     min_sum: int = QXC_SUM_MIN,
     max_sum: int = QXC_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对7星彩号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对相同号码数。
 
     规则：
@@ -1039,7 +1037,7 @@ def filter_qxc_by_history(
 
 
 def estimate_qxc_pass_ratio(
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = QXC_SUM_MIN,
@@ -1051,7 +1049,7 @@ def estimate_qxc_pass_ratio(
     号码空间 10^7 = 10000000 种组合，用固定种子的均匀采样保证结果确定且可复现。
     判定逻辑与 ``filter_qxc_by_history`` 完全一致。
     """
-    recent_counters: List[Counter] = []
+    recent_counters: list[Counter] = []
     if compare_periods > 0 and draw_records:
         recent = (
             draw_records[-compare_periods:]
@@ -1091,7 +1089,7 @@ _QXC_MIN_PASS_RATIO = 0.02
 
 def qxc_filtered_gen_count(
     count: int,
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = QXC_SUM_MIN,
@@ -1112,15 +1110,15 @@ def qxc_filtered_gen_count(
 
 
 def apply_qxc_experience_filter(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     count: int,
     compare_periods: int,
     max_overlap: int,
-    pass_ratio: Optional[float] = None,
+    pass_ratio: float | None = None,
     min_sum: int = QXC_SUM_MIN,
     max_sum: int = QXC_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """7星彩经验策略过滤的完整后处理：过滤 → 截断。
 
     Args:
@@ -1168,13 +1166,13 @@ _KL8_PASS_ESTIMATE_SEED = 20260726
 
 
 def filter_kl8_by_history(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     compare_periods: int = 5,
     max_overlap: int = 5,
     min_sum: int = KL8_SUM_MIN,
     max_sum: int = KL8_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """对快乐8号码做经验策略过滤：和值范围 + 与最近 N 期开奖记录比对重合数。
 
     规则：
@@ -1212,7 +1210,7 @@ _KL8_PASS_ESTIMATE_SEED = 20260726
 
 
 def estimate_kl8_pass_ratio(
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = KL8_SUM_MIN,
@@ -1225,7 +1223,7 @@ def estimate_kl8_pass_ratio(
     号码空间 C(80,20) 极大，用固定种子的均匀采样保证结果确定且可复现。
     判定逻辑与 ``filter_kl8_by_history`` 完全一致。
     """
-    recent_sets: List[set] = []
+    recent_sets: list[set] = []
     if compare_periods > 0 and draw_records:
         recent = (
             draw_records[-compare_periods:]
@@ -1265,7 +1263,7 @@ _KL8_MIN_PASS_RATIO = 0.02
 
 def kl8_filtered_gen_count(
     count: int,
-    draw_records: List[Any],
+    draw_records: list[Any],
     compare_periods: int,
     max_overlap: int,
     min_sum: int = KL8_SUM_MIN,
@@ -1287,15 +1285,15 @@ def kl8_filtered_gen_count(
 
 
 def apply_kl8_experience_filter(
-    tickets: List[Ticket],
-    draw_records: List[Any],
+    tickets: list[Ticket],
+    draw_records: list[Any],
     count: int,
     compare_periods: int,
     max_overlap: int,
-    pass_ratio: Optional[float] = None,
+    pass_ratio: float | None = None,
     min_sum: int = KL8_SUM_MIN,
     max_sum: int = KL8_SUM_MAX,
-) -> List[Ticket]:
+) -> list[Ticket]:
     """快乐8经验策略过滤的完整后处理：过滤 → 截断。
 
     Args:

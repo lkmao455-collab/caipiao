@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import List, Optional
+import logging
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -20,6 +19,8 @@ from PySide6.QtWidgets import (
 from ...core.profile import LotteryProfile, list_profiles
 from ...data.models import DrawRecord
 
+logger = logging.getLogger(__name__)
+
 
 class DrawResultCard(QFrame):
     """单个彩种开奖结果卡片."""
@@ -27,7 +28,7 @@ class DrawResultCard(QFrame):
     def __init__(
         self,
         profile: LotteryProfile,
-        record: Optional[DrawRecord],
+        record: DrawRecord | None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -128,7 +129,7 @@ class DrawResultCard(QFrame):
             no_data.setStyleSheet("color: #999; font-size: 10pt; background: transparent; border: none;")
             layout.addWidget(no_data)
 
-    def _get_display_groups(self) -> List[tuple]:
+    def _get_display_groups(self) -> list[tuple]:
         """获取用于显示的号码组信息."""
         if not self.record:
             return []
@@ -157,10 +158,7 @@ class DrawResultCard(QFrame):
                 result.append(("号码", row1, "#7B1FA2"))
             if row2:
                 result.append(("", row2, "#7B1FA2"))
-        elif self.profile.key == "3d":
-            pos = numbers.get("pos", [])
-            result.append(("号码", pos, "#F57C00"))
-        elif self.profile.key == "pl3":
+        elif self.profile.key == "3d" or self.profile.key == "pl3":
             pos = numbers.get("pos", [])
             result.append(("号码", pos, "#F57C00"))
         elif self.profile.key == "pl5":
@@ -243,6 +241,7 @@ class LatestResultsDialog(QDialog):
     def _load_results(self, layout: QVBoxLayout) -> None:
         """加载所有彩种的最近开奖结果."""
         import json
+
         from ...utils import app_data_dir
 
         data_dir = app_data_dir()
@@ -259,7 +258,8 @@ class LatestResultsDialog(QDialog):
                     if data:
                         item = data[-1]
                         record = DrawRecord.from_dict(item)
-                except Exception:
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("读取开奖记录失败: %s", exc)
                     record = None
 
             card = DrawResultCard(profile, record)

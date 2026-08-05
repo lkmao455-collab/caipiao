@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..backtest_data import (
     BatchBacktestResult,
@@ -16,12 +17,12 @@ from ..backtest_worker import merge_round_results, worker_round_backtest
 
 @dataclass
 class CrossValidationResult:
-    params: Dict[str, Any]
-    fold_results: List[BatchBacktestResult] = field(default_factory=list)
+    params: dict[str, Any]
+    fold_results: list[BatchBacktestResult] = field(default_factory=list)
     mean_fixed_prize: float = 0.0
     std_fixed_prize: float = 0.0
     stability_score: float = 0.0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 def stability_score(mean_prize: float, std_prize: float) -> float:
@@ -34,14 +35,14 @@ def stability_score(mean_prize: float, std_prize: float) -> float:
     return max(0.0, min(1.0, 1.0 - cv / 2.0))
 
 
-def _split_tasks(tasks: List[RoundTask], n_folds: int) -> List[List[RoundTask]]:
+def _split_tasks(tasks: list[RoundTask], n_folds: int) -> list[list[RoundTask]]:
     """将任务按开奖日期排序后切分为 n_folds 个子集（每折一个任务列表）."""
     n = len(tasks)
     if n_folds <= 1 or n < n_folds:
         return [tasks]
     sorted_tasks = sorted(tasks, key=lambda t: t.actual.draw_date)
     fold_size = n // n_folds
-    folds: List[List[RoundTask]] = []
+    folds: list[list[RoundTask]] = []
     start = 0
     for i in range(n_folds):
         end = start + fold_size if i < n_folds - 1 else n
@@ -52,16 +53,16 @@ def _split_tasks(tasks: List[RoundTask], n_folds: int) -> List[List[RoundTask]]:
 
 def cross_validate_params(
     base_context: RoundBacktestContext,
-    tasks: List[RoundTask],
-    param_combinations: List[Dict[str, Any]],
+    tasks: list[RoundTask],
+    param_combinations: list[dict[str, Any]],
     n_folds: int = 3,
-    progress_callback: Optional[Callable[[int, int], None]] = None,
-    status_callback: Optional[Callable[[str], None]] = None,
-    interruption_callback: Optional[Callable[[], bool]] = None,
+    progress_callback: Callable[[int, int], None] | None = None,
+    status_callback: Callable[[str], None] | None = None,
+    interruption_callback: Callable[[], bool] | None = None,
     force_n_folds_for_ml: bool = True,
-) -> List[CrossValidationResult]:
+) -> list[CrossValidationResult]:
     """对每套参数组合做 n_folds 交叉验证."""
-    results: List[CrossValidationResult] = []
+    results: list[CrossValidationResult] = []
     total = len(param_combinations)
 
     # ML 策略交叉验证可能非常慢，默认降级为单区间回测；调用方可传入 force_n_folds_for_ml=False 保持原折叠数
@@ -102,8 +103,8 @@ def cross_validate_params(
             plugin_dir=base_context.plugin_dir,
         )
 
-        fold_results: List[BatchBacktestResult] = []
-        errors: List[str] = []
+        fold_results: list[BatchBacktestResult] = []
+        errors: list[str] = []
         folds = _split_tasks(tasks, n_folds)
 
         for fold_tasks in folds:
@@ -153,8 +154,8 @@ def cross_validate_params(
 
 
 def pick_best_param_cv(
-    cv_results: List[CrossValidationResult],
-) -> Optional[Tuple[Dict[str, Any], CrossValidationResult]]:
+    cv_results: list[CrossValidationResult],
+) -> tuple[dict[str, Any], CrossValidationResult] | None:
     """按稳定性优先、收益高、波动低选择最优参数."""
     eligible = [r for r in cv_results if r.fold_results]
     if not eligible:

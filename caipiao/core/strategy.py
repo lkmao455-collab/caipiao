@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .ticket import Ticket
 
@@ -40,8 +40,8 @@ class GenerationStrategy(ABC):
 
     @abstractmethod
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         """生成指定数量的投注单.
 
         Args:
@@ -53,7 +53,7 @@ class GenerationStrategy(ABC):
         """
         ...
 
-    def get_config_schema(self) -> Optional[Dict[str, Any]]:
+    def get_config_schema(self) -> dict[str, Any] | None:
         """返回配置项定义，用于 UI 动态渲染参数面板.
 
         返回 JSON Schema 风格字典，例如：
@@ -64,9 +64,8 @@ class GenerationStrategy(ABC):
         """
         return None
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         """校验策略参数，可在 generate 前调用."""
-        pass
 
     def __str__(self) -> str:
         return f"{self.metadata.name} ({self.metadata.id})"

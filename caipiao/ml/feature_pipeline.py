@@ -12,23 +12,23 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 from ..data.models import DrawRecord
 from .features import (
-    RED_COUNT,
     BLUE_COUNT,
-    _extract_window_features,
-    _number_features,
-    _window_stats,
-    _correlation_features,
-    _zone_distribution,
+    RED_COUNT,
     _ac_value_features,
+    _correlation_features,
+    _number_features,
     _sum_distribution,
+    _window_stats,
+    _zone_distribution,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,10 +48,10 @@ class FeatureConfig:
     use_time_features: bool = True
     use_lag_features: bool = False
     use_rolling_features: bool = False
-    lag_periods: List[int] = field(default_factory=lambda: [1, 2, 3])
-    rolling_windows: List[int] = field(default_factory=lambda: [5, 10, 20])
+    lag_periods: list[int] = field(default_factory=lambda: [1, 2, 3])
+    rolling_windows: list[int] = field(default_factory=lambda: [5, 10, 20])
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "lookback": self.lookback,
             "use_number_features": self.use_number_features,
@@ -68,7 +68,7 @@ class FeatureConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> FeatureConfig:
+    def from_dict(cls, data: dict[str, Any]) -> FeatureConfig:
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
@@ -76,12 +76,12 @@ class FeatureConfig:
 class FeatureMetadata:
     """特征元数据."""
 
-    feature_names: List[str] = field(default_factory=list)
+    feature_names: list[str] = field(default_factory=list)
     feature_count: int = 0
     config: FeatureConfig = field(default_factory=FeatureConfig)
     data_hash: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "feature_names": self.feature_names,
             "feature_count": self.feature_count,
@@ -95,12 +95,12 @@ class FeaturePipeline:
 
     def __init__(
         self,
-        config: Optional[FeatureConfig] = None,
-        cache_dir: Optional[Path] = None,
+        config: FeatureConfig | None = None,
+        cache_dir: Path | None = None,
     ) -> None:
         self.config = config or FeatureConfig()
         self.cache_dir = cache_dir
-        self._feature_extractors: List[Callable] = []
+        self._feature_extractors: list[Callable] = []
         self._setup_extractors()
 
     def _setup_extractors(self) -> None:
@@ -135,8 +135,8 @@ class FeaturePipeline:
             self._feature_extractors.append(("rolling", self._extract_rolling_features))
 
     def _extract_number_features(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取号码特征."""
         features = []
         for n in range(1, RED_COUNT + 1):
@@ -146,38 +146,38 @@ class FeaturePipeline:
         return features
 
     def _extract_window_stats(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取窗口统计特征."""
         return _window_stats(window)
 
     def _extract_correlation_features(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取关联性特征."""
         return _correlation_features(window)
 
     def _extract_zone_distribution(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取区间分布特征."""
         return _zone_distribution(window)
 
     def _extract_ac_value_features(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取 AC 值特征."""
         return _ac_value_features(window)
 
     def _extract_sum_distribution(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取和值分布特征."""
         return _sum_distribution(window)
 
     def _extract_time_features(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取时间特征."""
         last = window[-1]
         return [
@@ -187,8 +187,8 @@ class FeaturePipeline:
         ]
 
     def _extract_lag_features(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取滞后特征."""
         features = []
         for lag in self.config.lag_periods:
@@ -203,8 +203,8 @@ class FeaturePipeline:
         return features
 
     def _extract_rolling_features(
-        self, window: List[DrawRecord], records: List[DrawRecord], idx: int
-    ) -> List[float]:
+        self, window: list[DrawRecord], records: list[DrawRecord], idx: int
+    ) -> list[float]:
         """提取滚动统计特征."""
         features = []
         for w in self.config.rolling_windows:
@@ -219,7 +219,7 @@ class FeaturePipeline:
                 features.extend([0.0, 0.0])
         return features
 
-    def _compute_data_hash(self, records: List[DrawRecord]) -> str:
+    def _compute_data_hash(self, records: list[DrawRecord]) -> str:
         """计算数据哈希用于缓存."""
         if not records:
             return "empty"
@@ -227,8 +227,8 @@ class FeaturePipeline:
         return hashlib.md5(data_str.encode()).hexdigest()[:16]
 
     def build_features(
-        self, records: List[DrawRecord]
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        self, records: list[DrawRecord]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """构建训练特征和标签."""
         if any(r.profile.key != "ssq" for r in records):
             raise ValueError("feature_pipeline 仅支持双色球记录")
@@ -237,7 +237,7 @@ class FeaturePipeline:
         if len(records) <= self.config.lookback:
             return np.array([]), np.array([]), np.array([])
 
-        samples = len(records) - self.config.lookback
+        _samples = len(records) - self.config.lookback
         X = []
         y_red = []
         y_blue = []
@@ -269,7 +269,7 @@ class FeaturePipeline:
         return np.array(X), np.array(y_red), np.array(y_blue)
 
     def build_prediction_features(
-        self, records: List[DrawRecord]
+        self, records: list[DrawRecord]
     ) -> np.ndarray:
         """为最新一期构建预测特征."""
         if any(r.profile.key != "ssq" for r in records):
@@ -288,7 +288,7 @@ class FeaturePipeline:
 
         return np.array(features).reshape(1, -1)
 
-    def get_feature_names(self) -> List[str]:
+    def get_feature_names(self) -> list[str]:
         """获取特征名称列表."""
         names = []
 
@@ -341,7 +341,7 @@ class FeaturePipeline:
         X: np.ndarray,
         y: np.ndarray,
         top_n: int = 20,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """分析特征重要性（基于方差）。"""
         if X.shape[0] == 0 or X.shape[1] == 0:
             return []
@@ -373,7 +373,7 @@ class FeaturePipeline:
         X: np.ndarray,
         y: np.ndarray,
         threshold: float = 0.01,
-    ) -> Tuple[np.ndarray, List[int]]:
+    ) -> tuple[np.ndarray, list[int]]:
         """选择重要特征。"""
         if X.shape[0] == 0 or X.shape[1] == 0:
             return X, []
@@ -386,7 +386,7 @@ class FeaturePipeline:
 
         return X[:, selected_indices], selected_indices.tolist()
 
-    def get_metadata(self, records: List[DrawRecord]) -> FeatureMetadata:
+    def get_metadata(self, records: list[DrawRecord]) -> FeatureMetadata:
         """获取特征元数据."""
         return FeatureMetadata(
             feature_names=self.get_feature_names(),

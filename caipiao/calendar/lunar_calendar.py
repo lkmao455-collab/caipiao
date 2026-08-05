@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -114,7 +113,7 @@ def _lunar_year_days(year: int) -> int:
 def _lunar_month_days_info(year: int, month: int, is_leap: bool = False) -> int:
     """返回农历某月的天数（29或30天）."""
     info = _LUNAR_INFO[year - 1900]
-    leap_month = info >> 20
+    _leap_month = info >> 20
 
     if is_leap:
         # 闰月天数在第16位
@@ -146,7 +145,7 @@ def solar_to_lunar(year: int, month: int, day: int) -> LunarDate:
         raise ValueError("支持的年份范围为 1900-2100")
 
     # 计算距离 1900年1月31日（农历1900年正月初一）的天数
-    base_date = (1900, 1, 31)
+    _base_date = (1900, 1, 31)
     target_date = (year, month, day)
 
     # 计算天数差

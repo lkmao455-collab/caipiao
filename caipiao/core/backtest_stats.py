@@ -9,9 +9,9 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .prize import calculate_prize
 from .ticket import Ticket
@@ -29,7 +29,7 @@ class BacktestResult:
     prize_level: str
     prize_amount: int | None
     investment: int = 2  # 默认每注 2 元
-    hits: Dict[str, int] = field(default_factory=dict)
+    hits: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -42,16 +42,16 @@ class BacktestStats:
     total_return: int = 0
 
     # 各奖级统计
-    prize_counts: Dict[str, int] = field(default_factory=dict)
-    prize_amounts: Dict[str, int] = field(default_factory=dict)
+    prize_counts: dict[str, int] = field(default_factory=dict)
+    prize_amounts: dict[str, int] = field(default_factory=dict)
 
     # 号码统计
-    number_frequency: Dict[int, int] = field(default_factory=dict)
-    hot_numbers: List[int] = field(default_factory=list)
-    cold_numbers: List[int] = field(default_factory=list)
+    number_frequency: dict[int, int] = field(default_factory=dict)
+    hot_numbers: list[int] = field(default_factory=list)
+    cold_numbers: list[int] = field(default_factory=list)
 
     # 详细结果
-    results: List[BacktestResult] = field(default_factory=list)
+    results: list[BacktestResult] = field(default_factory=list)
 
     @property
     def win_rate(self) -> float:
@@ -75,7 +75,7 @@ class BacktestStats:
             return 0.0
         return self.total_return / self.total_tickets
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """返回统计摘要."""
         return {
             "总期数": self.total_periods,
@@ -89,7 +89,7 @@ class BacktestStats:
         }
 
 
-def analyze_ticket_numbers(tickets: List[Ticket]) -> Dict[int, int]:
+def analyze_ticket_numbers(tickets: list[Ticket]) -> dict[int, int]:
     """分析号码出现频率."""
     counter: Counter = Counter()
     for ticket in tickets:
@@ -99,9 +99,9 @@ def analyze_ticket_numbers(tickets: List[Ticket]) -> Dict[int, int]:
 
 
 def find_hot_cold_numbers(
-    tickets: List[Ticket],
+    tickets: list[Ticket],
     recent_count: int = 30,
-) -> Tuple[List[int], List[int]]:
+) -> tuple[list[int], list[int]]:
     """找出热号和冷号.
 
     Args:
@@ -115,7 +115,7 @@ def find_hot_cold_numbers(
         return [], []
 
     recent_tickets = tickets[-recent_count:]
-    all_numbers: List[int] = []
+    all_numbers: list[int] = []
     for ticket in recent_tickets:
         for nums in ticket.groups.values():
             all_numbers.extend(nums)
@@ -130,8 +130,8 @@ def find_hot_cold_numbers(
 
 
 def run_backtest(
-    tickets_by_period: Dict[str, List[Ticket]],
-    draw_records: Dict[str, Any],
+    tickets_by_period: dict[str, list[Ticket]],
+    draw_records: dict[str, Any],
     profile_key: str = "ssq",
     investment_per_ticket: int = 2,
 ) -> BacktestStats:
@@ -147,7 +147,7 @@ def run_backtest(
         BacktestStats 统计结果
     """
     stats = BacktestStats()
-    all_tickets: List[Ticket] = []
+    all_tickets: list[Ticket] = []
 
     for issue, tickets in tickets_by_period.items():
         if issue not in draw_records:
@@ -204,9 +204,9 @@ def _calculate_hits(
     ticket: Ticket,
     draw_record: Any,
     profile_key: str,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """计算投注单与开奖记录的命中数."""
-    hits: Dict[str, int] = {}
+    hits: dict[str, int] = {}
 
     if profile_key == "ssq":
         ticket_reds = set(ticket.groups.get("red", []))
@@ -236,17 +236,7 @@ def _calculate_hits(
         draw_back = set(draw_record.groups.get("back", []))
         hits["back"] = len(ticket_back & draw_back)
 
-    elif profile_key == "pl3":
-        ticket_pos = ticket.groups.get("pos", [])
-        draw_pos = draw_record.groups.get("pos", [])
-        hits["pos"] = sum(1 for t, d in zip(ticket_pos, draw_pos) if t == d)
-
-    elif profile_key == "pl5":
-        ticket_pos = ticket.groups.get("pos", [])
-        draw_pos = draw_record.groups.get("pos", [])
-        hits["pos"] = sum(1 for t, d in zip(ticket_pos, draw_pos) if t == d)
-
-    elif profile_key == "qxc":
+    elif profile_key == "pl3" or profile_key == "pl5" or profile_key == "qxc":
         ticket_pos = ticket.groups.get("pos", [])
         draw_pos = draw_record.groups.get("pos", [])
         hits["pos"] = sum(1 for t, d in zip(ticket_pos, draw_pos) if t == d)

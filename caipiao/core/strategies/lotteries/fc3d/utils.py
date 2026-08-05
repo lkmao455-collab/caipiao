@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Dict, List, Optional, Tuple
 
 from .....data.models import DrawRecord
-
 
 POSITION_COUNT = 3
 DIGIT_POOL = list(range(10))
 
 
-def _slice_records(records: List[DrawRecord], lookback: Optional[int]) -> List[DrawRecord]:
+def _slice_records(records: list[DrawRecord], lookback: int | None) -> list[DrawRecord]:
     sorted_records = sorted(records, key=lambda r: r.draw_date)
     if lookback is None or lookback >= len(sorted_records):
         return sorted_records
@@ -22,11 +20,11 @@ def _slice_records(records: List[DrawRecord], lookback: Optional[int]) -> List[D
 
 
 def positional_frequency(
-    records: List[DrawRecord], lookback: Optional[int] = None
-) -> Dict[int, Dict[int, int]]:
+    records: list[DrawRecord], lookback: int | None = None
+) -> dict[int, dict[int, int]]:
     """返回按位频率：{position: {digit: count}}。"""
     sliced = _slice_records(records, lookback)
-    result: Dict[int, Counter] = {i: Counter() for i in range(POSITION_COUNT)}
+    result: dict[int, Counter] = {i: Counter() for i in range(POSITION_COUNT)}
     for record in sliced:
         nums = record.groups.get("pos", [])
         for idx, n in enumerate(nums[:POSITION_COUNT]):
@@ -36,11 +34,11 @@ def positional_frequency(
 
 
 def positional_weights(
-    records: List[DrawRecord], lookback: int = 100, smoothing: float = 1.0
-) -> Dict[int, List[float]]:
+    records: list[DrawRecord], lookback: int = 100, smoothing: float = 1.0
+) -> dict[int, list[float]]:
     """带拉普拉斯平滑的按位权重。"""
     freq = positional_frequency(records, lookback)
-    weights: Dict[int, List[float]] = {}
+    weights: dict[int, list[float]] = {}
     for pos in range(POSITION_COUNT):
         pos_freq = freq.get(pos, {})
         total = sum(pos_freq.values()) + smoothing * len(DIGIT_POOL)
@@ -50,7 +48,7 @@ def positional_weights(
     return weights
 
 
-def sum_tail_statistics(records: List[DrawRecord], lookback: int = 100) -> Dict[str, float]:
+def sum_tail_statistics(records: list[DrawRecord], lookback: int = 100) -> dict[str, float]:
     """和尾（和值 mod 10）统计。"""
     sliced = _slice_records(records, lookback)
     tails = [sum(r.groups.get("pos", [])[:POSITION_COUNT]) % 10 for r in sliced]
@@ -62,7 +60,7 @@ def sum_tail_statistics(records: List[DrawRecord], lookback: int = 100) -> Dict[
     return {"min": min(tails), "max": max(tails), "avg": sum(tails) / n, "median": median}
 
 
-def span_statistics(records: List[DrawRecord], lookback: int = 100) -> Dict[str, float]:
+def span_statistics(records: list[DrawRecord], lookback: int = 100) -> dict[str, float]:
     """跨度（最大-最小）统计。"""
     sliced = _slice_records(records, lookback)
     spans = []
@@ -79,23 +77,23 @@ def span_statistics(records: List[DrawRecord], lookback: int = 100) -> Dict[str,
 
 
 def road_012_statistics(
-    records: List[DrawRecord], lookback: int = 100
-) -> Dict[int, List[float]]:
+    records: list[DrawRecord], lookback: int = 100
+) -> dict[int, list[float]]:
     """每位012路（mod 3）比例：{position: [p0, p1, p2]}。"""
     sliced = _slice_records(records, lookback)
-    counts: Dict[int, List[int]] = {i: [0, 0, 0] for i in range(POSITION_COUNT)}
+    counts: dict[int, list[int]] = {i: [0, 0, 0] for i in range(POSITION_COUNT)}
     for record in sliced:
         nums = record.groups.get("pos", [])[:POSITION_COUNT]
         for idx, n in enumerate(nums):
             counts[idx][n % 3] += 1
-    result: Dict[int, List[float]] = {}
+    result: dict[int, list[float]] = {}
     for pos, cnts in counts.items():
         total = sum(cnts)
         result[pos] = [c / total if total else 1 / 3 for c in cnts]
     return result
 
 
-def fc3d_bet_type(numbers: List[int]) -> str:
+def fc3d_bet_type(numbers: list[int]) -> str:
     """判断3D号码形态：豹子号、组选3、组选6。"""
     if len(numbers) != POSITION_COUNT:
         return "未知"
@@ -107,7 +105,7 @@ def fc3d_bet_type(numbers: List[int]) -> str:
     return "组选6"
 
 
-def shape_ratio(records: List[DrawRecord], lookback: int = 100) -> Dict[str, float]:
+def shape_ratio(records: list[DrawRecord], lookback: int = 100) -> dict[str, float]:
     """历史形态比例：豹子/组三/组六.
 
     默认值使用理论概率而非均匀假设：
@@ -135,7 +133,7 @@ def shape_ratio(records: List[DrawRecord], lookback: int = 100) -> Dict[str, flo
     return {k: v / total for k, v in counts.items()}
 
 
-def overall_odd_even_ratio(records: List[DrawRecord], lookback: int = 100) -> Tuple[float, float]:
+def overall_odd_even_ratio(records: list[DrawRecord], lookback: int = 100) -> tuple[float, float]:
     """整体奇偶比例（3D 9个数字中奇数判定）."""
     sliced = _slice_records(records, lookback)
     odd = even = 0
@@ -152,8 +150,8 @@ def overall_odd_even_ratio(records: List[DrawRecord], lookback: int = 100) -> Tu
 
 
 def overall_high_low_ratio(
-    records: List[DrawRecord], lookback: int = 100, border: int = 5
-) -> Tuple[float, float]:
+    records: list[DrawRecord], lookback: int = 100, border: int = 5
+) -> tuple[float, float]:
     """整体大小比例，>= border 为大号。"""
     sliced = _slice_records(records, lookback)
     high = low = 0
@@ -169,7 +167,7 @@ def overall_high_low_ratio(
     return high / total, low / total
 
 
-def sum_statistics(records: List[DrawRecord], lookback: int = 100) -> Dict[str, float]:
+def sum_statistics(records: list[DrawRecord], lookback: int = 100) -> dict[str, float]:
     """和值统计。"""
     sliced = _slice_records(records, lookback)
     sums = [sum(r.groups.get("pos", [])[:POSITION_COUNT]) for r in sliced]

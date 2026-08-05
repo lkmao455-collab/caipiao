@@ -4,22 +4,20 @@ from __future__ import annotations
 
 import itertools
 import random
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any
 
-from ....profile import get_profile
-from ....ticket import Ticket
 from .....data.models import DrawRecord
+from ....profile import get_profile
 from .stability import deterministic_seed
 from .utils import fc3d_bet_type
-
 
 FC3D_PROFILE = get_profile("3d")
 
 
-def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
+def _records_from_options(options: dict[str, Any]) -> list[DrawRecord]:
     history = options.get("history", []) or []
-    records: List[DrawRecord] = []
+    records: list[DrawRecord] = []
     for r in history:
         if isinstance(r, DrawRecord):
             records.append(r)
@@ -27,9 +25,9 @@ def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
             # 处理字典格式的历史记录
             draw_date = r.get("draw_date")
             if isinstance(draw_date, str):
-                draw_date = datetime.strptime(draw_date, "%Y-%m-%d")
+                draw_date = datetime.strptime(draw_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
             elif not isinstance(draw_date, datetime):
-                draw_date = datetime.now()
+                draw_date = datetime.now(timezone.utc).astimezone()
             records.append(
                 DrawRecord(
                     issue=r.get("issue", ""),
@@ -43,7 +41,7 @@ def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
             records.append(
                 DrawRecord(
                     issue=getattr(r, "issue", ""),
-                    draw_date=getattr(r, "draw_date", datetime.now()),
+                    draw_date=getattr(r, "draw_date", datetime.now(timezone.utc).astimezone()),
                     profile=getattr(r, "profile", None),
                     groups=getattr(r, "groups", {}),
                 )
@@ -52,9 +50,9 @@ def _records_from_options(options: Dict[str, Any]) -> List[DrawRecord]:
 
 
 def _make_rng(
-    options: Dict[str, Any],
-    history: Optional[List[DrawRecord]] = None,
-    lookback: Optional[int] = None,
+    options: dict[str, Any],
+    history: list[DrawRecord] | None = None,
+    lookback: int | None = None,
     strategy_id: str = "",
 ) -> random.Random:
     if options.get("seed") is None and not history:
@@ -67,14 +65,14 @@ def _sample_with_dedup(
     sample_fn: Any,
     count: int,
     dedup: bool,
-) -> List[List[int]]:
+) -> list[list[int]]:
     """生成 count 组3位号码，可选按 sorted tuple 去重。
 
     适用于均匀分布或接近均匀分布的采样（random / odd_even / exclude_include）。
     对于概率加权的策略，请使用 _weighted_sample_without_replacement。
     """
     seen: set = set()
-    results: List[List[int]] = []
+    results: list[list[int]] = []
     max_attempts = count * 50 if dedup else 1
     for _ in range(count):
         result = sample_fn()
@@ -90,11 +88,11 @@ def _sample_with_dedup(
 
 
 def _weighted_sample_without_replacement(
-    pos_probs: List[List[float]],
+    pos_probs: list[list[float]],
     count: int,
     rng: random.Random,
-    shape_weights: Optional[Dict[str, float]] = None,
-) -> List[List[int]]:
+    shape_weights: dict[str, float] | None = None,
+) -> list[list[int]]:
     """对3D组合做按概率加权无放回采样（组选去重）。
 
     数学原理:
@@ -113,9 +111,9 @@ def _weighted_sample_without_replacement(
 
     适用于 smart_hot_cold / hot_cold / missing_number / ensemble 等概率加权策略。
     """
-    group_probs: Dict[Tuple[int, ...], float] = {}
-    group_perms: Dict[Tuple[int, ...], List[Tuple[int, ...]]] = {}
-    perm_probs: Dict[Tuple[int, ...], Dict[Tuple[int, ...], float]] = {}
+    group_probs: dict[tuple[int, ...], float] = {}
+    group_perms: dict[tuple[int, ...], list[tuple[int, ...]]] = {}
+    perm_probs: dict[tuple[int, ...], dict[tuple[int, ...], float]] = {}
     for combo in itertools.product(range(10), repeat=3):
         key = tuple(sorted(combo))
         p = pos_probs[0][combo[0]] * pos_probs[1][combo[1]] * pos_probs[2][combo[2]]
@@ -128,11 +126,11 @@ def _weighted_sample_without_replacement(
         group_perms.setdefault(key, []).append(combo)
         perm_probs.setdefault(key, {})[combo] = p
 
-    keys: List[Tuple[int, ...]] = list(group_probs.keys())
-    weights: List[float] = [group_probs[k] for k in keys]
+    keys: list[tuple[int, ...]] = list(group_probs.keys())
+    weights: list[float] = [group_probs[k] for k in keys]
 
     n = min(count, len(keys))
-    selected: List[List[int]] = []
+    selected: list[list[int]] = []
 
     for _ in range(n):
         total = sum(weights)

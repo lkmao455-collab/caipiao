@@ -12,8 +12,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from datetime import datetime, timezone
+from typing import Any
 
 from .ball import Ball
 from .profile import SSQ, LotteryProfile, RenderGroup, get_profile
@@ -32,10 +33,10 @@ class Ticket:
         generated_at: datetime | None = None,
         strategy_name: str = "",
         basis: str = "",
-        details: Dict[str, Any] | None = None,
+        details: dict[str, Any] | None = None,
         *,
         profile: LotteryProfile | str | None = None,
-        groups: Optional[Dict[str, Iterable[int]]] = None,
+        groups: dict[str, Iterable[int]] | None = None,
         validate: bool = True,
     ) -> None:
         if groups is not None or profile is not None:
@@ -46,7 +47,7 @@ class Ticket:
                 else get_profile(profile or "ssq")
             )
             self.profile = prof
-            self.groups: Dict[str, List[int]] = {
+            self.groups: dict[str, list[int]] = {
                 k: [int(x) for x in v] for k, v in (groups or {}).items()
             }
         else:
@@ -58,7 +59,7 @@ class Ticket:
             blue = int(getattr(blue_ball, "number", blue_ball))
             self.groups = {"red": reds, "blue": [blue]}
 
-        self.generated_at = generated_at or datetime.now()
+        self.generated_at = generated_at or datetime.now(timezone.utc).astimezone()
         self.strategy_name = strategy_name
         self.basis = basis
         self.details = details or {}
@@ -73,13 +74,13 @@ class Ticket:
     def from_groups(
         cls,
         profile: LotteryProfile | str,
-        groups: Dict[str, Iterable[int]],
+        groups: dict[str, Iterable[int]],
         generated_at: datetime | None = None,
         strategy_name: str = "",
         basis: str = "",
-        details: Dict[str, Any] | None = None,
+        details: dict[str, Any] | None = None,
         validate: bool = True,
-    ) -> "Ticket":
+    ) -> Ticket:
         return cls(
             profile=profile,
             groups=groups,
@@ -118,12 +119,12 @@ class Ticket:
     # 双色球兼容访问器
     # ------------------------------------------------------------------ #
     @property
-    def red_balls(self) -> List[Ball]:
+    def red_balls(self) -> list[Ball]:
         """双色球红球（List[Ball]）；仅在包含 red 组时有意义。"""
         return [Ball.red(n) for n in self.groups.get("red", [])]
 
     @property
-    def blue_ball(self) -> Optional[Ball]:
+    def blue_ball(self) -> Ball | None:
         """双色球蓝球（Ball）；仅在包含 blue 组时返回，否则为 None。"""
         blues = self.groups.get("blue")
         return Ball.blue(blues[0]) if blues else None
@@ -131,9 +132,9 @@ class Ticket:
     # ------------------------------------------------------------------ #
     # 展示
     # ------------------------------------------------------------------ #
-    def render_groups(self) -> List[RenderGroup]:
+    def render_groups(self) -> list[RenderGroup]:
         """返回可供界面/打印统一渲染的号码组列表。"""
-        result: List[RenderGroup] = []
+        result: list[RenderGroup] = []
         for g in self.profile.pick_groups:
             nums = self.groups.get(g.key, [])
             result.append(RenderGroup(g.name, list(nums), g.color, g.pad))
@@ -194,14 +195,14 @@ class Ticket:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Ticket":
+    def from_dict(cls, data: dict) -> Ticket:
         generated_at = datetime.fromisoformat(data["generated_at"])
-        common = dict(
-            generated_at=generated_at,
-            strategy_name=data.get("strategy_name", ""),
-            basis=data.get("basis", ""),
-            details=data.get("details", {}),
-        )
+        common = {
+            "generated_at": generated_at,
+            "strategy_name": data.get("strategy_name", ""),
+            "basis": data.get("basis", ""),
+            "details": data.get("details", {}),
+        }
         if "groups" in data:  # 通用格式
             return cls(profile=data.get("profile", "ssq"), groups=data["groups"], **common)
         # 旧的双色球格式

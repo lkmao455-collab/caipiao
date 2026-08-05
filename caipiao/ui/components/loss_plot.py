@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QDialog, QLabel, QPushButton, QTextEdit,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTextEdit,
     QVBoxLayout,
 )
 
@@ -91,7 +96,7 @@ class LossPlotWindow(QDialog):
 
     def _export_csv(self):
         """导出 loss 数据为 CSV 文件."""
-        default_name = f"loss_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        default_name = f"loss_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.csv"
         path, _ = QFileDialog.getSaveFileName(
             self, "导出 Loss 数据", default_name, "CSV 文件 (*.csv)"
         )

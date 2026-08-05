@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import random
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ....profile import KL8
 from ....ticket import Ticket
-
 
 PROFILE = KL8
 
 
 def _get_pick_count(
-    options: Dict[str, Any], default_pick: Optional[int] = None
+    options: dict[str, Any], default_pick: int | None = None
 ) -> int:
     """返回本次生成主号码组应选几个号码。
 
@@ -37,7 +35,7 @@ def _get_pick_count(
 
 
 def _add_pick_count_schema(
-    schema: Dict[str, Any], label: str = "投注个数", default_pick: Optional[int] = None
+    schema: dict[str, Any], label: str = "投注个数", default_pick: int | None = None
 ) -> None:
     """为可变 pick 彩种在策略参数里加入‘选几’配置。
 
@@ -60,5 +58,5 @@ def _add_pick_count_schema(
     }
 
 
-def _make_ticket(groups: Dict[str, List[int]], **kwargs) -> Ticket:
+def _make_ticket(groups: dict[str, list[int]], **kwargs) -> Ticket:
     return Ticket(profile=PROFILE, groups=groups, **kwargs)

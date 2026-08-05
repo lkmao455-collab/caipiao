@@ -7,22 +7,21 @@
 from __future__ import annotations
 
 import itertools
-import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
-from ._base import FC3D_PROFILE, _records_from_options, _weighted_sample_without_replacement
+from ._base import (
+    FC3D_PROFILE,
+    _records_from_options,
+)
 from .stability import (
     chi_square_uniform_test,
     deterministic_seed,
-    sample_weighted,
-    softmax_scores,
 )
 from .utils import (
-    DIGIT_POOL,
     fc3d_bet_type,
     overall_high_low_ratio,
     overall_odd_even_ratio,
@@ -56,7 +55,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         return {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 30, "max": 10000},
@@ -89,13 +88,13 @@ class FC3DBalancedStrategy(GenerationStrategy):
             },
         }
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         if len(options.get("history", [])) < 30:
             raise ValueError("历史均衡策略需要至少 30 期历史数据（统计检验要求）")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = _records_from_options(options)
@@ -109,8 +108,8 @@ class FC3DBalancedStrategy(GenerationStrategy):
 
         # 1. χ²均匀性检验守卫
         pos_freq_counts = positional_frequency(records, lookback)
-        chi2_values: List[float] = []
-        uniform_flags: List[bool] = []
+        chi2_values: list[float] = []
+        uniform_flags: list[bool] = []
         for pos in range(3):
             counts = [pos_freq_counts[pos].get(d, 0) for d in range(10)]
             chi2, is_uniform = chi_square_uniform_test(counts)
@@ -175,9 +174,9 @@ class FC3DBalancedStrategy(GenerationStrategy):
             basis += f" 随机种子：{user_seed}。"
 
         # 5. 改进的评分函数：使用z-score标准化
-        def calculate_zscore_scores() -> Dict[int, List[float]]:
+        def calculate_zscore_scores() -> dict[int, list[float]]:
             """计算每个数字的z-score评分."""
-            result: Dict[int, List[float]] = {}
+            result: dict[int, list[float]] = {}
             for pos in range(3):
                 # 按位频率的z-score
                 freq_vals = [weights[pos][d] for d in range(10)]
@@ -203,7 +202,7 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 result[pos] = z_scores
             return result
 
-        def score(candidate: List[int]) -> float:
+        def score(candidate: list[int]) -> float:
             """基于z-score的评分函数."""
             odd_count = sum(1 for n in candidate if n % 2 == 1)
             high_count = sum(1 for n in candidate if n >= 5)
@@ -247,11 +246,11 @@ class FC3DBalancedStrategy(GenerationStrategy):
         # 6. 生成号码
         if all_uniform:
             # 数据均匀：退化为均匀随机采样
-            def sample_uniform() -> List[int]:
+            def sample_uniform() -> list[int]:
                 return [rng.randint(0, 9) for _ in range(3)]
             
             seen: set = set()
-            tickets: List[Ticket] = []
+            tickets: list[Ticket] = []
             for _ in range(count):
                 candidate = sample_uniform()
                 if dedup:
@@ -270,13 +269,13 @@ class FC3DBalancedStrategy(GenerationStrategy):
                 )
         else:
             # 数据不均匀：使用评分函数
-            def sample_one() -> List[int]:
+            def sample_one() -> list[int]:
                 return [rng.choices(range(10), weights=weights[pos], k=1)[0] for pos in range(3)]
 
             seen: set = set()
-            tickets: List[Ticket] = []
+            tickets: list[Ticket] = []
             for _ in range(count):
-                best_candidate: Optional[List[int]] = None
+                best_candidate: list[int] | None = None
                 best_score = float("inf")
 
                 if use_enumeration:

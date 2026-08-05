@@ -4,6 +4,6 @@ from .balanced import FC3DBalancedStrategy
 from .smart_hot_cold import FC3DSmartHotColdStrategy
 
 __all__ = [
-    "FC3DSmartHotColdStrategy",
     "FC3DBalancedStrategy",
+    "FC3DSmartHotColdStrategy",
 ]

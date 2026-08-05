@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import List
 
 from ..core.parameter_group import (
     ParameterGroup,
@@ -31,7 +30,7 @@ class ParameterGroupStore:
         """返回指定彩种的存储文件路径."""
         return self._base_dir / f"{profile_key}.json"
 
-    def load_all(self, profile_key: str) -> List[ParameterGroup]:
+    def load_all(self, profile_key: str) -> list[ParameterGroup]:
         """加载指定彩种的所有参数组."""
         path = self.path_for(profile_key)
         if not path.exists():
@@ -80,7 +79,7 @@ class ParameterGroupStore:
                 return g
         return None
 
-    def _write(self, profile_key: str, groups: List[ParameterGroup]) -> None:
+    def _write(self, profile_key: str, groups: list[ParameterGroup]) -> None:
         """将参数组列表写入磁盘."""
         path = self.path_for(profile_key)
         path.parent.mkdir(parents=True, exist_ok=True)

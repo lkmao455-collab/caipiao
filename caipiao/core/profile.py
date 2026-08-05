@@ -12,8 +12,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 
 @dataclass
@@ -28,7 +27,7 @@ class RenderGroup:
     """
 
     name: str
-    numbers: List[int]
+    numbers: list[int]
     color: str
     pad: int = 2
 
@@ -58,8 +57,8 @@ class NumberGroup:
     lo: int
     hi: int
     count: int
-    pick_min: Optional[int] = None
-    pick_max: Optional[int] = None
+    pick_min: int | None = None
+    pick_max: int | None = None
     positional: bool = False
     allow_repeat: bool = False
     color: str = "#D32F2F"
@@ -73,7 +72,7 @@ class NumberGroup:
         return self.hi - self.lo + 1
 
     @property
-    def values(self) -> List[int]:
+    def values(self) -> list[int]:
         """号池全部可取值（升序）。"""
         return list(range(self.lo, self.hi + 1))
 
@@ -95,7 +94,7 @@ class NumberGroup:
         """大小号分界：>= 该值视为大号（双色球红球恰为 17）。"""
         return (self.lo + self.hi + 1) // 2
 
-    def validate_numbers(self, numbers: List[int]) -> None:
+    def validate_numbers(self, numbers: list[int]) -> None:
         """校验一组号码是否符合本组约束（用于开奖记录/投注单校验）。"""
         for n in numbers:
             if not (self.lo <= n <= self.hi):
@@ -122,10 +121,10 @@ class LotteryProfile:
 
     key: str
     name: str
-    groups: Tuple[NumberGroup, ...]
+    groups: tuple[NumberGroup, ...]
     data_url: str
     parser_key: str
-    draw_weekdays: Tuple[int, ...]  # 空元组表示每日开奖
+    draw_weekdays: tuple[int, ...]  # 空元组表示每日开奖
     storage_file: str
     model_prefix: str  # 机器学习模型文件前缀基名（会拼接后端名）
     subtitle: str = ""
@@ -139,11 +138,11 @@ class LotteryProfile:
         raise KeyError(f"彩种 {self.key} 不存在号码组 {key}")
 
     @property
-    def group_keys(self) -> List[str]:
+    def group_keys(self) -> list[str]:
         return [g.key for g in self.groups]
 
     @property
-    def pick_groups(self) -> List[NumberGroup]:
+    def pick_groups(self) -> list[NumberGroup]:
         """参与玩家生成的号码组（排除 draw_only）。"""
         return [g for g in self.groups if not g.draw_only]
 
@@ -330,14 +329,14 @@ GD36X7 = LotteryProfile(
 )
 
 
-PROFILES: Dict[str, LotteryProfile] = {
+PROFILES: dict[str, LotteryProfile] = {
     p.key: p for p in (SSQ, FC3D, KL8, DLT, PL3, PL5, QXC)
 }
 
 DEFAULT_KEY = "ssq"
 
 
-def profile_keys() -> List[str]:
+def profile_keys() -> list[str]:
     """返回全部已注册彩种 key。"""
     return [p.key for p in list_profiles()]
 
@@ -347,18 +346,18 @@ def get_profile(key: str) -> LotteryProfile:
     return PROFILES.get(key, SSQ)
 
 
-def list_profiles() -> List[LotteryProfile]:
+def list_profiles() -> list[LotteryProfile]:
     """按固定顺序返回全部彩种档案。"""
     return [SSQ, FC3D, KL8, DLT, PL3, PL5, QXC]
 
 
-def list_profiles_by_category() -> Dict[str, List[LotteryProfile]]:
+def list_profiles_by_category() -> dict[str, list[LotteryProfile]]:
     """按彩种大类（福利彩票/体育彩票）分组返回档案。"""
-    result: Dict[str, List[LotteryProfile]] = {}
+    result: dict[str, list[LotteryProfile]] = {}
     for p in list_profiles():
         result.setdefault(p.category, []).append(p)
     # 保持已知分类的展示顺序
-    ordered: Dict[str, List[LotteryProfile]] = {}
+    ordered: dict[str, list[LotteryProfile]] = {}
     for cat in (LOTTERY_CATEGORY_WELFARE, LOTTERY_CATEGORY_SPORTS):
         if cat in result:
             ordered[cat] = result.pop(cat)

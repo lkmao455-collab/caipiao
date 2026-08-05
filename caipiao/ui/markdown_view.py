@@ -100,11 +100,13 @@ if _WEBENGINE_AVAILABLE and QWebEnginePage is not None:
     class _HelpWebPage(QWebEnginePage):
         """把外部链接交给系统浏览器，内部锚点/本地资源仍在视图内跳转."""
 
-        def acceptNavigationRequest(self, url, nav_type, is_main_frame):  # noqa: N802
-            if nav_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked:
-                if url.scheme() in ("http", "https", "mailto"):
-                    QDesktopServices.openUrl(url)
-                    return False
+        def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+            if (
+                nav_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked
+                and url.scheme() in ("http", "https", "mailto")
+            ):
+                QDesktopServices.openUrl(url)
+                return False
             return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
 

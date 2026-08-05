@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import pickle
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 
@@ -18,7 +17,7 @@ def _ensure_torch():
     global _torch_available
     if _torch_available is None:
         try:
-            import torch
+            import torch  # noqa: F401
             _torch_available = True
         except ImportError:
             _torch_available = False
@@ -44,7 +43,7 @@ class RedBallLSTM:
 
     def _build_model(self):
         import torch
-        import torch.nn as nn
+        from torch import nn
 
         self._device = torch.device("cpu")
 
@@ -70,7 +69,7 @@ class RedBallLSTM:
 
         self.model = LSTMModel(self.RED_COUNT, self.hidden_size, self.num_layers).to(self._device)
 
-    def _encode_reds_batch(self, red_records: List[List[int]]) -> np.ndarray:
+    def _encode_reds_batch(self, red_records: list[list[int]]) -> np.ndarray:
         """批量编码红球记录为 one-hot 矩阵 (n, 33)."""
         n = len(red_records)
         mat = np.zeros((n, self.RED_COUNT), dtype=np.float32)
@@ -98,7 +97,7 @@ class RedBallLSTM:
             (missing > 0.5).sum() / self.RED_COUNT,
         ], dtype=np.float32)
 
-    def _build_sequences(self, red_records: List[List[int]]) -> Tuple[np.ndarray, np.ndarray]:
+    def _build_sequences(self, red_records: list[list[int]]) -> tuple[np.ndarray, np.ndarray]:
         """向量化构建训练数据."""
         n = len(red_records)
         if n < self.seq_len + 1:
@@ -122,11 +121,11 @@ class RedBallLSTM:
 
         return X, y
 
-    def train(self, red_records: List[List[int]], epochs: int = 50, lr: float = 0.001,
+    def train(self, red_records: list[list[int]], epochs: int = 50, lr: float = 0.001,
               progress_callback=None):
         """训练模型."""
         import torch
-        import torch.nn as nn
+        from torch import nn
         from torch.utils.data import DataLoader, TensorDataset
 
         X, y = self._build_sequences(red_records)
@@ -166,7 +165,7 @@ class RedBallLSTM:
             progress_callback("红球LSTM: 训练完成")
         logger.info("红球 LSTM 训练完成")
 
-    def predict(self, recent_draws: List[List[int]]) -> np.ndarray:
+    def predict(self, recent_draws: list[list[int]]) -> np.ndarray:
         """预测下一期各红球出现概率."""
         import torch
 
@@ -200,7 +199,7 @@ class RedBallLSTM:
             pickle.dump(data, f)
 
     @classmethod
-    def load(cls, path: Path) -> "RedBallLSTM":
+    def load(cls, path: Path) -> RedBallLSTM:
         with path.open("rb") as f:
             data = pickle.load(f)
         instance = cls(

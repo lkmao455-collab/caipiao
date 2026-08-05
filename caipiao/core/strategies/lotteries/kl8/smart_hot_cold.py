@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import copy
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ....strategy import GenerationStrategy, StrategyMetadata
 from ....ticket import Ticket
@@ -31,7 +31,6 @@ from .stability import (
     stable_scores,
     weighted_sample_without_replacement,
 )
-
 
 # 智能冷热号策略默认选四（快乐8 选1-选10 共 10 种玩法）
 DEFAULT_PICK_COUNT = 4
@@ -59,7 +58,7 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "hot_weight": {"type": "int", "label": "热号权重", "default": 60, "min": 0, "max": 100},
@@ -90,14 +89,14 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         _add_pick_count_schema(schema, default_pick=DEFAULT_PICK_COUNT)
         return schema
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         history = options.get("history", [])
         if len(history) < 20:
             raise ValueError(f"{self.metadata.name} 策略需要至少 20 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = records_from_options(options)
@@ -145,7 +144,7 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "probabilities": probabilities,
             "chi_square": round(chi2_value, 2),
             "is_uniform": is_uniform,
@@ -156,11 +155,11 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
         dedup = bool(options.get("dedup", True))
 
         seen: set = set()
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         max_attempts = count * 50 if dedup else 1
         for _ in range(count):
-            selected: Optional[List[int]] = None
-            predicted_sorted: Optional[List[int]] = None
+            selected: list[int] | None = None
+            predicted_sorted: list[int] | None = None
             for _attempt in range(max_attempts):
                 # 预测20个候选号码（加权随机，每次不同），
                 # 购买号码从候选中按权重再选 pick 个
@@ -181,7 +180,7 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
             if selected is None:
                 # 兜底: 均匀随机抽样（不应常见，仅在 dedup 候选耗尽时触发）
                 selected = sorted(rng.sample(MAIN_POOL, pick))
-            groups: Dict[str, List[int]] = {primary.key: selected}
+            groups: dict[str, list[int]] = {primary.key: selected}
             self._fill_random_other(groups, rng)
             ticket_details = copy.deepcopy(details)
             if predicted_sorted is not None:
@@ -194,14 +193,14 @@ class KL8SmartHotColdStrategy(GenerationStrategy):
             )
         return tickets
 
-    def _make_rng(self, options: Dict[str, Any]) -> random.Random:
+    def _make_rng(self, options: dict[str, Any]) -> random.Random:
         """用户显式设置 seed 时可复现；未设置时真随机，每次生成结果不同。"""
         seed = options.get("seed")
         if seed is not None:
             return random.Random(int(seed))
         return random.Random()
 
-    def _fill_random_other(self, groups: Dict[str, List[int]], rng: random.Random) -> None:
+    def _fill_random_other(self, groups: dict[str, list[int]], rng: random.Random) -> None:
         for g in PROFILE.pick_groups:
             if g.key in groups:
                 continue

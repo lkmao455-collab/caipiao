@@ -7,18 +7,15 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import List, Optional, Tuple
+from datetime import datetime, timezone
 
 from ..calendar.heavenly_earthly import get_ganzhi_day, get_ganzhi_hour, get_shichen
 from .bagua import (
-    BAGUA,
     Trigram,
     get_trigram_by_yao,
     get_yao_from_number,
 )
 from .yijing import (
-    HEXAGRAMS,
     Hexagram,
     get_changed_hexagram,
     get_hexagram,
@@ -31,17 +28,17 @@ class DivinationResult:
     """占卜结果."""
 
     hexagram: Hexagram               # 本卦
-    changed_hexagram: Optional[Hexagram]  # 变卦
-    yao: Tuple[int, ...]             # 六爻（从下到上，1=阳，0=阴，2=老阳，3=老阴）
+    changed_hexagram: Hexagram | None  # 变卦
+    yao: tuple[int, ...]             # 六爻（从下到上，1=阳，0=阴，2=老阳，3=老阴）
     method: str                      # 起卦方法
     time_str: str                    # 起卦时间描述
     upper_trigram: Trigram           # 上卦
     lower_trigram: Trigram           # 下卦
-    moving_yao: List[int]            # 动爻位置（0-based）
+    moving_yao: list[int]            # 动爻位置（0-based）
     analysis: str                    # 卦象分析
-    recommended_numbers: List[int] = field(default_factory=list)  # 推荐号码
+    recommended_numbers: list[int] = field(default_factory=list)  # 推荐号码
 
-    def yao_display(self) -> List[str]:
+    def yao_display(self) -> list[str]:
         """返回六爻显示文本."""
         return get_yao_positions(self.yao)
 
@@ -94,7 +91,7 @@ def time_divination(
     Returns:
         DivinationResult 占卜结果
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc).astimezone()
     year = year or now.year
     month = month or now.month
     day = day or now.day
@@ -164,6 +161,33 @@ def time_divination(
 # 随机起卦
 # ──────────────────────────────────────────────────────────────────────
 
+def batch_time_divination(
+    year: int | None = None,
+    month: int | None = None,
+    day: int | None = None,
+    hours: list[int] | None = None,
+) -> list[DivinationResult]:
+    """批量时间起卦，为每个指定的小时生成一组卦象.
+
+    Args:
+        year: 公历年（默认当前年）
+        month: 公历月（默认当前月）
+        day: 公历日（默认当日）
+        hours: 小时列表（24小时制），每个小时生成一卦
+
+    Returns:
+        DivinationResult 列表
+    """
+    if not hours:
+        return [time_divination(year, month, day)]
+
+    results = []
+    for h in hours:
+        result = time_divination(year, month, day, hour=h)
+        results.append(result)
+    return results
+
+
 def random_divination(seed: int | None = None) -> DivinationResult:
     """随机起卦.
 
@@ -213,7 +237,7 @@ def random_divination(seed: int | None = None) -> DivinationResult:
 
     changed = get_changed_hexagram(yao_tuple)
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc).astimezone()
     time_str = f"{now.year}年{now.month}月{now.day}日 {now.hour}时{now.minute}分"
 
     analysis = _generate_analysis(hexagram, changed, upper_trigram, lower_trigram, moving_yao, "random")
@@ -233,7 +257,7 @@ def random_divination(seed: int | None = None) -> DivinationResult:
     )
 
 
-def manual_divination(yao_values: List[int]) -> DivinationResult:
+def manual_divination(yao_values: list[int]) -> DivinationResult:
     """手动输入爻象起卦.
 
     Args:
@@ -262,7 +286,7 @@ def manual_divination(yao_values: List[int]) -> DivinationResult:
 
     changed = get_changed_hexagram(yao_tuple)
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc).astimezone()
     time_str = f"{now.year}年{now.month}月{now.day}日 {now.hour}时{now.minute}分"
 
     analysis = _generate_analysis(hexagram, changed, upper_trigram, lower_trigram, [], "manual")
@@ -288,10 +312,10 @@ def manual_divination(yao_values: List[int]) -> DivinationResult:
 
 def _generate_analysis(
     hexagram: Hexagram,
-    changed: Optional[Hexagram],
+    changed: Hexagram | None,
     upper: Trigram,
     lower: Trigram,
-    moving_yao: int | List[int],
+    moving_yao: int | list[int],
     method: str,
 ) -> str:
     """生成卦象分析."""
@@ -353,7 +377,7 @@ def _get_wuxing_relation(element1: str, element2: str) -> str:
         return "五行关系需结合具体分析"
 
 
-def _generate_numbers(yao: tuple[int, ...], hexagram: Hexagram) -> List[int]:
+def _generate_numbers(yao: tuple[int, ...], hexagram: Hexagram) -> list[int]:
     """根据卦象生成推荐号码.
 
     基于先天八卦数和爻象推算：

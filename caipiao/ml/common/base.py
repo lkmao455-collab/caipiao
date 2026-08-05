@@ -14,8 +14,9 @@ from __future__ import annotations
 import logging
 import pickle
 import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 # 后端工厂 -------------------------------------------------------------- #
-def _create_xgb_classifier(temp_dir: Optional[str] = None) -> Any:
+def _create_xgb_classifier(temp_dir: str | None = None) -> Any:
     import xgboost as xgb
 
     return xgb.XGBClassifier(
@@ -45,7 +46,7 @@ def _create_xgb_classifier(temp_dir: Optional[str] = None) -> Any:
     )
 
 
-def _create_lgbm_classifier(temp_dir: Optional[str] = None) -> Any:
+def _create_lgbm_classifier(temp_dir: str | None = None) -> Any:
     import lightgbm as lgb
 
     return lgb.LGBMClassifier(
@@ -64,7 +65,7 @@ def _create_lgbm_classifier(temp_dir: Optional[str] = None) -> Any:
     )
 
 
-def _create_catboost_classifier(temp_dir: Optional[str] = None) -> Any:
+def _create_catboost_classifier(temp_dir: str | None = None) -> Any:
     from catboost import CatBoostClassifier
 
     return CatBoostClassifier(
@@ -94,14 +95,14 @@ class LotteryGenericModel:
         profile: LotteryProfile,
         lookback: int = 50,
         backend: str = "xgboost",
-        temp_dir: Optional[str] = None,
+        temp_dir: str | None = None,
     ) -> None:
         self.profile = profile
         self.lookback = lookback
         self.backend = backend
         self.temp_dir = temp_dir
-        self.group_models: Dict[str, List[Any]] = {}
-        self._base_feature_dim: Optional[int] = None
+        self.group_models: dict[str, list[Any]] = {}
+        self._base_feature_dim: int | None = None
         self.is_trained = False
 
     def _create_classifier(self, positional: bool = False, num_class: int = 0) -> Any:
@@ -132,15 +133,15 @@ class LotteryGenericModel:
 
     def _build_sequence_training_data(
         self, X: np.ndarray, y: np.ndarray, group: NumberGroup
-    ) -> Tuple[np.ndarray, np.ndarray, LabelEncoder]:
+    ) -> tuple[np.ndarray, np.ndarray, LabelEncoder]:
         """从 one-hot 标签构造顺序生成训练数据.
 
         对每期开奖，将号码按升序排列，依次生成 count 个子样本：
         输入 = [历史特征, 已选号码 mask, 当前步数]
         标签 = 下一个号码的索引。
         """
-        X_seq: List[np.ndarray] = []
-        y_seq: List[int] = []
+        X_seq: list[np.ndarray] = []
+        y_seq: list[int] = []
         for i in range(X.shape[0]):
             nums = [idx for idx, val in enumerate(y[i]) if val]
             nums.sort()
@@ -156,8 +157,8 @@ class LotteryGenericModel:
     def fit(
         self,
         X: np.ndarray,
-        y_dict: Dict[str, np.ndarray],
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        y_dict: dict[str, np.ndarray],
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
         if X.shape[0] == 0:
             raise ValueError("训练数据为空")
@@ -166,7 +167,7 @@ class LotteryGenericModel:
         self._base_feature_dim = X.shape[1]
 
         total_steps = 0
-        plan: List[Tuple[str, Any]] = []  # (group_key, task_description)
+        plan: list[tuple[str, Any]] = []  # (group_key, task_description)
         for g in self.profile.groups:
             y = y_dict.get(g.key)
             if y is None or y.ndim != 2 or y.shape[0] != X.shape[0]:
@@ -185,7 +186,7 @@ class LotteryGenericModel:
         self.group_models = {}
         for g in self.profile.groups:
             y = y_dict[g.key]
-            models: List[Any] = []
+            models: list[Any] = []
             if g.positional:
                 # 每个位置一个多分类器
                 for pos in range(g.count):
@@ -259,13 +260,13 @@ class LotteryGenericModel:
         full = full / full.sum()
         return full
 
-    def predict_proba(self, X: np.ndarray) -> Dict[str, np.ndarray]:
+    def predict_proba(self, X: np.ndarray) -> dict[str, np.ndarray]:
         if not self.is_trained:
             raise RuntimeError("模型尚未训练")
         if self._base_feature_dim is None:
             raise RuntimeError("模型未记录基础特征维度")
 
-        result: Dict[str, np.ndarray] = {}
+        result: dict[str, np.ndarray] = {}
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -299,7 +300,7 @@ class LotteryGenericModel:
                     result[g.key] = np.array(probs)
                 elif self._is_combination_group(g):
                     # 顺序生成模型：返回 step=0 的初始概率
-                    tag, model, encoder, _ = models[0]
+                    _tag, model, encoder, _ = models[0]
                     result[g.key] = self._predict_sequence_initial(model, encoder, g, X)
                 else:
                     probs = []
@@ -317,18 +318,18 @@ class LotteryGenericModel:
         X_pred: np.ndarray,
         group: NumberGroup,
         rng: np.random.RandomState,
-    ) -> List[int]:
+    ) -> list[int]:
         """对组合组使用顺序生成模型采样一个合法组合."""
         if not self.is_trained:
             raise RuntimeError("模型尚未训练")
         if not self._is_combination_group(group):
             raise ValueError(f"组 {group.key} 不是组合组，不能使用顺序采样")
         models = self.group_models[group.key]
-        tag, model, encoder, count = models[0]
-        if tag != "sequence":
+        _tag, model, encoder, count = models[0]
+        if _tag != "sequence":
             raise RuntimeError(f"组 {group.key} 未使用顺序生成模型")
 
-        selected: List[int] = []
+        selected: list[int] = []
         mask = np.zeros(group.size, dtype=np.float32)
         for step in range(count):
             x = self._build_sequence_input(X_pred, group, mask, step).reshape(1, -1)

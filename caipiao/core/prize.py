@@ -6,10 +6,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
-def _ssq_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+def _ssq_prize(hits: dict[str, int]) -> tuple[str, int | None]:
     """双色球奖金：返回 (奖级描述, 固定奖金 or None)。"""
     red = hits.get("red", 0)
     blue = hits.get("blue", 0)
@@ -29,11 +29,11 @@ def _ssq_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
 
 
 def _fc3d_prize(
-    hits: Dict[str, int],
-    ticket_groups: Dict[str, List[int]],
-    actual_groups: Optional[Dict[str, List[int]]] = None,
-    details: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, int | None]:
+    hits: dict[str, int],
+    ticket_groups: dict[str, list[int]],
+    actual_groups: dict[str, list[int]] | None = None,
+    details: dict[str, Any] | None = None,
+) -> tuple[str, int | None]:
     """福彩3D奖金：按投注方式（直选/组选）与形态判断。
 
     - bet_mode == "直选"：3 位数字及顺序与开奖完全相同才中奖（1040）。
@@ -99,7 +99,7 @@ _KL8_PRIZES = {
 }
 
 
-def _kl8_prize(hits: Dict[str, int], groups: Dict[str, List[int]]) -> Tuple[str, int | None]:
+def _kl8_prize(hits: dict[str, int], groups: dict[str, list[int]]) -> tuple[str, int | None]:
     """快乐8奖金：根据投注个数与命中个数查表。"""
     pick = len(groups.get("main", []))
     hit = hits.get("main", 0)
@@ -109,7 +109,7 @@ def _kl8_prize(hits: Dict[str, int], groups: Dict[str, List[int]]) -> Tuple[str,
     return ("未中奖", 0)
 
 
-def _dlt_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+def _dlt_prize(hits: dict[str, int]) -> tuple[str, int | None]:
     """超级大乐透奖金：前区命中 + 后区命中。"""
     front = hits.get("front", 0)
     back = hits.get("back", 0)
@@ -140,10 +140,10 @@ def _dlt_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
 
 
 def _pl3_prize(
-    hits: Dict[str, int],
-    ticket_groups: Dict[str, List[int]],
-    actual_groups: Optional[Dict[str, List[int]]] = None,
-) -> Tuple[str, int | None]:
+    hits: dict[str, int],
+    ticket_groups: dict[str, list[int]],
+    actual_groups: dict[str, list[int]] | None = None,
+) -> tuple[str, int | None]:
     """排列3奖金：与福彩3D规则相同（直选/组选3/组选6）。"""
     if actual_groups is None:
         return ("未中奖", 0)
@@ -166,7 +166,7 @@ def _pl3_prize(
     return ("未中奖", 0)
 
 
-def _pl5_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+def _pl5_prize(hits: dict[str, int]) -> tuple[str, int | None]:
     """排列5奖金：仅直选，5 位全部匹配。"""
     if hits.get("pos", 0) == 5:
         return ("直选", 100000)
@@ -174,10 +174,10 @@ def _pl5_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
 
 
 def _qxc_prize(
-    hits: Dict[str, int],
-    ticket_groups: Dict[str, List[int]],
-    actual_groups: Optional[Dict[str, List[int]]] = None,
-) -> Tuple[str, int | None]:
+    hits: dict[str, int],
+    ticket_groups: dict[str, list[int]],
+    actual_groups: dict[str, list[int]] | None = None,
+) -> tuple[str, int | None]:
     """7星彩奖金：按从右到左连续命中位数判定。"""
     if actual_groups is None:
         return ("未中奖", 0)
@@ -210,7 +210,7 @@ def _qxc_prize(
     return ("未中奖", 0)
 
 
-def _gd36x7_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
+def _gd36x7_prize(hits: dict[str, int]) -> tuple[str, int | None]:
     """广东36选7奖金：与七乐彩规则相同，仅号池为 1-36。"""
     basic = hits.get("basic", 0)
     special = hits.get("special", 0)
@@ -231,7 +231,7 @@ def _gd36x7_prize(hits: Dict[str, int]) -> Tuple[str, int | None]:
     return ("未中奖", 0)
 
 
-def fc3d_bet_type(numbers: List[int]) -> str:
+def fc3d_bet_type(numbers: list[int]) -> str:
     """根据福彩3D投注号码判断可购买的投注方式。
 
     规则：
@@ -253,11 +253,11 @@ def fc3d_bet_type(numbers: List[int]) -> str:
 
 def calculate_prize(
     profile_key: str,
-    hits: Dict[str, int],
-    ticket_groups: Dict[str, List[int]],
-    actual_groups: Optional[Dict[str, List[int]]] = None,
-    details: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, int | None]:
+    hits: dict[str, int],
+    ticket_groups: dict[str, list[int]],
+    actual_groups: dict[str, list[int]] | None = None,
+    details: dict[str, Any] | None = None,
+) -> tuple[str, int | None]:
     """根据彩种、命中数、投注号码与真实开奖号码计算理论奖金。
 
     Args:

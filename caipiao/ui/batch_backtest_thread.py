@@ -15,25 +15,23 @@ from __future__ import annotations
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
-from .batch_backtest_result import BatchBacktestResult
-from ..core.backtest_worker import merge_round_results, worker_round_backtest
-from .batch_backtest_worker import init_worker_process
 from ..core.backtest_data import RoundBacktestContext, RoundTask
-from .components.ball_display import compute_highlight_map
+from ..core.backtest_worker import merge_round_results, worker_round_backtest
 from ..core.engine import GenerationEngine
 from ..core.profile import LotteryProfile
 from ..core.strategies import is_ml_strategy, needs_history
 from ..data.repository import DrawRepository
-
+from .batch_backtest_worker import init_worker_process
+from .components.ball_display import compute_highlight_map
 
 _DEFAULT_MAX_WORKERS = max(1, min(os.cpu_count() // 2, 4))
 
 
-def _normalize_max_workers(value: Any, cpu_count: Optional[int] = None) -> int:
+def _normalize_max_workers(value: Any, cpu_count: int | None = None) -> int:
     """校验并归一化 worker 数量.
 
     - 转换为整数，失败时使用默认值。
@@ -68,8 +66,8 @@ class BatchBacktestThread(QThread):
         start_date: datetime,
         end_date: datetime,
         tickets_per_round: int,
-        options: Dict[str, Any],
-        plugin_dir: Optional[str] = None,
+        options: dict[str, Any],
+        plugin_dir: str | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -151,7 +149,7 @@ class BatchBacktestThread(QThread):
                         errors.append(result.error)
                     else:
                         # 还原旧版 round_ready 信号契约：第三个参数为中奖详情字典列表
-                        round_winners: List[Dict[str, Any]] = []
+                        round_winners: list[dict[str, Any]] = []
                         for t_idx in result.winners:
                             ticket = result.tickets[t_idx]
                             tr = result.ticket_results[t_idx]

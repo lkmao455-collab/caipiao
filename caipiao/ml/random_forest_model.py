@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import logging
 import pickle
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -25,13 +25,13 @@ RED_PICK = 6
 class LotteryRandomForestModel:
     """基于随机森林的彩票号码分析模型."""
 
-    def __init__(self, lookback: int = 50, temp_dir: Optional[str] = None) -> None:
+    def __init__(self, lookback: int = 50, temp_dir: str | None = None) -> None:
         self.lookback = lookback
         self.temp_dir = temp_dir
-        self.red_sequence_model: Optional[RandomForestClassifier] = None
-        self.red_sequence_encoder: Optional[LabelEncoder] = None
-        self.blue_model: Optional[MultiOutputClassifier] = None
-        self._base_feature_dim: Optional[int] = None
+        self.red_sequence_model: RandomForestClassifier | None = None
+        self.red_sequence_encoder: LabelEncoder | None = None
+        self.blue_model: MultiOutputClassifier | None = None
+        self._base_feature_dim: int | None = None
         self.is_trained = False
 
     def _create_classifier(
@@ -61,9 +61,9 @@ class LotteryRandomForestModel:
 
     def _build_sequence_training_data(
         self, X: np.ndarray, y_red: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, LabelEncoder]:
-        X_seq: List[np.ndarray] = []
-        y_seq: List[int] = []
+    ) -> tuple[np.ndarray, np.ndarray, LabelEncoder]:
+        X_seq: list[np.ndarray] = []
+        y_seq: list[int] = []
         for i in range(X.shape[0]):
             nums = [idx for idx, val in enumerate(y_red[i]) if val]
             nums.sort()
@@ -81,7 +81,7 @@ class LotteryRandomForestModel:
         X: np.ndarray,
         y_red: np.ndarray,
         y_blue: np.ndarray,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> None:
         if X.shape[0] == 0:
             raise ValueError("训练数据为空")
@@ -119,7 +119,7 @@ class LotteryRandomForestModel:
 
     def predict_proba(
         self, X: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         if not self.is_trained:
             raise RuntimeError("模型尚未训练")
 
@@ -137,12 +137,12 @@ class LotteryRandomForestModel:
         X_pred: np.ndarray,
         count: int,
         rng: np.random.RandomState,
-    ) -> List[int]:
+    ) -> list[int]:
         """使用顺序生成模型采样 count 个不重复红球."""
         if not self.is_trained:
             raise RuntimeError("模型尚未训练")
         encoder = self.red_sequence_encoder
-        selected: List[int] = []
+        selected: list[int] = []
         mask = np.zeros(RED_COUNT, dtype=np.float32)
         for step in range(count):
             x = self._build_sequence_input(X_pred, mask, step).reshape(1, -1)
@@ -165,7 +165,7 @@ class LotteryRandomForestModel:
             mask[next_idx] = 1.0
         return [idx + 1 for idx in selected]
 
-    def feature_importance(self) -> Tuple[np.ndarray, np.ndarray]:
+    def feature_importance(self) -> tuple[np.ndarray, np.ndarray]:
         """返回特征重要性（红球模型平均）."""
         if not self.is_trained:
             return np.array([]), np.array([])

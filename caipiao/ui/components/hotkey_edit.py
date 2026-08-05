@@ -9,7 +9,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -51,7 +50,7 @@ class HotkeyEdit(QWidget):
         self.edit.clear()
         self.hotkey_changed.emit("")
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         key = event.key()
         self._pressed_keys.add(key)
 
@@ -84,15 +83,15 @@ class HotkeyEdit(QWidget):
 
         event.accept()
 
-    def keyReleaseEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:
         self._pressed_keys.discard(event.key())
         event.accept()
 
-    def focusInEvent(self, event) -> None:  # noqa: N802
+    def focusInEvent(self, event) -> None:
         self.edit.setPlaceholderText("请按下快捷键组合（如 Ctrl+Shift+B）...")
         super().focusInEvent(event)
 
-    def focusOutEvent(self, event) -> None:  # noqa: N802
+    def focusOutEvent(self, event) -> None:
         self.edit.setPlaceholderText("点击此处并按快捷键...")
         super().focusOutEvent(event)
 

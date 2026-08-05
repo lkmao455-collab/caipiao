@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ...core.ball import Ball, BallColor
 from ...core.prize import fc3d_bet_type
@@ -55,7 +62,7 @@ class BallWidget(QFrame):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: ARG002
+    def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 

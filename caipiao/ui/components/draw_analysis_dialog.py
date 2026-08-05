@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any
 
-from PySide6.QtCore import Qt, QElapsedTimer, QThread, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, Qt, QThread, QTimer, Signal
 
 logger = logging.getLogger(__name__)
 from PySide6.QtWidgets import (
@@ -63,7 +64,7 @@ class _AnalysisWorker(QThread):
 
     def __init__(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         profile: LotteryProfile,
         max_gap: int,
     ) -> None:
@@ -107,7 +108,7 @@ class GroupOverlapStats:
     group_name: str = ""
     total_pairs: int = 0
     # 相同个数 -> 次数
-    same_counts: Dict[int, int] = field(default_factory=dict)
+    same_counts: dict[int, int] = field(default_factory=dict)
 
     def same_ratio(self, n: int) -> float:
         return self.same_counts.get(n, 0) / max(self.total_pairs, 1) * 100
@@ -123,7 +124,7 @@ class GroupGapStats:
     group_name: str = ""
     gap: int = 1
     total_pairs: int = 0
-    same_counts: Dict[int, int] = field(default_factory=dict)
+    same_counts: dict[int, int] = field(default_factory=dict)
 
     def same_ratio(self, n: int) -> float:
         return self.same_counts.get(n, 0) / max(self.total_pairs, 1) * 100
@@ -140,8 +141,8 @@ class AdjacentStats:
     """
 
     total_pairs: int = 0
-    group_stats: Dict[str, GroupOverlapStats] = field(default_factory=dict)
-    gap_stats: Dict[str, Dict[int, GroupGapStats]] = field(default_factory=dict)
+    group_stats: dict[str, GroupOverlapStats] = field(default_factory=dict)
+    gap_stats: dict[str, dict[int, GroupGapStats]] = field(default_factory=dict)
 
 
 @dataclass
@@ -165,7 +166,7 @@ def _init_gap_stats(
     key: str,
     group_name: str,
     max_count: int,
-    gaps: List[int],
+    gaps: list[int],
 ) -> None:
     """初始化间隔统计桶."""
     if key not in stats.gap_stats:
@@ -176,7 +177,7 @@ def _init_gap_stats(
             group_name=group_name,
             gap=gap,
             total_pairs=total_pairs,
-            same_counts={i: 0 for i in range(0, max_count + 1)},
+            same_counts={i: 0 for i in range(max_count + 1)},
         )
 
 
@@ -190,11 +191,11 @@ def _ensure_gap_stats(stats: AdjacentStats, key: str, group_name: str, max_count
             group_name=group_name,
             gap=gap,
             total_pairs=total_pairs,
-            same_counts={i: 0 for i in range(0, max_count + 1)},
+            same_counts={i: 0 for i in range(max_count + 1)},
         )
 
 
-def _compute_overlap_ssq(base: DrawRecord, curr: DrawRecord) -> Tuple[int, bool]:
+def _compute_overlap_ssq(base: DrawRecord, curr: DrawRecord) -> tuple[int, bool]:
     """计算双色球 base 与 curr 的红球重叠数、蓝球是否相同."""
     base_reds = set(base.groups.get("red", []))
     curr_reds = set(curr.groups.get("red", []))
@@ -211,7 +212,7 @@ def _compute_overlap_basic_special(
     curr: DrawRecord,
     basic_group: NumberGroup,
     special_group: NumberGroup,
-) -> Tuple[int, bool]:
+) -> tuple[int, bool]:
     """计算广东36选7 base 与 curr 的基本号重叠数、特别号是否相同."""
     base_basic = set(base.groups.get(basic_group.key, []))
     curr_basic = set(curr.groups.get(basic_group.key, []))
@@ -237,7 +238,7 @@ def _compute_overlap_generic(base: DrawRecord, curr: DrawRecord, group: NumberGr
 
 
 def _analyze_incremental_ssq(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     stats: AdjacentStats,
     prev_max_gap: int,
     new_max_gap: int,
@@ -282,14 +283,13 @@ def _analyze_incremental_ssq(
             stats.gap_stats["red"][gap].total_pairs = max(0, stats.total_pairs - gap)
             stats.gap_stats["blue"][gap].total_pairs = max(0, stats.total_pairs - gap)
             # 最新一条记录是 records[-1]，它需要与前 gap 条记录配对
-            curr = records[-1]
+            # curr = records[-1]  # unused
             for i in range(gap + 1):
                 base_idx = total - 1 - gap - 1 + i
                 if base_idx < 0:
                     continue
                 # 我们只需要新增的对子：base 索引 > 上一次最后一条索引 - gap - 1
                 # 更简单：只比较 base 为 total - gap - 1 到 total - 2 的那些
-                pass
             # 实际上新增的对子是 (total - gap - 1, total - 1) ... (total - 2, total - 1)
             # 但为了避免重复统计，只处理 base 索引 >= old_total_pairs - gap 的部分
             start_base = max(gap, old_total_pairs - gap)
@@ -299,12 +299,12 @@ def _analyze_incremental_ssq(
                 stats.gap_stats["blue"][gap].same_counts[1 if blue_same else 0] += 1
 
 
-def _analyze_adjacent_ssq(records: List[DrawRecord], max_gap: int = 7,
-                          should_interrupt: Optional[Callable[[], bool]] = None) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+def _analyze_adjacent_ssq(records: list[DrawRecord], max_gap: int = 7,
+                          should_interrupt: Callable[[], bool] | None = None) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """双色球：红球 0-6 个相同，蓝球是否相同；并补充间隔 1..max_gap 期统计。"""
     stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
     stats.group_stats["red"] = GroupOverlapStats(group_name="红球", total_pairs=stats.total_pairs,
-                                                  same_counts={i: 0 for i in range(0, 7)})
+                                                  same_counts={i: 0 for i in range(7)})
     stats.group_stats["blue"] = GroupOverlapStats(group_name="蓝球", total_pairs=stats.total_pairs)
     blue_same_count = 0
 
@@ -312,7 +312,7 @@ def _analyze_adjacent_ssq(records: List[DrawRecord], max_gap: int = 7,
     _init_gap_stats(stats, "red", "红球", 6, gaps)
     _init_gap_stats(stats, "blue", "蓝球", 1, gaps)
 
-    details: List[Dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
     if not records:
         return stats, details
 
@@ -347,11 +347,11 @@ def _analyze_adjacent_ssq(records: List[DrawRecord], max_gap: int = 7,
 
 
 def _analyze_adjacent_positional(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     group: NumberGroup,
     max_gap: int = 7,
-    should_interrupt: Optional[Callable[[], bool]] = None,
-) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    should_interrupt: Callable[[], bool] | None = None,
+) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """按位数字彩种（福彩3D/排列3/排列5/7星彩）：统计每位相同个数，并补充间隔统计。
 
     Args:
@@ -361,12 +361,12 @@ def _analyze_adjacent_positional(
     stats.group_stats[group.key] = GroupOverlapStats(
         group_name=group.name,
         total_pairs=stats.total_pairs,
-        same_counts={i: 0 for i in range(0, group.count + 1)},
+        same_counts={i: 0 for i in range(group.count + 1)},
     )
     gaps = list(range(1, max_gap + 1))
     _init_gap_stats(stats, group.key, group.name, group.count, gaps)
 
-    details: List[Dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
     if not records:
         return stats, details
 
@@ -400,15 +400,15 @@ def _analyze_adjacent_positional(
     return stats, details
 
 
-def _analyze_adjacent_basic_special(records: List[DrawRecord], basic_group: NumberGroup,
+def _analyze_adjacent_basic_special(records: list[DrawRecord], basic_group: NumberGroup,
                                     special_group: NumberGroup, max_gap: int = 7,
-                                    should_interrupt: Optional[Callable[[], bool]] = None) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+                                    should_interrupt: Callable[[], bool] | None = None) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """基本号+特别号彩种（广东36选7）：基本号 0-N 个相同，特别号是否相同，并补充间隔统计。"""
     stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
     stats.group_stats["basic"] = GroupOverlapStats(
         group_name=basic_group.name,
         total_pairs=stats.total_pairs,
-        same_counts={i: 0 for i in range(0, basic_group.count + 1)},
+        same_counts={i: 0 for i in range(basic_group.count + 1)},
     )
     stats.group_stats["special"] = GroupOverlapStats(group_name=special_group.name, total_pairs=stats.total_pairs)
     special_same_count = 0
@@ -417,7 +417,7 @@ def _analyze_adjacent_basic_special(records: List[DrawRecord], basic_group: Numb
     _init_gap_stats(stats, "basic", basic_group.name, basic_group.count, gaps)
     _init_gap_stats(stats, "special", special_group.name, 1, gaps)
 
-    details: List[Dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
     if not records:
         return stats, details
 
@@ -453,19 +453,19 @@ def _analyze_adjacent_basic_special(records: List[DrawRecord], basic_group: Numb
     return stats, details
 
 
-def _analyze_adjacent_main(records: List[DrawRecord], group: NumberGroup, max_gap: int = 7,
-                           should_interrupt: Optional[Callable[[], bool]] = None) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+def _analyze_adjacent_main(records: list[DrawRecord], group: NumberGroup, max_gap: int = 7,
+                           should_interrupt: Callable[[], bool] | None = None) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """快乐8：开奖 20 个号码，统计相邻期相同号码个数分布，并补充间隔统计。"""
     stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
     stats.group_stats[group.key] = GroupOverlapStats(
         group_name=group.name,
         total_pairs=stats.total_pairs,
-        same_counts={i: 0 for i in range(0, group.count + 1)},
+        same_counts={i: 0 for i in range(group.count + 1)},
     )
     gaps = list(range(1, max_gap + 1))
     _init_gap_stats(stats, group.key, group.name, group.count, gaps)
 
-    details: List[Dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
     if not records:
         return stats, details
 
@@ -496,11 +496,11 @@ def _analyze_adjacent_main(records: List[DrawRecord], group: NumberGroup, max_ga
 
 
 def _analyze_adjacent(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     profile: LotteryProfile,
     max_gap: int = 7,
-    should_interrupt: Optional[Callable[[], bool]] = None,
-) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    should_interrupt: Callable[[], bool] | None = None,
+) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """根据彩种档案选择对应的相邻期分析器，并统一补充间隔 1..max_gap 期统计。"""
     if profile.key == "ssq":
         return _analyze_adjacent_ssq(records, max_gap, should_interrupt=should_interrupt)
@@ -522,7 +522,7 @@ def _analyze_adjacent(
 
     # 未知彩种退化为通用：分析所有 pick_groups
     stats = AdjacentStats(total_pairs=max(0, len(records) - 1))
-    details: List[Dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
     if not records:
         return stats, details
 
@@ -532,7 +532,7 @@ def _analyze_adjacent(
         stats.group_stats[g.key] = GroupOverlapStats(
             group_name=g.name,
             total_pairs=stats.total_pairs,
-            same_counts={i: 0 for i in range(0, g.count + 1)},
+            same_counts={i: 0 for i in range(g.count + 1)},
         )
         _init_gap_stats(stats, g.key, g.name, g.count, gaps)
     details.append({g.key: None for g in profile.pick_groups})
@@ -543,7 +543,7 @@ def _analyze_adjacent(
         if i % 100 == 0:
 
             time.sleep(0.05)
-        detail: Dict[str, Any] = {}
+        detail: dict[str, Any] = {}
         for g in profile.pick_groups:
             if g.positional:
                 prev = records[i - 1].groups.get(g.key, [])
@@ -572,11 +572,11 @@ def _analyze_adjacent(
 
 
 def _analyze_adjacent_chunked(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     profile: LotteryProfile,
     max_gap: int = 7,
-    should_interrupt: Optional[Callable[[], bool]] = None,
-) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    should_interrupt: Callable[[], bool] | None = None,
+) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """分片包装：每处理完一个间隔 gap 就检查一次中断，保持 UI 响应。
 
     目前直接委托给各彩种分析器，分析器内部已实现 gap 级别的中断检查。
@@ -592,7 +592,7 @@ def _compute_filter_impact(
     key: str,
     gap: int,
     threshold: int,
-) -> Optional[FilterImpactResult]:
+) -> FilterImpactResult | None:
     """计算指定号码组在指定间隔和阈值下的过滤影响.
 
     Args:
@@ -634,7 +634,7 @@ def _compute_filter_impact(
 
 def _get_overlap_numbers_ssq(
     base: DrawRecord, curr: DrawRecord,
-) -> Tuple[Set[int], Optional[int]]:
+) -> tuple[set[int], int | None]:
     """获取双色球两期之间重叠的红球号码和相同的蓝球."""
     base_reds = set(base.groups.get("red", []))
     curr_reds = set(curr.groups.get("red", []))
@@ -649,7 +649,7 @@ def _get_overlap_numbers_ssq(
 def _get_overlap_numbers_basic_special(
     base: DrawRecord, curr: DrawRecord,
     basic_group: NumberGroup, special_group: NumberGroup,
-) -> Tuple[Set[int], Optional[int]]:
+) -> tuple[set[int], int | None]:
     """获取广东36选7两期之间重叠的基本号和相同的特别号."""
     base_basic = set(base.groups.get(basic_group.key, []))
     curr_basic = set(curr.groups.get(special_group.key, []))
@@ -663,7 +663,7 @@ def _get_overlap_numbers_basic_special(
 
 def _get_overlap_numbers_positional(
     base: DrawRecord, curr: DrawRecord, group_key: str,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """获取按位彩种两期之间同位相同的号码对."""
     base_nums = base.groups.get(group_key, [])
     curr_nums = curr.groups.get(group_key, [])
@@ -672,7 +672,7 @@ def _get_overlap_numbers_positional(
 
 def _get_overlap_numbers_generic(
     base: DrawRecord, curr: DrawRecord, group: NumberGroup,
-) -> Set[int]:
+) -> set[int]:
     """获取通用彩种两期之间重叠的号码."""
     if group.positional:
         base_nums = base.groups.get(group.key, [])
@@ -682,10 +682,10 @@ def _get_overlap_numbers_generic(
 
 
 def _compute_number_frequencies(
-    records: List[DrawRecord], group_key: str,
-) -> Dict[int, int]:
+    records: list[DrawRecord], group_key: str,
+) -> dict[int, int]:
     """统计每个号码在所有记录中出现的次数."""
-    freq: Dict[int, int] = {}
+    freq: dict[int, int] = {}
     for record in records:
         nums = record.groups.get(group_key, [])
         for n in nums:
@@ -694,8 +694,8 @@ def _compute_number_frequencies(
 
 
 def _build_detailed_filter_text(
-    records: List[DrawRecord],
-    profile: 'LotteryProfile',
+    records: list[DrawRecord],
+    profile: LotteryProfile,
     max_gap: int,
     threshold: int,
 ) -> str:
@@ -713,13 +713,13 @@ def _build_detailed_filter_text(
     if not records or len(records) < 2:
         return "  数据不足，无法进行详细分析"
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("═" * 50)
     lines.append(f"  详细过滤影响分析（阈值: 重合 > {threshold} 则过滤）")
     lines.append("═" * 50)
 
     # 确定要分析的号码组
-    groups_to_analyze: List[Tuple[str, str, NumberGroup]] = []
+    groups_to_analyze: list[tuple[str, str, NumberGroup]] = []
     if profile.key == "ssq":
         groups_to_analyze.append(("red", "红球", profile.group("red")))
     elif profile.key in ("gd36x7",):
@@ -748,10 +748,10 @@ def _build_detailed_filter_text(
         lines.append(f"  过滤前频率: {', '.join(f'{n}({freq_before[n]})' for n in sorted_nums)}")
 
         # 对每个 gap 级别进行详细分析
-        for gap in range(0, max_gap + 1):
+        for gap in range(max_gap + 1):
             filtered_pairs = []
-            filtered_numbers: Dict[int, int] = {}  # 号码 -> 被过滤次数
-            retained_numbers: Dict[int, int] = {}  # 号码 -> 保留次数
+            filtered_numbers: dict[int, int] = {}  # 号码 -> 被过滤次数
+            retained_numbers: dict[int, int] = {}  # 号码 -> 保留次数
 
             # 遍历所有 draw 对
             for i in range(gap + 1, len(records)):
@@ -761,7 +761,7 @@ def _build_detailed_filter_text(
 
                 # 计算重叠
                 overlap_count = 0
-                overlap_nums: Set[int] = set()
+                overlap_nums: set[int] = set()
                 if profile.key == "ssq" and group_key == "red":
                     overlap_nums, _ = _get_overlap_numbers_ssq(base, curr)
                     overlap_count = len(overlap_nums)
@@ -805,7 +805,7 @@ def _build_detailed_filter_text(
 
             # 显示被过滤号码的频率
             if filtered_numbers:
-                lines.append(f"  被过滤号码出现次数:")
+                lines.append("  被过滤号码出现次数:")
                 for n in sorted(filtered_numbers.keys()):
                     before = freq_before.get(n, 0)
                     after = before - filtered_numbers[n]
@@ -813,7 +813,7 @@ def _build_detailed_filter_text(
 
             # 显示保留号码的频率
             if retained_numbers:
-                lines.append(f"  保留号码出现次数:")
+                lines.append("  保留号码出现次数:")
                 for n in sorted(retained_numbers.keys()):
                     before = freq_before.get(n, 0)
                     lines.append(f"    {n}: {before}次 (保留{retained_numbers[n]}次)")
@@ -834,11 +834,11 @@ def _build_detailed_filter_text(
 
 
 def _build_filter_summary_text(
-    stats: Optional[AdjacentStats],
-    profile: 'LotteryProfile',
+    stats: AdjacentStats | None,
+    profile: LotteryProfile,
     max_gap: int,
     threshold: int,
-    records: Optional[List[DrawRecord]] = None,
+    records: list[DrawRecord] | None = None,
 ) -> str:
     """构建过滤影响摘要文本（UI显示用）.
 
@@ -846,14 +846,13 @@ def _build_filter_summary_text(
     可以直接从 records 计算，不需要先计算 stats.
     """
     from math import comb
-    from collections import Counter
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("═" * 50)
     lines.append(f"  过滤摘要（阈值: 重合 > {threshold} 则过滤）")
     lines.append("═" * 50)
 
-    def _estimate_ssq_filter(records: List[DrawRecord], threshold: int, max_gap: int) -> float:
+    def _estimate_ssq_filter(records: list[DrawRecord], threshold: int, max_gap: int) -> float:
         """估算双色球过滤比例."""
         if not records or len(records) < 2:
             return 0.0
@@ -897,7 +896,7 @@ def _build_filter_summary_text(
         remain_combos = total_combos - filtered_combos
 
         lines.append("")
-        lines.append(f"【双色球】")
+        lines.append("【双色球】")
         lines.append(f"  比较期数: {compare_periods} 期")
         lines.append(f"  总组合数: {total_combos:,} (C(33,6)×16)")
         lines.append(f"  被过滤: {filtered_combos:,} ({filter_pct:.1f}%)")
@@ -992,7 +991,7 @@ def _build_filter_summary_text(
             remain_combos = total_combos
 
         lines.append("")
-        lines.append(f"【快乐8】")
+        lines.append("【快乐8】")
         lines.append(f"  总组合数: {total_combos:,} (C(80,20))")
         lines.append(f"  被过滤: {filtered_combos:,} ({main_impact.filtered_pct:.1f}%)" if main_impact else "  被过滤: 0")
         lines.append(f"  有效可买: {remain_combos:,}")
@@ -1030,7 +1029,7 @@ def _build_filter_summary_text(
             remain_combos = total_combos
 
         lines.append("")
-        lines.append(f"【排列5】")
+        lines.append("【排列5】")
         lines.append(f"  总组合数: {total_combos:,} (10^5)")
         lines.append(f"  被过滤: {filtered_combos:,} ({pos_impact.filtered_pct:.1f}%)" if pos_impact else "  被过滤: 0")
         lines.append(f"  有效可买: {remain_combos:,}")
@@ -1049,7 +1048,7 @@ def _build_filter_summary_text(
             remain_combos = total_combos
 
         lines.append("")
-        lines.append(f"【7星彩】")
+        lines.append("【7星彩】")
         lines.append(f"  总组合数: {total_combos:,} (10^7)")
         lines.append(f"  被过滤: {filtered_combos:,} ({pos_impact.filtered_pct:.1f}%)" if pos_impact else "  被过滤: 0")
         lines.append(f"  有效可买: {remain_combos:,}")
@@ -1077,7 +1076,7 @@ def _build_filter_impact_text(
     threshold: int,
 ) -> str:
     """构建过滤影响分析的文本输出（详细版）."""
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("═" * 50)
     lines.append(f"  过滤影响分析（阈值: 重合 > {threshold} 则过滤）")
     lines.append("═" * 50)
@@ -1088,7 +1087,7 @@ def _build_filter_impact_text(
         lines.append(f"【{gstat.group_name}】")
 
         # 收集所有 gap 级别的过滤影响
-        impacts: List[FilterImpactResult] = []
+        impacts: list[FilterImpactResult] = []
 
         # gap=0（相邻期）
         impact = _compute_filter_impact(stats, key, 0, threshold)
@@ -1165,11 +1164,11 @@ def _group_key(record: DrawRecord, mode: str) -> str:
 
 
 def _analyze_adjacent_with_progress(
-    records: List[DrawRecord],
+    records: list[DrawRecord],
     profile: LotteryProfile,
     max_gap: int,
     progress: Any,
-) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+) -> tuple[AdjacentStats, list[dict[str, Any]]]:
     """带进度反馈的全量相邻期/间隔期统计（大数据量时避免 UI 卡死）."""
     from PySide6.QtWidgets import QApplication
 
@@ -1202,12 +1201,12 @@ class DrawAnalysisDialog(QDialog):
         self.settings = AppSettings()
 
         # 增量计算缓存：key = (group_key, max_gap)
-        self._cached_stats: Dict[str, AdjacentStats] = {}
-        self._cached_details: Dict[str, List[Dict[str, Any]]] = {}
+        self._cached_stats: dict[str, AdjacentStats] = {}
+        self._cached_details: dict[str, list[dict[str, Any]]] = {}
         self._cached_max_gap: int = 0
-        self._cached_group_key: Optional[str] = None
+        self._cached_group_key: str | None = None
         self._cached_records_len: int = 0
-        self._pending_update_timer: Optional[Any] = None
+        self._pending_update_timer: Any | None = None
 
         self.setWindowTitle(f"{self.profile.name}开奖记录分析")
         self.resize(1200, 800)
@@ -1344,18 +1343,18 @@ class DrawAnalysisDialog(QDialog):
         splitter.setSizes([250, 950])
         layout.addWidget(splitter, 1)
 
-        self._worker: Optional[_AnalysisWorker] = None
-        self._progress: Optional[QProgressDialog] = None
-        self._elapsed: Optional[QElapsedTimer] = None
-        self._pending_worker_records: Optional[List[DrawRecord]] = None
-        self._pending_worker_group_key: Optional[str] = None
+        self._worker: _AnalysisWorker | None = None
+        self._progress: QProgressDialog | None = None
+        self._elapsed: QElapsedTimer | None = None
+        self._pending_worker_records: list[DrawRecord] | None = None
+        self._pending_worker_group_key: str | None = None
         self._pending_worker_max_gap: int = 0
 
         # 分页状态
         self._page_size: int = 100
         self._current_page: int = 0
-        self._paged_records: List[DrawRecord] = []
-        self._paged_details: List[Dict[str, Any]] = []
+        self._paged_records: list[DrawRecord] = []
+        self._paged_details: list[dict[str, Any]] = []
 
     # ----------------------------------------------------------------------- #
     # 按彩种定制的列配置
@@ -1363,7 +1362,7 @@ class DrawAnalysisDialog(QDialog):
     def _build_table_columns(self) -> None:
         """根据当前彩种构建表格列标题与列伸缩策略."""
         headers = ["期号", "开奖日期"]
-        stretch_cols: List[int] = []
+        stretch_cols: list[int] = []
 
         if self.profile.key == "ssq":
             headers.extend([
@@ -1413,7 +1412,7 @@ class DrawAnalysisDialog(QDialog):
             return " ".join(f"{n:0{group.pad}d}" for n in nums)
         return " ".join(f"{n:0{group.pad}d}" for n in sorted(nums))
 
-    def _prev_record(self, idx: int) -> Optional[DrawRecord]:
+    def _prev_record(self, idx: int) -> DrawRecord | None:
         """返回时间上更早一期的记录；表格按日期倒序，前一期在下一行."""
         global_idx = self._current_page * self._page_size + idx
         if global_idx + 1 < len(self._paged_records):
@@ -1453,7 +1452,7 @@ class DrawAnalysisDialog(QDialog):
 
     def _rebuild_group_list(self) -> None:
         mode = self.group_combo.currentData()
-        groups: Dict[str, List[DrawRecord]] = {}
+        groups: dict[str, list[DrawRecord]] = {}
         for r in self._records:
             key = _group_key(r, mode)
             groups.setdefault(key, []).append(r)
@@ -1522,10 +1521,9 @@ class DrawAnalysisDialog(QDialog):
 
         # 输出详细信息到日志文件
         from pathlib import Path
-        from datetime import datetime
         log_dir = Path(".caipiao/logs")
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"filter_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        log_file = log_dir / f"filter_analysis_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.log"
         with open(log_file, "w", encoding="utf-8") as f:
             f.write(detailed_text)
         logger.info("[过滤分析] 详细信息已保存到: %s", log_file)
@@ -1575,7 +1573,7 @@ class DrawAnalysisDialog(QDialog):
 
     def _start_analysis_worker(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         group_key: str,
         max_gap: int,
     ) -> None:
@@ -1651,7 +1649,7 @@ class DrawAnalysisDialog(QDialog):
     def _on_worker_finished(
         self,
         stats: AdjacentStats,
-        details: List[Dict[str, Any]],
+        details: list[dict[str, Any]],
     ) -> None:
         logger.info("[Worker] finished 信号收到, total_pairs=%d", stats.total_pairs)
         if hasattr(self, "_progress_timer") and self._progress_timer is not None:
@@ -1711,7 +1709,7 @@ class DrawAnalysisDialog(QDialog):
         self._pending_worker_group_key = None
         self._pending_worker_max_gap = 0
 
-    def _show_table_only(self, records: List[DrawRecord], group_key: Optional[str] = None) -> None:
+    def _show_table_only(self, records: list[DrawRecord], group_key: str | None = None) -> None:
         """仅显示表格数据（分页），不计算统计。打开窗口时立即调用。"""
         if group_key is None:
             group_key = self._cached_group_key or ""
@@ -1747,7 +1745,7 @@ class DrawAnalysisDialog(QDialog):
         self._update_page_controls()
         self.stats_text.setText("点击【计算】按钮可查看间隔统计\n点击【过滤影响分析】可查看预测过滤影响")
 
-    def _show_records(self, records: List[DrawRecord], group_key: Optional[str] = None) -> None:
+    def _show_records(self, records: list[DrawRecord], group_key: str | None = None) -> None:
         """计算统计并更新显示（worker 完成后调用）."""
         if group_key is None:
             group_key = self._cached_group_key or ""
@@ -1781,7 +1779,7 @@ class DrawAnalysisDialog(QDialog):
         self.record_table.setRowCount(len(page_records))
 
         for local_idx, record in enumerate(page_records):
-            idx = start + local_idx
+            # idx = start + local_idx  # unused
             self.record_table.setItem(local_idx, 0, QTableWidgetItem(record.issue))
             date_item = QTableWidgetItem(record.draw_date.strftime("%Y-%m-%d"))
             date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1828,10 +1826,10 @@ class DrawAnalysisDialog(QDialog):
 
     def _compute_stats(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         group_key: str,
         max_gap: int,
-    ) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    ) -> tuple[AdjacentStats, list[dict[str, Any]]]:
         """增量计算统计：基于缓存复用已有结果，只计算新增部分."""
         same_group = self._cached_group_key == group_key
         same_records_len = self._cached_records_len == len(records)
@@ -1882,7 +1880,7 @@ class DrawAnalysisDialog(QDialog):
 
     def _extend_gap_stats(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         stats: AdjacentStats,
         prev_max_gap: int,
         new_max_gap: int,
@@ -1923,11 +1921,11 @@ class DrawAnalysisDialog(QDialog):
 
     def _extend_records(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         stats: AdjacentStats,
-        details: List[Dict[str, Any]],
+        details: list[dict[str, Any]],
         max_gap: int,
-    ) -> Tuple[AdjacentStats, List[Dict[str, Any]]]:
+    ) -> tuple[AdjacentStats, list[dict[str, Any]]]:
         """仅新增开奖记录：更新相邻期统计和各间隔统计."""
         old_len = self._cached_records_len
         total = len(records)
@@ -1991,7 +1989,7 @@ class DrawAnalysisDialog(QDialog):
         prev: DrawRecord,
         curr: DrawRecord,
         stats: AdjacentStats,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """累加相邻期统计，返回该期 detail."""
         if self.profile.key == "ssq":
             red_overlap, blue_same = _compute_overlap_ssq(prev, curr)
@@ -2021,7 +2019,7 @@ class DrawAnalysisDialog(QDialog):
             stats.group_stats[group_key].same_counts[overlap] += 1
             return {group_key: overlap}
 
-        detail: Dict[str, Any] = {}
+        detail: dict[str, Any] = {}
         for g in self.profile.pick_groups:
             overlap = _compute_overlap_generic(prev, curr, g)
             stats.group_stats[g.key].same_counts[overlap] += 1
@@ -2068,7 +2066,7 @@ class DrawAnalysisDialog(QDialog):
             overlap = _compute_overlap_generic(base, curr, g)
             stats.gap_stats[g.key][gap].same_counts[overlap] += 1
 
-    def _fill_ssq_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+    def _fill_ssq_row(self, idx: int, record: DrawRecord, detail: dict[str, Any]) -> None:
         reds = record.groups.get("red", [])
         blue = next(iter(record.groups.get("blue", [])), None)
 
@@ -2111,7 +2109,7 @@ class DrawAnalysisDialog(QDialog):
         same_blue_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 7, same_blue_item)
 
-    def _fill_positional_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+    def _fill_positional_row(self, idx: int, record: DrawRecord, detail: dict[str, Any]) -> None:
         group = self.profile.primary_group
         nums_item = QTableWidgetItem(self._format_group(record, group))
         nums_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2139,7 +2137,7 @@ class DrawAnalysisDialog(QDialog):
         pos_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 4, pos_item)
 
-    def _fill_basic_special_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+    def _fill_basic_special_row(self, idx: int, record: DrawRecord, detail: dict[str, Any]) -> None:
         basic = self.profile.group("basic")
         special = self.profile.group("special")
 
@@ -2187,7 +2185,7 @@ class DrawAnalysisDialog(QDialog):
         same_special_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 7, same_special_item)
 
-    def _fill_kl8_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+    def _fill_kl8_row(self, idx: int, record: DrawRecord, detail: dict[str, Any]) -> None:
         group = self.profile.primary_group
 
         nums_item = QTableWidgetItem(self._format_group(record, group))
@@ -2205,7 +2203,7 @@ class DrawAnalysisDialog(QDialog):
         same_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.record_table.setItem(idx, 4, same_item)
 
-    def _fill_generic_row(self, idx: int, record: DrawRecord, detail: Dict[str, Any]) -> None:
+    def _fill_generic_row(self, idx: int, record: DrawRecord, detail: dict[str, Any]) -> None:
         col = 2
         for g in self.profile.pick_groups:
             nums_item = QTableWidgetItem(self._format_group(record, g))
@@ -2241,7 +2239,7 @@ class DrawAnalysisDialog(QDialog):
                 lines.append(f"  不同：{diff} 次（{gstat.same_ratio(0):.2f}%）")
             else:
                 max_n = max(gstat.same_counts.keys()) if gstat.same_counts else 0
-                for n in range(0, max_n + 1):
+                for n in range(max_n + 1):
                     count = gstat.same_counts.get(n, 0)
                     ratio = gstat.same_ratio(n)
                     lines.append(f"  {n} 个相同：{count} 次（{ratio:.2f}%）")
@@ -2261,7 +2259,7 @@ class DrawAnalysisDialog(QDialog):
                         lines.append(f"  不同：{diff} 次（{gap_stat.same_ratio(0):.2f}%）")
                     else:
                         max_n = max(gap_stat.same_counts.keys()) if gap_stat.same_counts else 0
-                        for n in range(0, max_n + 1):
+                        for n in range(max_n + 1):
                             count = gap_stat.same_counts.get(n, 0)
                             ratio = gap_stat.same_ratio(n)
                             lines.append(f"  {n} 个相同：{count} 次（{ratio:.2f}%）")
@@ -2270,18 +2268,15 @@ class DrawAnalysisDialog(QDialog):
 
     def _export_excel(self) -> None:
         """导出开奖记录和统计结果到 Excel."""
-        from datetime import datetime
-        from pathlib import Path
 
         from PySide6.QtWidgets import QFileDialog
 
-        from ...core.prize import fc3d_bet_type
 
         if not self._paged_records:
             QMessageBox.information(self, "提示", "暂无数据可导出")
             return
 
-        default_name = f"{self.profile.name}_分析_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        default_name = f"{self.profile.name}_分析_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.xlsx"
         path, _ = QFileDialog.getSaveFileName(
             self, "导出 Excel", default_name, "Excel 文件 (*.xlsx)"
         )
@@ -2407,7 +2402,7 @@ class DrawAnalysisDialog(QDialog):
                         row += 1
                 else:
                     max_n = max(gstat.same_counts.keys()) if gstat.same_counts else 0
-                    for n in range(0, max_n + 1):
+                    for n in range(max_n + 1):
                         ws2.cell(row=row, column=1, value="相邻")
                         ws2.cell(row=row, column=2, value=f"{n} 个相同")
                         ws2.cell(row=row, column=3, value=gstat.same_counts.get(n, 0))
@@ -2441,7 +2436,7 @@ class DrawAnalysisDialog(QDialog):
                                 row += 1
                         else:
                             max_n = max(gap_stat.same_counts.keys()) if gap_stat.same_counts else 0
-                            for n in range(0, max_n + 1):
+                            for n in range(max_n + 1):
                                 ws2.cell(row=row, column=1, value=f"间隔{gap}期")
                                 ws2.cell(row=row, column=2, value=f"{n} 个相同")
                                 ws2.cell(row=row, column=3, value=gap_stat.same_counts.get(n, 0))

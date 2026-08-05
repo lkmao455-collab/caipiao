@@ -5,49 +5,36 @@
 
 from __future__ import annotations
 
-from datetime import datetime, date
-from typing import Optional
+from datetime import datetime, timezone
 
-from PySide6.QtCore import Qt, Signal, QDate
-from PySide6.QtGui import QColor, QFont, QTextCharFormat, QBrush, QPainter
+from PySide6.QtCore import QDate, Qt
+from PySide6.QtGui import QTextCharFormat
 from PySide6.QtWidgets import (
     QCalendarWidget,
     QFrame,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
-    QSplitter,
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QGridLayout,
-    QSizePolicy,
 )
 
-from ...calendar.lunar_calendar import (
-    solar_to_lunar,
-    lunar_month_name,
-    lunar_day_name,
-    get_weekday_name,
-    SolarDate,
-    LunarDate,
+from ...calendar.almanac import (
+    get_almanac,
+    get_current_solar_term,
+    get_festivals,
+    get_solar_term,
+    get_traditional_festivals,
 )
 from ...calendar.heavenly_earthly import (
     get_ganzhi,
-    get_ganzhi_year,
-    get_ganzhi_month,
-    get_ganzhi_day,
-    get_shengxiao,
-    get_chongsha,
 )
-from ...calendar.almanac import (
-    get_almanac,
-    get_solar_term,
-    get_current_solar_term,
-    get_festivals,
-    get_traditional_festivals,
+from ...calendar.lunar_calendar import (
+    get_weekday_name,
+    lunar_day_name,
+    lunar_month_name,
+    solar_to_lunar,
 )
 
 
@@ -56,7 +43,7 @@ class LunarCalendarWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._current_date = datetime.now()
+        self._current_date = datetime.now(timezone.utc).astimezone()
         self._setup_ui()
         self._update_display()
 
@@ -174,14 +161,14 @@ class LunarCalendarWidget(QWidget):
 
     def _on_date_clicked(self, qdate: QDate) -> None:
         """点击日期."""
-        self._current_date = datetime(qdate.year(), qdate.month(), qdate.day())
+        self._current_date = datetime(qdate.year(), qdate.month(), qdate.day(), tzinfo=timezone.utc)
         self._update_display()
 
     def _on_month_changed(self) -> None:
         """月份切换."""
         year = self.calendar.yearShown()
         month = self.calendar.monthShown()
-        self._current_date = datetime(year, month, 1)
+        self._current_date = datetime(year, month, 1, tzinfo=timezone.utc)
         self._update_display()
 
     def _prev_month(self) -> None:
@@ -194,7 +181,7 @@ class LunarCalendarWidget(QWidget):
 
     def _go_today(self) -> None:
         """回到今天."""
-        self._current_date = datetime.now()
+        self._current_date = datetime.now(timezone.utc).astimezone()
         self.calendar.setSelectedDate(QDate.currentDate())
         self._update_display()
 

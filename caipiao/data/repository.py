@@ -10,9 +10,9 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, TypedDict
+from typing import TypedDict
 
-from ..core.profile import SSQ, LotteryProfile, get_profile
+from ..core.profile import SSQ, LotteryProfile
 from .models import DrawRecord
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class DrawRepository:
     ) -> None:
         self.profile = profile or SSQ
         self.storage_path = Path(storage_path)
-        self._records: List[DrawRecord] = []
+        self._records: list[DrawRecord] = []
         self._load()
 
     def _load(self) -> None:
@@ -75,10 +75,10 @@ class DrawRepository:
             pass
         return record
 
-    def _normalize_and_dedup(self, records: List[DrawRecord]) -> List[DrawRecord]:
+    def _normalize_and_dedup(self, records: list[DrawRecord]) -> list[DrawRecord]:
         normalized = [self._normalize_issue(r) for r in records]
         seen: set[str] = set()
-        result: List[DrawRecord] = []
+        result: list[DrawRecord] = []
         for r in normalized:
             if r.issue not in seen:
                 seen.add(r.issue)
@@ -92,7 +92,7 @@ class DrawRepository:
         with self.storage_path.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def update(self, records: List[DrawRecord]) -> int:
+    def update(self, records: list[DrawRecord]) -> int:
         normalized_new = self._normalize_and_dedup(records)
         existing_issues = {r.issue for r in self._records}
         new_records = [r for r in normalized_new if r.issue not in existing_issues]
@@ -101,10 +101,10 @@ class DrawRepository:
         self.save()
         return len(new_records)
 
-    def get_all(self) -> List[DrawRecord]:
+    def get_all(self) -> list[DrawRecord]:
         return self._records[:]
 
-    def get_recent(self, count: int = 100) -> List[DrawRecord]:
+    def get_recent(self, count: int = 100) -> list[DrawRecord]:
         if count <= 0:
             return []
         return self._records[-count:]
@@ -112,10 +112,10 @@ class DrawRepository:
     def get_count(self) -> int:
         return len(self._records)
 
-    def get_latest(self) -> Optional[DrawRecord]:
+    def get_latest(self) -> DrawRecord | None:
         return self._records[-1] if self._records else None
 
-    def next_period_info(self) -> Optional[NextPeriodInfo]:
+    def next_period_info(self) -> NextPeriodInfo | None:
         latest = self.get_latest()
         if latest is None:
             return None
@@ -152,15 +152,15 @@ class DrawRepository:
             return f"{next_date.year}001"
         return f"{year}{sequence + 1:03d}"
 
-    def get_date_range(self) -> tuple[Optional[datetime], Optional[datetime]]:
+    def get_date_range(self) -> tuple[datetime | None, datetime | None]:
         if not self._records:
             return None, None
         return self._records[0].draw_date, self._records[-1].draw_date
 
-    def get_records_before(self, cutoff: datetime) -> List[DrawRecord]:
+    def get_records_before(self, cutoff: datetime) -> list[DrawRecord]:
         return [r for r in self._records if r.draw_date < cutoff]
 
-    def get_record_by_date(self, draw_date: datetime) -> Optional[DrawRecord]:
+    def get_record_by_date(self, draw_date: datetime) -> DrawRecord | None:
         for r in self._records:
             if r.draw_date.date() == draw_date.date():
                 return r

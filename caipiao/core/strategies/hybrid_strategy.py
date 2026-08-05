@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class HybridStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         return {
             "diversity_boost": {
                 "type": "int",
@@ -63,17 +63,17 @@ class HybridStrategy(GenerationStrategy):
             },
         }
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         history = options.get("history", [])
         if len(history) < 100:
             raise ValueError("混合策略需要至少 100 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         history = options.get("history", [])
-        diversity = int(options.get("diversity_boost", 3)) / 10.0
+        _diversity = int(options.get("diversity_boost", 3)) / 10.0
         blue_seq_len = int(options.get("blue_seq_len", 20))
         blue_epochs = int(options.get("blue_epochs", 50))
         seed = options.get("seed")
@@ -129,7 +129,7 @@ class HybridStrategy(GenerationStrategy):
             f"注意：历史统计规律不能预测独立随机开奖，本策略仅作为号码筛选参考。"
         )
 
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         if count <= 0:
             return tickets
 

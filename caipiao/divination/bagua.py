@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 
 @dataclass(frozen=True)
@@ -27,7 +26,7 @@ class Trigram:
     yao: tuple[int, int, int]  # 爻象（从下到上，1=阳，0=阴）
     image: str         # 卦象描述
 
-    def yao_text(self) -> List[str]:
+    def yao_text(self) -> list[str]:
         """返回从下到上的爻辞描述."""
         result = []
         for i, y in enumerate(self.yao):
@@ -54,7 +53,7 @@ class Trigram:
 # 爻序：从下到上（初爻在最下面）
 # ──────────────────────────────────────────────────────────────────────
 
-BAGUA: Dict[str, Trigram] = {}
+BAGUA: dict[str, Trigram] = {}
 
 
 def _add_trigram(name: str, symbol: str, number: int, later_number: int,
@@ -89,22 +88,22 @@ _TRIGRAM_BY_LATER = {t.later_number: t for t in BAGUA.values()}
 _TRIGRAM_BY_YAO = {t.yao: t for t in BAGUA.values()}
 
 
-def get_trigram_by_name(name: str) -> Optional[Trigram]:
+def get_trigram_by_name(name: str) -> Trigram | None:
     """按名称获取八卦."""
     return BAGUA.get(name)
 
 
-def get_trigram_by_number(number: int) -> Optional[Trigram]:
+def get_trigram_by_number(number: int) -> Trigram | None:
     """按先天八卦数获取八卦."""
     return _TRIGRAM_BY_NUMBER.get(number)
 
 
-def get_trigram_by_later_number(later_number: int) -> Optional[Trigram]:
+def get_trigram_by_later_number(later_number: int) -> Trigram | None:
     """按后天八卦数获取八卦."""
     return _TRIGRAM_BY_LATER.get(later_number)
 
 
-def get_trigram_by_yao(yao: tuple[int, int, int]) -> Optional[Trigram]:
+def get_trigram_by_yao(yao: tuple[int, int, int]) -> Trigram | None:
     """按爻象获取八卦."""
     return _TRIGRAM_BY_YAO.get(yao)
 
@@ -129,12 +128,12 @@ def get_yao_from_number(number: int) -> tuple[int, int, int]:
     return mapping.get(number % 8, (0, 0, 0))
 
 
-def get_trigram_by_meihua_number(number: int) -> Optional[Trigram]:
+def get_trigram_by_meihua_number(number: int) -> Trigram | None:
     """按梅花易数数字获取八卦."""
     yao = get_yao_from_number(number)
     return get_trigram_by_yao(yao)
 
 
-def list_trigrams() -> List[Trigram]:
+def list_trigrams() -> list[Trigram]:
     """返回全部八卦列表（按先天数排序）."""
     return [get_trigram_by_number(i) for i in range(1, 9)]

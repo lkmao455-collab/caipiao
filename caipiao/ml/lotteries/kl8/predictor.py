@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -21,11 +20,11 @@ class KL8Predictor(BaseMLPredictor):
 
     def __init__(
         self,
-        records: List[DrawRecord],
+        records: list[DrawRecord],
         lookback: int = 50,
-        model_path: Optional[Path] = None,
+        model_path: Path | None = None,
         backend: str = "xgboost",
-        temp_dir: Optional[str] = None,
+        temp_dir: str | None = None,
     ) -> None:
         super().__init__(
             records=records,
@@ -49,8 +48,8 @@ class KL8Predictor(BaseMLPredictor):
         self,
         pick: int = 4,
         diversity_boost: float = 0.3,
-        rng: Optional[np.random.RandomState] = None,
-    ) -> List[int]:
+        rng: np.random.RandomState | None = None,
+    ) -> list[int]:
         """推荐号码组合.
 
         Args:

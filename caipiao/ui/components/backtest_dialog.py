@@ -6,11 +6,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 from functools import partial
-from typing import Optional
 
-from PySide6.QtCore import Qt, QDate, QThread
+from PySide6.QtCore import QDate, Qt, QThread
 from PySide6.QtGui import QColor, QFont, QTextCharFormat
 from PySide6.QtWidgets import (
     QDateEdit,
@@ -28,12 +28,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...persistence.backtest_db import BacktestDatabase
-from ...persistence.settings import AppSettings
-from ...core.profile import LotteryProfile
 from ...core.prize import calculate_prize
+from ...core.profile import LotteryProfile
 from ...core.strategies import needs_history
 from ...core.ticket import Ticket
+from ...persistence.backtest_db import BacktestDatabase
+from ...persistence.settings import AppSettings
 from ..workers import GenerateTicketsThread
 from .ball_display import TicketRowWidget
 from .strategy_panel import StrategyPanel
@@ -53,7 +53,7 @@ class BacktestDialog(QDialog):
         self.data_repository = context.data_repository
         self.settings = AppSettings()
         self._db = BacktestDatabase()
-        self._generate_thread: Optional[QThread] = None
+        self._generate_thread: QThread | None = None
         self._last_ticket_results: List[Dict[str, Any]] = []
 
         self.setWindowTitle(f"{self.profile.name}历史回测")
@@ -216,7 +216,7 @@ class BacktestDialog(QDialog):
         last_date_str = self.settings.last_backtest_date
         if last_date_str:
             try:
-                last_date = datetime.strptime(last_date_str, "%Y-%m-%d")
+                last_date = datetime.strptime(last_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc).astimezone()
                 qdate = QDate(last_date.year, last_date.month, last_date.day)
                 if qdate >= self.date_edit.minimumDate() and qdate <= self.date_edit.maximumDate():
                     self.date_edit.setDate(qdate)
@@ -243,7 +243,7 @@ class BacktestDialog(QDialog):
 
     def _run_backtest(self) -> None:
         target_qdate = self.date_edit.date()
-        target_date = datetime(target_qdate.year(), target_qdate.month(), target_qdate.day())
+        target_date = datetime(target_qdate.year(), target_qdate.month(), target_qdate.day(), tzinfo=timezone.utc)
 
         actual = self.data_repository.get_record_by_date(target_date)
         if actual is None:
@@ -492,7 +492,7 @@ class BacktestDialog(QDialog):
 
         # 获取选中的回测日期
         target_qdate = self.date_edit.date()
-        target_date = datetime(target_qdate.year(), target_qdate.month(), target_qdate.day())
+        target_date = datetime(target_qdate.year(), target_qdate.month(), target_qdate.day(), tzinfo=timezone.utc)
         actual = self.data_repository.get_record_by_date(target_date)
         if actual is None:
             QMessageBox.warning(self, "无开奖记录", "选中的日期没有官方开奖数据，请重新选择。")
@@ -598,23 +598,23 @@ class BacktestDialog(QDialog):
             lines.append(f"  购买花费: {total_cost} 元 (每注2元)")
             lines.append("")
             if is_win:
-                lines.append(f"  中奖结果: ✓ 中奖!")
+                lines.append("  中奖结果: ✓ 中奖!")
                 lines.append(f"  中奖类型: {prize_name}")
                 lines.append(f"  中奖奖金: {prize} 元")
                 lines.append(f"  净收益: {profit:+d} 元")
             else:
-                lines.append(f"  中奖结果: ✗ 未中奖")
+                lines.append("  中奖结果: ✗ 未中奖")
                 lines.append(f"  净亏损: {profit} 元")
             lines.append("")
             lines.append("═" * 60)
 
             # 显示被过滤的号码（每行8个，逗号分隔）
             lines.append("")
-            lines.append("  被过滤的号码 (%d个):" % len(filtered_combos))
+            lines.append(f"  被过滤的号码 ({len(filtered_combos)}个):")
             filtered_list = sorted(filtered_combos)
             for i in range(0, len(filtered_list), 8):
                 chunk = filtered_list[i:i+8]
-                nums_str = ", ".join("%d%d%d" % n for n in chunk)
+                nums_str = ", ".join(f"{n[0]}{n[1]}{n[2]}" for n in chunk)
                 lines.append("    " + nums_str)
 
         elif profile.key == "ssq":
@@ -669,9 +669,9 @@ class BacktestDialog(QDialog):
             lines.append(f"  购买花费: {total_cost:,} 元 (每注2元)")
             lines.append("")
             if is_win:
-                lines.append(f"  中奖结果: ✓ 号码在有效范围内!")
+                lines.append("  中奖结果: ✓ 号码在有效范围内!")
             else:
-                lines.append(f"  中奖结果: ✗ 号码被过滤掉了")
+                lines.append("  中奖结果: ✗ 号码被过滤掉了")
             lines.append("")
             lines.append("═" * 60)
 
@@ -688,7 +688,7 @@ class BacktestDialog(QDialog):
 
             # 高频号码：在超过50%的近期出现（快乐8号码分散，用50%更实用）
             hot_threshold = len(recent) * 0.5
-            hot_numbers = set(num for num, freq in num_freq.items() if freq >= hot_threshold)
+            hot_numbers = {num for num, freq in num_freq.items() if freq >= hot_threshold}
 
             # 2. 计算重合过滤比例
             filtered_pairs = 0
@@ -766,9 +766,9 @@ class BacktestDialog(QDialog):
             lines.append(f"  购买花费: {total_cost:,} 元 (每注2元)")
             lines.append("")
             if is_win:
-                lines.append(f"  中奖结果: ✓ 号码在有效范围内!")
+                lines.append("  中奖结果: ✓ 号码在有效范围内!")
             else:
-                lines.append(f"  中奖结果: ✗ 号码被过滤掉了")
+                lines.append("  中奖结果: ✗ 号码被过滤掉了")
             lines.append("")
             lines.append("═" * 60)
 
@@ -822,6 +822,6 @@ class BacktestDialog(QDialog):
 
         self.summary_label.setText(
             f"过滤回测: 有效号码{valid_count}个, 花费{total_cost}元, "
-            f"{'中奖! 奖金%d元' % prize if is_win else '未中奖, 亏损%d元' % total_cost}"
+            f"{f'中奖! 奖金{prize}元' if is_win else f'未中奖, 亏损{total_cost}元'}"
         )
         self.summary_label.setVisible(True)

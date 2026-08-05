@@ -9,12 +9,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from PySide6.QtCore import QObject, Signal
 
 from ..core.engine import GenerationEngine
-from ..core.profile import DEFAULT_KEY, LotteryProfile, SSQ, get_profile
+from ..core.profile import DEFAULT_KEY, LotteryProfile, get_profile
 from ..core.strategies import build_strategies
 from ..data.analyzer import DrawAnalyzer, LotteryAnalyzer
 from ..data.fetcher import LotteryDataFetcher
@@ -33,7 +32,7 @@ class LotteryContext(QObject):
         profile: LotteryProfile,
         data_dir: Path,
         history_manager: HistoryManager | None = None,
-        parent: Optional[QObject] = None,
+        parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self.profile = profile

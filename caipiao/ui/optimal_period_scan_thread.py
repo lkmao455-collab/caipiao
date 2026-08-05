@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
-from .batch_backtest_result import BatchBacktestResult
-from .batch_backtest_thread import _normalize_max_workers
-from ..core.backtest_worker import merge_round_results, worker_round_backtest
-from .batch_backtest_worker import init_worker_process
 from ..core.backtest_data import RoundBacktestContext, RoundTask
-from .optimal_period_config import resolve_optimal_param
+from ..core.backtest_worker import merge_round_results, worker_round_backtest
 from ..core.profile import LotteryProfile
 from ..core.strategies import needs_history
 from ..data.repository import DrawRepository
+from .batch_backtest_result import BatchBacktestResult
+from .batch_backtest_thread import _normalize_max_workers
+from .batch_backtest_worker import init_worker_process
+from .optimal_period_config import resolve_optimal_param
 
 
 @dataclass
@@ -27,11 +28,11 @@ class ScanResult:
     param_name: str
     optimal_value: int
     optimal_result: BatchBacktestResult
-    all_results: List[Tuple[int, BatchBacktestResult]]
+    all_results: list[tuple[int, BatchBacktestResult]]
     interrupted: bool = False
 
     @property
-    def all_values(self) -> List[int]:
+    def all_values(self) -> list[int]:
         """所有扫描过的参数值."""
         return [value for value, _ in self.all_results]
 
@@ -39,7 +40,7 @@ class ScanResult:
 def _build_context(
     base_context: RoundBacktestContext,
     param_name: str,
-    value: Optional[int],
+    value: int | None,
 ) -> RoundBacktestContext:
     """根据参数值构建对应的回测上下文.
 
@@ -62,7 +63,7 @@ def _build_context(
 
 
 def _run_one_value(
-    context: RoundBacktestContext, tasks: List[RoundTask], total_rounds: int
+    context: RoundBacktestContext, tasks: list[RoundTask], total_rounds: int
 ) -> BatchBacktestResult:
     """扫描单个参数值，返回汇总结果."""
     round_results = [worker_round_backtest(context, task) for task in tasks]
@@ -71,18 +72,18 @@ def _run_one_value(
 
 def scan_param_values(
     base_context: RoundBacktestContext,
-    tasks: List[RoundTask],
+    tasks: list[RoundTask],
     param_name: str,
-    param_values: List[Optional[int]],
-    progress_callback: Optional[Callable[[int, int], None]] = None,
-    status_callback: Optional[Callable[[str], None]] = None,
-    interruption_callback: Optional[Callable[[], bool]] = None,
-) -> List[Tuple[Optional[int], BatchBacktestResult]]:
+    param_values: list[int | None],
+    progress_callback: Callable[[int, int], None] | None = None,
+    status_callback: Callable[[str], None] | None = None,
+    interruption_callback: Callable[[], bool] | None = None,
+) -> list[tuple[int | None, BatchBacktestResult]]:
     """对单一策略扫描多个参数取值，返回每个取值对应的结果.
 
     ``param_values`` 中可包含 ``None``，用于无参策略的占位扫描.
     """
-    all_results: List[Tuple[Optional[int], BatchBacktestResult]] = []
+    all_results: list[tuple[int | None, BatchBacktestResult]] = []
     max_workers = _normalize_max_workers(
         base_context.options.get("batch_backtest_workers")
     )
@@ -90,7 +91,7 @@ def scan_param_values(
     total = len(param_values)
 
     executor = None
-    futures: List[Any] = []
+    futures: list[Any] = []
     try:
         executor = ProcessPoolExecutor(
             max_workers=max_workers,
@@ -150,8 +151,8 @@ class OptimalPeriodScanThread(QThread):
         start_date: datetime,
         end_date: datetime,
         tickets_per_round: int,
-        base_options: Dict[str, Any],
-        plugin_dir: Optional[str] = None,
+        base_options: dict[str, Any],
+        plugin_dir: str | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -293,15 +294,15 @@ class OptimalPeriodScanThread(QThread):
 
     @staticmethod
     def _run_one_value(
-        context: RoundBacktestContext, tasks: List[RoundTask], total_rounds: int
+        context: RoundBacktestContext, tasks: list[RoundTask], total_rounds: int
     ) -> BatchBacktestResult:
         """扫描单个参数值，返回汇总结果."""
         return _run_one_value(context, tasks, total_rounds)
 
     @staticmethod
     def _pick_best(
-        results: List[Tuple[int, BatchBacktestResult]],
-    ) -> Optional[Tuple[int, BatchBacktestResult]]:
+        results: list[tuple[int, BatchBacktestResult]],
+    ) -> tuple[int, BatchBacktestResult] | None:
         eligible = [item for item in results if not item[1].errors]
         if not eligible:
             return None

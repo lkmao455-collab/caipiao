@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .....data.analyzer import DrawAnalyzer
 from ....strategy import GenerationStrategy, StrategyMetadata
@@ -23,7 +23,6 @@ from ...common.records import records_from_options
 from ...common.rng import make_rng
 from ._base import PROFILE, _add_pick_count_schema, _get_pick_count, _make_ticket
 from .stability import (
-    MAIN_POOL,
     chi_square_uniform_test,
     frequency_counts,
     stable_frequency,
@@ -37,7 +36,7 @@ KL8_ZONES = [(1, 27), (28, 54), (55, 80)]
 DEFAULT_PICK_COUNT = 4
 
 
-def _zone_counts(numbers: List[int]) -> List[int]:
+def _zone_counts(numbers: list[int]) -> list[int]:
     """统计号码在三区中的分布。"""
     counts = [0, 0, 0]
     for n in numbers:
@@ -48,7 +47,7 @@ def _zone_counts(numbers: List[int]) -> List[int]:
     return counts
 
 
-def _consecutive_pairs(numbers: List[int]) -> int:
+def _consecutive_pairs(numbers: list[int]) -> int:
     """统计候选号码中的连号对数。"""
     s = sorted(numbers)
     pairs = 0
@@ -58,7 +57,7 @@ def _consecutive_pairs(numbers: List[int]) -> int:
     return pairs
 
 
-def _coverage_score(numbers: List[int], pool_size: int = 80) -> float:
+def _coverage_score(numbers: list[int], pool_size: int = 80) -> float:
     """号码覆盖度评分：号码越分散越好。
 
     将 1-80 分成 8 段（每段 10 个号），统计覆盖了多少段。
@@ -73,7 +72,7 @@ def _coverage_score(numbers: List[int], pool_size: int = 80) -> float:
 
 
 def _compute_overlap_with_prev(
-    candidate: List[int], prev_numbers: List[int]
+    candidate: list[int], prev_numbers: list[int]
 ) -> int:
     """计算候选号码与上期号码的重合数。"""
     return len(set(candidate) & set(prev_numbers))
@@ -93,7 +92,7 @@ class KL8BalancedStrategy(GenerationStrategy):
             configurable=True,
         )
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         schema = {
             "history": {"type": "history", "label": "历史记录", "default": []},
             "lookback": {"type": "int", "label": "统计期数", "default": 100, "min": 10, "max": 10000},
@@ -144,14 +143,14 @@ class KL8BalancedStrategy(GenerationStrategy):
         _add_pick_count_schema(schema)
         return schema
 
-    def validate_options(self, options: Dict[str, Any]) -> None:
+    def validate_options(self, options: dict[str, Any]) -> None:
         history = options.get("history", [])
         if len(history) < 20:
             raise ValueError(f"{self.metadata.name} 策略需要至少 20 期历史数据")
 
     def generate(
-        self, count: int = 1, options: Optional[Dict[str, Any]] = None
-    ) -> List[Ticket]:
+        self, count: int = 1, options: dict[str, Any] | None = None
+    ) -> list[Ticket]:
         options = options or {}
         self.validate_options(options)
         records = records_from_options(options)
@@ -229,7 +228,7 @@ class KL8BalancedStrategy(GenerationStrategy):
         if seed is not None:
             basis += f" 随机种子：{seed}。"
 
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "chi_square": round(chi2_value, 2),
             "is_uniform": is_uniform,
             "target_odd": target_odd,
@@ -241,9 +240,9 @@ class KL8BalancedStrategy(GenerationStrategy):
             "pick_count": pick,
         }
 
-        tickets: List[Ticket] = []
+        tickets: list[Ticket] = []
         for _ in range(count):
-            best: Optional[Dict[str, List[int]]] = None
+            best: dict[str, list[int]] | None = None
             best_score = float("inf")
             for _ in range(max_attempts):
                 # 用频率引导采样（比纯随机更高效）
@@ -260,7 +259,7 @@ class KL8BalancedStrategy(GenerationStrategy):
                 )
                 if score < best_score:
                     best_score = score
-                    groups: Dict[str, List[int]] = {primary.key: sorted(candidate)}
+                    groups: dict[str, list[int]] = {primary.key: sorted(candidate)}
                     self._fill_random_other(groups, rng)
                     best = groups
                 if best_score <= 0.5:
@@ -279,7 +278,7 @@ class KL8BalancedStrategy(GenerationStrategy):
 
     def _compute_target_zones(
         self, analyzer: DrawAnalyzer, lookback: int, pick: int
-    ) -> List[int]:
+    ) -> list[int]:
         """统计历史每期三区号码数的平均值，按 pick 比例缩放。"""
         records = analyzer._slice(lookback)
         if not records:
@@ -319,7 +318,7 @@ class KL8BalancedStrategy(GenerationStrategy):
             overlaps.append(len(prev & curr))
         return sum(overlaps) / len(overlaps) if overlaps else 5.0
 
-    def _get_prev_numbers(self, records: list) -> List[int]:
+    def _get_prev_numbers(self, records: list) -> list[int]:
         """获取最近一期的开奖号码。"""
         if not records:
             return []
@@ -332,12 +331,12 @@ class KL8BalancedStrategy(GenerationStrategy):
 
     def _score_candidate(
         self,
-        candidate: List[int],
+        candidate: list[int],
         pick: int,
         target_odd: int, target_high: int,
         avg_sum: float, sum_min: float, sum_max: float,
-        target_zones: List[int], target_consec: float, target_overlap: float,
-        prev_numbers: List[int],
+        target_zones: list[int], target_consec: float, target_overlap: float,
+        prev_numbers: list[int],
         w_oe: float, w_hl: float, w_sm: float,
         w_zn: float, w_cc: float, w_cv: float, w_ov: float,
     ) -> float:
@@ -391,8 +390,8 @@ class KL8BalancedStrategy(GenerationStrategy):
     # ------------------------------------------------------------------ #
 
     def _guided_sample(
-        self, rng: random.Random, pool: List[int], weights: List[float], k: int
-    ) -> List[int]:
+        self, rng: random.Random, pool: list[int], weights: list[float], k: int
+    ) -> list[int]:
         """基于频率权重的分段引导采样，保证号码分散性。
 
         将 1-80 分成 8 段（每段 10 个号），每段至少选 floor(k/8) 个号，
@@ -429,7 +428,7 @@ class KL8BalancedStrategy(GenerationStrategy):
             seg_weights[chosen_seg] *= 0.5  # 降低已分配段的权重
 
         # 从每段中采样
-        selected: List[int] = []
+        selected: list[int] = []
         for si in seg_indices:
             lo = si * seg_size + 1
             hi = min(lo + seg_size - 1, 80)
@@ -460,7 +459,7 @@ class KL8BalancedStrategy(GenerationStrategy):
 
         return sorted(selected)
 
-    def _fill_random_other(self, groups: Dict[str, List[int]], rng: random.Random) -> None:
+    def _fill_random_other(self, groups: dict[str, list[int]], rng: random.Random) -> None:
         for g in PROFILE.pick_groups:
             if g.key in groups:
                 continue
