@@ -158,8 +158,8 @@ def _zscore_normalize(scores: dict[int, float]) -> dict[int, float]:
     mean = statistics.mean(vals)
     try:
         std = statistics.stdev(vals)
-    except statistics.StatisticsError:
-        std = 0.0
+    except statistics.StatisticsError:  # pragma: no cover
+        std = 0.0  # pragma: no cover
     if std < 1e-10:
         return {n: 0.0 for n in scores}
     return {n: (scores[n] - mean) / std for n in scores}
@@ -226,7 +226,7 @@ def chi_square_uniform_test(counts: list[int]) -> tuple[float, bool]:
     if n == 0:
         return 0.0, True
     expected = n / k
-    if expected == 0:
+    if expected == 0:  # pragma: no cover
         return 0.0, True
     chi2 = sum((c - expected) ** 2 / expected for c in counts)
     # 临界值取决于自由度

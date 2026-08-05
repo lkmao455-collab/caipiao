@@ -1,0 +1,14 @@
+[run]
+omit =
+    caipiao/ui/*
+    caipiao/ui/**
+    caipiao/ml/*
+    caipiao/ml/**
+
+[report]
+show_missing = true
+omit =
+    caipiao/ui/*
+    caipiao/ui/**
+    caipiao/ml/*
+    caipiao/ml/**

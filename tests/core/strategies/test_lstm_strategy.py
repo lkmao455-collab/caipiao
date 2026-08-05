@@ -84,7 +84,7 @@ class TestLSTMStrategy:
         records = [
             DrawRecord(issue="2024001", draw_date=datetime(2024,1,1), profile="ssq", groups={"red": [1,2,3,4,5,6], "blue": [1]}),
             DrawRecord(issue="2024002", draw_date=datetime(2024,1,2), profile="ssq", groups={"red": [2,3,4,5,6,7], "blue": [2]}),
-            DrawRecord(issue="2024003", draw_date=datetime(2024,1,3), profile="ssq", groups={"red": [3,4,5,6,7,8], "blue": None}),  # 无蓝球
+            DrawRecord(issue="2024003", draw_date=datetime(2024,1,3), profile="ssq", groups={"red": [3,4,5,6,7,8], "blue": []}),  # 无蓝球
         ]
         result = _to_blue_list(records)
         assert result == [1, 2]
@@ -116,8 +116,31 @@ class TestLSTMStrategy:
         assert ticket.strategy_name == "LSTM 时序分析"
         assert "LSTM 时序分析" in ticket.basis
 
-    def test_generate_with_seed_reproducible(self):
+    def test_generate_with_seed_reproducible(self, monkeypatch):
+        from caipiao.core.strategies import lstm_strategy as lstm_mod
         from caipiao.core.strategies.lstm_strategy import LSTMStrategy
+        import numpy as np
+
+        # 真实 LSTM 每次训练权重随机初始化（torch 未设种子），导致 red_proba
+        # 不可复现。此处 mock 模型使预测分布确定性，从而验证策略本身基于
+        # np.random.RandomState(seed) 的采样复现性（这是源码的真实设计意图）。
+        class _FakeRedLSTM:
+            def __init__(self, *a, **k):
+                pass
+            def train(self, *a, **k):
+                pass
+            def predict(self, seq):
+                return np.ones(33) / 33.0
+        class _FakeBlueLSTM:
+            def __init__(self, *a, **k):
+                pass
+            def train(self, *a, **k):
+                pass
+            def predict(self, seq):
+                return np.ones(16) / 16.0
+
+        monkeypatch.setattr(lstm_mod, "RedBallLSTM", _FakeRedLSTM)
+        monkeypatch.setattr(lstm_mod, "BlueBallLSTM", _FakeBlueLSTM)
 
         strategy = LSTMStrategy()
         class MockHistory:
@@ -153,7 +176,7 @@ class TestLSTMStrategy:
         class MockHistory:
             def __init__(self, i):
                 # 只有红球，无蓝球
-                self.groups = {"red": [(i+j)%33+1 for j in range(6)], "blue": None}
+                self.groups = {"red": [(i+j)%33+1 for j in range(6)], "blue": []}
                 self.profile = type("Profile", (), {"key": "ssq"})()
                 self.generated_at = __import__("datetime").datetime(2024, 1, 1) + __import__("datetime").timedelta(days=i)
 

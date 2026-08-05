@@ -196,9 +196,9 @@ def solar_to_lunar(year: int, month: int, day: int) -> LunarDate:
             break
         days_diff -= days
         month_idx += 1
-    else:
-        lunar_month = 12
-        lunar_day = days_diff + 1
+    else:  # pragma: no cover - unreachable: days_diff is always < year_days
+        lunar_month = 12  # (the month loop above always breaks before exhausting
+        lunar_day = days_diff + 1  #  all months, since year_days == sum of all months)
 
     return LunarDate(year=lunar_year, month=lunar_month, day=lunar_day, is_leap=is_leap)
 

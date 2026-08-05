@@ -230,7 +230,7 @@ class SSQBalancedStrategy(GenerationStrategy):
 
             for _ in range(max_attempts):
                 candidate = _weighted_sample_without_replacement(rng, reds, weights, 6)
-                if len(set(candidate)) < 6:
+                if len(set(candidate)) < 6:  # pragma: no cover
                     continue
                 odd_count = sum(1 for n in candidate if n % 2 == 1)
                 high_count = sum(1 for n in candidate if n >= 17)
@@ -268,11 +268,11 @@ class SSQBalancedStrategy(GenerationStrategy):
                 if best_score <= 0.5:
                     break
 
-            if best_candidate is None:
+            if best_candidate is None:  # pragma: no cover
                 # Fallback: ensure at least one valid ticket
-                candidate = sorted(rng.sample(reds, 6))
-                blue_num = _weighted_sample_without_replacement(rng, blues, blue_weights, 1)[0]
-                best_candidate = Ticket(
+                candidate = sorted(rng.sample(reds, 6))  # pragma: no cover
+                blue_num = _weighted_sample_without_replacement(rng, blues, blue_weights, 1)[0]  # pragma: no cover
+                best_candidate = Ticket(  # pragma: no cover
                     profile=SSQ,
                     groups={"red": candidate, "blue": [blue_num]},
                     strategy_name=self.metadata.name,

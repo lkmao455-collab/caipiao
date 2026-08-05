@@ -149,7 +149,7 @@ def _weighted_sample_without_replacement(
         perms = group_perms[key]
         probs = [max(perm_probs[key][perm], 0.0) for perm in perms]
         perm_total = sum(probs)
-        if perm_total <= 0:
+        if perm_total <= 0:  # pragma: no cover - 仅当所选组的边际概率全为 0 时成立，数学上不可达
             selected.append(list(rng.choice(perms)))
         else:
             selected.append(list(rng.choices(perms, weights=probs, k=1)[0]))
