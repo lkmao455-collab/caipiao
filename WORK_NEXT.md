@@ -16,13 +16,17 @@
 - 已完成：核心层主要 Ruff 问题修复；UI 层 86 个 Ruff 问题（原扫描 86 项，重构中已修 12 项，剩余 74 项本次已修复）已全部清零，覆盖 datetime 时区（统一 `datetime.now(timezone.utc).astimezone()` 约定）、盲目异常捕获（补 `logger` 记录）、未定义名称（补 `typing` 导入 + 修复 `resolved` 真实 bug）、代码简化（UP031/C401/ISC004/SIM102/118/113/FURB192/RUF012/S112/F841）。`ruff_output.txt` 已重新生成为全绿。
 - UI 层 lint 已无阻塞项。
 
-## 3. Phase 5 远期规划
+## 3. Phase 5 远期规划 (规划完成，垂直切片实现中)
 
 - 对应 `docs/roadmap.md:31-34`：
   - Web 版本（FastAPI + Vue）
   - 多用户支持
   - API 开放平台
   - 实时数据推送
+- 完整设计见 `docs/phase5_plan.md`（架构 + 分阶段路线图 P5.0~P5.E）。
+- 本次交付（P5.0 垂直切片）：FastAPI 后端 `caipiao/web/` + 根 `web_main.py`（`uvicorn web_main:app`），复用核心层；最小 Vue 3 前端 `frontend/`，打通「登录 → 彩种 → 生成」链路；含健康/认证/彩种/生成/回测/用户/API Key/WebSocket 端点与 `tests/web/` 测试。
+- 原则：核心层零侵入、桌面应用并行保留、用户数据按命名空间隔离（不改动 `AppSettings` 全局单例语义）。
+- 后续阶段（路线图）：P5.A 完整前端、P5.B 限流/计量、P5.C 实时推送生产化、P5.D Docker web 目标/compose/CI、P5.E 权限分级/管理员后台。
 
 ## 4. 提交未挂起的改动 (已完成)
 

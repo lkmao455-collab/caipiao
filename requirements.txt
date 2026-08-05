@@ -11,3 +11,16 @@ matplotlib>=3.7.0  # 用于生成概率折线图
 markdown>=3.4.0  # 帮助文档 Markdown 渲染
 Pygments>=2.15.0  # Markdown 代码块语法高亮
 openpyxl>=3.1.0  # Excel 导出
+
+# --- Phase 5 Web 后端依赖 ---
+fastapi>=0.110  # Web API 框架
+uvicorn[standard]>=0.27  # ASGI 服务器
+pydantic>=2.6  # 数据校验/序列化
+python-multipart>=0.0.9  # 表单解析（OAuth2 登录）
+python-jose[cryptography]>=3.3  # JWT
+passlib>=1.7  # 密码哈希
+bcrypt==4.0.1  # 与 passlib 1.7.x 兼容（新版 bcrypt 5.x 不兼容）
+sqlalchemy>=2.0  # ORM
+aiosqlite>=0.19  # 异步 SQLite 驱动
+httpx>=0.27  # FastAPI TestClient 依赖（测试用）
+
