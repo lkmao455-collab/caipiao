@@ -1,6 +1,6 @@
 # Phase 5 规划：企业级（Web / 多用户 / 开放 API / 实时推送）
 
-> 状态：规划已批准。**P5.0 垂直切片已完成（commit 9379f9c）；P5.A 已完成（commit 2085e4b）；P5.B 已完成**；P5.C–P5.E 待实施。本文件为完整架构设计 + 分阶段路线图。
+> 状态：规划已批准。**P5.0 垂直切片已完成（commit 9379f9c）；P5.A 已完成（commit 2085e4b）；P5.B 已完成；P5.C 已完成**。P5.D–P5.E 待实施。本文件为完整架构设计 + 分阶段路线图。
 
 ## 1. 目标与原则
 - **复用核心层**：`caipiao/core`、`caipiao/data`、`caipiao/persistence`、`caipiao/ml`、`caipiao/calendar`、`caipiao/divination`、`caipiao/utils`、`caipiao/plugins` 已与 UI 解耦，**零侵入**复用，不修改其核心逻辑。
@@ -99,7 +99,7 @@ def build_engine() -> GenerationEngine:
 - **P5.0（完成）**：计划 + 垂直切片（后端骨架 + 认证 + profiles/generate/backtest + 最小前端 + 测试）。commit 9379f9c。
 - **P5.A（完成）**：完整前端与支撑后端。新增 `/profiles/{key}/stats`（复用 `DrawAnalyzer`）、`/profiles/{key}/filters`（动态后过滤编辑）、`/backtest` 升级为走查式回测并持久化（`BacktestDatabase` 显式路径 + 列表/详情/删除）；`GenerateRequest.post_filters` 生成后调用核心层 `filter_*_by_history`；前端新增 Stats/Backtest/FilterRules 视图与导航。commit 2085e4b。核心层零改动，覆盖指标隔离不变。
 - **P5.B（完成）**：开放平台限流（slowapi，按 Token/API Key/IP 限流；重接口 /generate 60/min、/backtest 30/min，其余动态默认 600/min）、用量计量（`UsageRecord` + `GET /me/usage`）、Swagger 公开/私有分层（默认关闭 `/docs`，提供 `/docs-public` 子集与 `/docs-private` 完整 schema）。
-- **P5.C（待实施）**：实时推送生产化（后台定时拉取开奖 + Redis 持久化事件总线）。
+- **P5.C（完成）**：实时推送生产化。`eventbus.py` 提供 `EventBus` 协议 + `InMemoryEventBus`（开发回退）与 `RedisEventBus`（Redis pub/sub，设置 `CAIPIAO_WEB_REDIS_URL` 时启用）；同步 `redis.Redis` 发布端 + 异步 `redis.asyncio` 监听端分离，livespan 启动监听任务。`web_main.py` 新增 `_draw_poller` 后台定时拉取各彩种最新开奖并 `bus.publish` 到 `draw_update`（间隔由 `CAIPIAO_WEB_PULL_INTERVAL` 控制，0 则禁用）。`ws.py` 增加 30s 心跳保活并清理全部任务。测试 `test_eventbus_ws.py`：内存总线 `test_ws_receives_draw_update` 与 fakeredis 共享 `FakeServer` 的 `test_redis_eventbus_pubsub` 均通过。
 - **P5.D（待实施）**：Docker 多阶段 web 目标（剥离 PySide6/Qt 系统库）、`docker-compose` 增 web 服务、CI。
 - **P5.E（待实施）**：多用户权限分级、管理员后台。
 

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,8 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from caipiao.web.config import CORS_ORIGINS
+from caipiao.web.config import CORS_ORIGINS, DATA_ROOT
 from caipiao.web.db import init_db
+from caipiao.web.eventbus import bus
 from caipiao.web.ratelimit import limiter
 from caipiao.web.routers import (
     api_keys,
@@ -29,10 +31,61 @@ from caipiao.web.routers import (
 from caipiao.web.ws import router as ws_router
 
 
+async def _draw_poller() -> None:
+    """后台定时拉取各彩种最新开奖并发布到事件总线（实时推送生产化）。"""
+    import asyncio
+    import os
+
+    from caipiao.core.profile import list_profiles
+    from caipiao.data.repository import DrawRepository
+
+    interval = int(os.getenv("CAIPIAO_WEB_PULL_INTERVAL", "60"))
+    if interval <= 0:
+        return
+    seen: dict[str, str] = {}
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            for profile in list_profiles():
+                repo = DrawRepository(DATA_ROOT / profile.storage_file, profile)
+                latest = repo.get_latest()
+                if latest is None:
+                    continue
+                key = f"{profile.key}:{latest.draw_date}:{latest.issue}"
+                if seen.get(profile.key) == key:
+                    continue
+                seen[profile.key] = key
+                bus.publish(
+                    {
+                        "type": "draw_update",
+                        "profile": profile.key,
+                        "draw_date": str(latest.draw_date),
+                        "issue": latest.issue,
+                        "draw": latest.to_dict(),
+                    }
+                )
+        except Exception:
+            # 单轮失败不影响后续轮次
+            continue
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()  # 创建用户 / API Key / 用量表（幂等）
-    yield
+    # 启动实时推送：Redis 总线监听（若有）+ 后台开奖拉取
+    bg_tasks: list[asyncio.Task] = []
+    start_fn = getattr(bus, "start", None)
+    if callable(start_fn):
+        try:
+            bg_tasks.append(start_fn())
+        except Exception:
+            pass
+    bg_tasks.append(asyncio.create_task(_draw_poller()))
+    try:
+        yield
+    finally:
+        for t in bg_tasks:
+            t.cancel()
 
 
 # Swagger 分层：默认关闭公开文档，提供 /docs-private 展示完整 schema（见下方路由）
