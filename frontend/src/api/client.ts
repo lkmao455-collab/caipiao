@@ -62,12 +62,150 @@ export async function generate(
   profileKey: string,
   strategyId: string,
   count: number,
-): Promise<{ count: number; tickets: Ticket[] }> {
+  postFilters: { name: string; params: Record<string, unknown> }[] = [],
+): Promise<{ count: number; filtered_count: number; tickets: Ticket[] }> {
   const r = await fetch(`${BASE}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeader(token) },
-    body: JSON.stringify({ profile_key: profileKey, strategy_id: strategyId, count }),
+    body: JSON.stringify({
+      profile_key: profileKey,
+      strategy_id: strategyId,
+      count,
+      post_filters: postFilters,
+    }),
   });
   if (!r.ok) throw new Error(await r.text());
-  return (await r.json()) as { count: number; tickets: Ticket[] };
+  return (await r.json()) as { count: number; filtered_count: number; tickets: Ticket[] };
 }
+
+export interface FilterParamMeta {
+  name: string;
+  type: string;
+  default: unknown;
+  min: number | null;
+  max: number | null;
+  description: string;
+}
+
+export async function getFilters(
+  token: string,
+  profileKey: string,
+): Promise<{ profile_key: string; available: boolean; params: FilterParamMeta[] }> {
+  const r = await fetch(`${BASE}/profiles/${profileKey}/filters`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as { profile_key: string; available: boolean; params: FilterParamMeta[] };
+}
+
+export interface GroupStats {
+  key: string;
+  name: string;
+  lo: number;
+  hi: number;
+  count: number;
+  color: string;
+  frequency: Record<string, number>;
+  hot: number[];
+  cold: number[];
+  missing: [number, number][];
+}
+
+export interface ProfileStats {
+  profile_key: string;
+  total_records: number;
+  groups: Record<string, GroupStats>;
+  summary: Record<string, unknown>;
+  odd_even_ratio: [number, number];
+  high_low_ratio: [number, number];
+  sum_statistics: Record<string, number>;
+  span: Record<string, number>;
+  zone_distribution: Record<string, number>;
+  common_pairs: { pair: number[]; count: number }[];
+  primary_group: string;
+}
+
+export async function getStats(token: string, profileKey: string): Promise<ProfileStats> {
+  const r = await fetch(`${BASE}/profiles/${profileKey}/stats`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as ProfileStats;
+}
+
+export interface BacktestRound {
+  target_date: string;
+  issue: string;
+  matches: Record<string, number>;
+  hit: boolean;
+}
+
+export interface BacktestSummary {
+  total_rounds: number;
+  hit_count: number;
+  first_ticket_hit_count: number;
+  profit: number;
+  total_cost: number;
+  total_fixed_prize: number;
+}
+
+export interface BacktestRecord {
+  id: number;
+  created_at: string | null;
+  profile_key: string;
+  strategy_id: string;
+  target_date: string;
+  start_date: string;
+  end_date: string;
+  total_rounds: number;
+  tickets_count: number;
+  total_cost: number;
+  total_fixed_prize: number;
+  hit_count: number;
+  profit: number;
+  kind: string;
+}
+
+export async function runBacktest(
+  token: string,
+  profileKey: string,
+  strategyId: string,
+  count: number,
+  rounds: number,
+  postFilters: { name: string; params: Record<string, unknown> }[] = [],
+): Promise<{ batch_id: number; rounds: BacktestRound[]; summary: BacktestSummary }> {
+  const r = await fetch(`${BASE}/backtest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify({
+      profile_key: profileKey,
+      strategy_id: strategyId,
+      count,
+      rounds,
+      post_filters: postFilters,
+    }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as { batch_id: number; rounds: BacktestRound[]; summary: BacktestSummary };
+}
+
+export async function listBacktests(token: string): Promise<BacktestRecord[]> {
+  const r = await fetch(`${BASE}/backtest`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as BacktestRecord[];
+}
+
+export async function getBacktest(
+  token: string,
+  id: number,
+  kind: string,
+): Promise<Record<string, unknown>> {
+  const r = await fetch(`${BASE}/backtest/${id}?kind=${kind}`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as Record<string, unknown>;
+}
+
+export async function deleteBacktest(token: string, id: number, kind: string): Promise<void> {
+  const r = await fetch(`${BASE}/backtest/${id}?kind=${kind}`, {
+    method: "DELETE",
+    headers: authHeader(token),
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+

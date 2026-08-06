@@ -14,6 +14,8 @@ export default defineConfig({
       "/me": "http://localhost:8000",
       "/ws": { target: "ws://localhost:8000", ws: true },
       "/health": "http://localhost:8000",
+      "/stats": "http://localhost:8000",
+      "/filters": "http://localhost:8000",
     },
   },
 });

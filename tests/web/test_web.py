@@ -136,13 +136,67 @@ def test_generate_unknown_strategy(client, token):
 def test_backtest(client, token):
     r = client.post(
         "/backtest",
-        json={"profile_key": "ssq", "strategy_id": "smart_hot_cold", "count": 1},
+        json={"profile_key": "ssq", "strategy_id": "smart_hot_cold", "count": 1, "rounds": 5},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["latest_draw"]
-    assert len(data["results"]) == 1
+    assert data["batch_id"]
+    assert data["summary"]["total_rounds"] >= 1
+    # 回测记录可列出/查看
+    bid = data["batch_id"]
+    r = client.get("/backtest", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert any(rec["id"] == bid for rec in r.json())
+    r = client.get(f"/backtest/{bid}?kind=batch", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert r.json()["kind"] == "batch"
+
+
+def test_stats_and_filters(client, token):
+    r = client.get("/profiles/ssq/stats")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["profile_key"] == "ssq"
+    assert "groups" in data and "red" in data["groups"]
+    assert "summary" in data
+
+    # 未知彩种回落到默认 SSQ，仍 200
+    r = client.get("/profiles/nope/stats")
+    assert r.status_code == 200
+
+    r = client.get("/profiles/ssq/filters")
+    assert r.status_code == 200
+    assert r.json()["available"] is True
+    assert any(p["name"] == "max_red_overlap" for p in r.json()["params"])
+
+
+def test_generate_post_filters(client, token):
+    # 不带过滤
+    r = client.post(
+        "/generate",
+        json={"profile_key": "ssq", "strategy_id": "smart_hot_cold", "count": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200, r.text
+    base = r.json()["filtered_count"]
+
+    # 带严格后过滤（max_red_overlap=0，block_blue_match=True），结果应更少或相等
+    r = client.post(
+        "/generate",
+        json={
+            "profile_key": "ssq",
+            "strategy_id": "smart_hot_cold",
+            "count": 10,
+            "post_filters": [
+                {"name": "ssq", "params": {"max_red_overlap": 0, "block_blue_match": True}}
+            ],
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200, r.text
+    filtered = r.json()["filtered_count"]
+    assert filtered <= base
 
 
 def test_api_keys_crud(client, token):

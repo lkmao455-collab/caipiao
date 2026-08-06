@@ -13,7 +13,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from caipiao.web.config import CORS_ORIGINS
 from caipiao.web.db import init_db
-from caipiao.web.routers import api_keys, auth, backtest, generate, profiles, user
+from caipiao.web.routers import (
+    api_keys,
+    auth,
+    backtest,
+    filters,
+    generate,
+    profiles,
+    stats,
+    user,
+)
 from caipiao.web.ws import router as ws_router
 
 
@@ -37,6 +46,8 @@ app.include_router(auth.router, tags=["auth"])
 app.include_router(profiles.router, tags=["profiles"])
 app.include_router(generate.router, tags=["generate"])
 app.include_router(backtest.router, tags=["backtest"])
+app.include_router(stats.router, tags=["stats"])
+app.include_router(filters.router, tags=["filters"])
 app.include_router(user.router, tags=["user"])
 app.include_router(api_keys.router, tags=["api_keys"])
 app.include_router(ws_router)

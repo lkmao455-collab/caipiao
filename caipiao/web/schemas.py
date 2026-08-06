@@ -45,39 +45,81 @@ class StrategyOut(BaseModel):
 
 
 # --- 生成 ---
+class PostFilter(BaseModel):
+    """后过滤规则：name 应为对应彩种 key，params 为过滤函数参数。"""
+
+    name: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class GenerateRequest(BaseModel):
     profile_key: str
     strategy_id: str
     count: int = Field(default=1, ge=1, le=100)
     options: dict[str, Any] = Field(default_factory=dict)
+    post_filters: list[PostFilter] = Field(default_factory=list)
 
 
 class GenerateResponse(BaseModel):
     profile_key: str
     strategy_id: str
     count: int
+    filtered_count: int = 0
     tickets: list[dict[str, Any]]
 
 
-# --- 回测（简化版）---
+# --- 回测（走查式 + 持久化）---
 class BacktestRequest(BaseModel):
     profile_key: str
     strategy_id: str
     count: int = Field(default=1, ge=1, le=100)
+    rounds: int = Field(default=30, ge=1, le=300)
+    history_window: int = Field(default=100, ge=1, le=500)
+    start_date: Optional[str] = None  # YYYY-MM-DD，限定回测起点
+    end_date: Optional[str] = None  # YYYY-MM-DD，限定回测终点
     options: dict[str, Any] = Field(default_factory=dict)
+    post_filters: list[PostFilter] = Field(default_factory=list)
 
 
-class BacktestResultItem(BaseModel):
-    ticket: dict[str, Any]
+class BacktestRoundItem(BaseModel):
+    target_date: str
+    issue: str
     matches: dict[str, int]
+    hit: bool
 
 
-class BacktestResponse(BaseModel):
+class BacktestRoundSummary(BaseModel):
+    total_rounds: int
+    hit_count: int
+    first_ticket_hit_count: int
+    profit: int
+    total_cost: int
+    total_fixed_prize: int
+
+
+class BacktestRunResponse(BaseModel):
     profile_key: str
     strategy_id: str
-    latest_draw: dict[str, Any]
-    results: list[BacktestResultItem]
-    note: str
+    batch_id: int
+    rounds: list[BacktestRoundItem]
+    summary: BacktestRoundSummary
+
+
+class BacktestRecordOut(BaseModel):
+    id: int
+    created_at: Optional[str] = None
+    profile_key: str
+    strategy_id: str
+    target_date: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    total_rounds: int = 0
+    tickets_count: int = 0
+    total_cost: int = 0
+    total_fixed_prize: int = 0
+    hit_count: int = 0
+    profit: int = 0
+    kind: str  # "single" | "batch"
 
 
 # --- API Key ---

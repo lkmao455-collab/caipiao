@@ -14,16 +14,17 @@ from ..db import get_db
 from ..deps import get_current_principal
 from ..engine import get_profile_engine
 from ..eventbus import bus
+from ..filters_registry import apply_filters
 from ..schemas import GenerateRequest, GenerateResponse
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
 
-def _load_history(profile) -> list:
+def _load_history(profile, limit: int = 300) -> list:
     """从本地开奖数据加载历史（复用桌面端 .caipiao 数据）。"""
     storage_path = DATA_ROOT / profile.storage_file
     repo = DrawRepository(storage_path, profile)
-    return repo.get_recent(300)
+    return repo.get_recent(limit)
 
 
 @router.post("", response_model=GenerateResponse)
@@ -44,6 +45,9 @@ def generate(req: GenerateRequest, principal=Depends(get_current_principal), db:
     except Exception as exc:  # 数据缺失等运行期问题，对用户友好返回
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"生成失败：{exc}") from exc
 
+    # 后过滤：核心层过滤函数由 web 侧引用并调用，零侵入
+    filtered = apply_filters(req.profile_key, tickets, options["history"], [p.model_dump() for p in req.post_filters])
+
     bus.publish(
         {
             "type": "generate",
@@ -51,6 +55,7 @@ def generate(req: GenerateRequest, principal=Depends(get_current_principal), db:
             "profile": req.profile_key,
             "strategy": req.strategy_id,
             "count": len(tickets),
+            "filtered_count": len(filtered),
         }
     )
 
@@ -58,5 +63,7 @@ def generate(req: GenerateRequest, principal=Depends(get_current_principal), db:
         profile_key=req.profile_key,
         strategy_id=req.strategy_id,
         count=len(tickets),
-        tickets=[t.to_dict() for t in tickets],
+        filtered_count=len(filtered),
+        tickets=[t.to_dict() for t in filtered],
     )
+
