@@ -4,9 +4,11 @@ import {
   runBacktest,
   listBacktests,
   deleteBacktest,
+  getBacktest,
   type BacktestRecord,
   type BacktestRound,
   type BacktestSummary,
+  type BacktestTicket,
 } from "../api/client";
 
 const props = defineProps<{ token: string; profileKey: string; strategyId: string }>();
@@ -19,6 +21,14 @@ const busy = ref(false);
 const rounds_out = ref<BacktestRound[]>([]);
 const summary = ref<BacktestSummary | null>(null);
 const history = ref<BacktestRecord[]>([]);
+
+const detail = ref<{ id: number; kind: string; data: Record<string, unknown> | null }>({
+  id: 0,
+  kind: "",
+  data: null,
+});
+const detailTickets = ref<BacktestTicket[]>([]);
+const detailLoading = ref(false);
 
 async function run() {
   error.value = "";
@@ -39,6 +49,8 @@ async function run() {
 
 async function refresh() {
   history.value = await listBacktests(props.token);
+  detail.value = { id: 0, kind: "", data: null };
+  detailTickets.value = [];
 }
 
 async function remove(id: number, kind: string) {
@@ -48,6 +60,27 @@ async function remove(id: number, kind: string) {
   } catch (e) {
     error.value = String(e);
   }
+}
+
+async function openDetail(h: BacktestRecord) {
+  error.value = "";
+  detailLoading.value = true;
+  detail.value = { id: h.id, kind: h.kind, data: null };
+  detailTickets.value = [];
+  try {
+    const data = await getBacktest(props.token, h.id, h.kind);
+    detail.value = { id: h.id, kind: h.kind, data };
+    detailTickets.value = (data.tickets as BacktestTicket[]) || [];
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+function closeDetail() {
+  detail.value = { id: 0, kind: "", data: null };
+  detailTickets.value = [];
 }
 
 onMounted(refresh);
@@ -109,10 +142,54 @@ onMounted(refresh);
           <td>{{ h.kind === "batch" ? `${h.start_date} ~ ${h.end_date}` : h.target_date }}</td>
           <td>{{ h.hit_count }}</td>
           <td>{{ h.float_prize_count }}</td>
-          <td><button class="del" @click="remove(h.id, h.kind)">删除</button></td>
+          <td>
+            <button class="det" @click="openDetail(h)">详情</button>
+            <button class="del" @click="remove(h.id, h.kind)">删除</button>
+          </td>
         </tr>
       </tbody>
     </table>
+
+    <div v-if="detail.data" class="detail">
+      <div class="detail-head">
+        <strong>回测详情 #{{ detail.id }}（{{ detail.kind }}）</strong>
+        <button class="det" @click="closeDetail">关闭</button>
+      </div>
+      <div v-if="detailLoading">加载中…</div>
+      <template v-else>
+        <div v-if="detail.kind === 'single'" class="single-meta">
+          <span>期号：{{ (detail.data as any).issue }}</span>
+          <span>成本：{{ (detail.data as any).total_cost }}</span>
+          <span>固定奖金：{{ (detail.data as any).total_fixed_prize }}</span>
+          <span>浮动奖：{{ (detail.data as any).float_prize_count }}</span>
+          <span>盈亏：{{ (detail.data as any).profit }}</span>
+        </div>
+        <table v-if="detail.kind === 'single' && detailTickets.length" class="tickets">
+          <thead>
+            <tr><th>#</th><th>号码</th><th>命中数</th><th>奖级</th><th>奖金</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in detailTickets" :key="t.ticket_index">
+              <td>{{ t.ticket_index }}<span v-if="t.is_first">（首注）</span></td>
+              <td>{{ Object.entries(t.groups).map(([k, v]) => `${k}:${v.join(',')}`).join(' ') }}</td>
+              <td>{{ Object.entries(t.hits).map(([k, v]) => `${k}:${v}`).join(' ') }}</td>
+              <td :class="{ win: t.prize_name !== '未中奖' }">{{ t.prize_name }}</td>
+              <td>{{ t.prize_amount == null ? '浮动' : t.prize_amount }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else-if="detail.kind === 'batch'" class="batch-meta">
+          <span>总期数：{{ (detail.data as any).total_rounds }}</span>
+          <span>首注命中：{{ (detail.data as any).first_ticket_hit_count }}</span>
+          <span>固定奖金：{{ (detail.data as any).total_fixed_prize }}</span>
+          <span>浮动奖：{{ (detail.data as any).float_prize_count }}</span>
+          <span>盈亏：{{ (detail.data as any).profit }}</span>
+          <div v-if="(detail.data as any).ticket_index_hits" class="idx-hits">
+            各注位命中期数：<span v-for="(c, i) in (detail.data as any).ticket_index_hits" :key="i">{{ i }}:{{ c }} </span>
+          </div>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -126,4 +203,12 @@ onMounted(refresh);
 .rounds, .history { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
 .rounds th, .rounds td, .history th, .history td { border: 1px solid #eee; padding: 4px 8px; text-align: left; }
 .del { color: #b00; background: none; border: 1px solid #b00; border-radius: 4px; padding: 2px 6px; cursor: pointer; }
+.det { color: #1565c0; background: none; border: 1px solid #1565c0; border-radius: 4px; padding: 2px 6px; cursor: pointer; margin-right: 4px; }
+.detail { margin-top: 14px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; background: #fafafa; }
+.detail-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.single-meta, .batch-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-bottom: 8px; }
+.idx-hits { width: 100%; color: #555; }
+.tickets { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tickets th, .tickets td { border: 1px solid #eee; padding: 4px 8px; text-align: left; vertical-align: top; }
+.tickets td.win { color: #388E3C; font-weight: bold; }
 </style>

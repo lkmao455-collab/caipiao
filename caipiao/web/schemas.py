@@ -156,6 +156,17 @@ class BacktestRecordOut(BaseModel):
     kind: str  # "single" | "batch"
 
 
+class BacktestTicketOut(BaseModel):
+    """单期回测中某一注的明细（用于历史记录钻取）。"""
+
+    ticket_index: int
+    groups: dict[str, list[int]]
+    hits: dict[str, int]
+    prize_name: str
+    prize_amount: Optional[int] = None
+    is_first: bool = False
+
+
 # --- API Key ---
 class ApiKeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64)

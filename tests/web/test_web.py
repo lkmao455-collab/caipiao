@@ -164,6 +164,20 @@ def test_backtest(client, token):
     assert r.status_code == 200
     assert r.json()["kind"] == "batch"
 
+    # 单期回测明细结构化（逐注奖级/奖金）
+    recs = client.get("/backtest", headers={"Authorization": f"Bearer {token}"}).json()
+    single = next((x for x in recs if x["kind"] == "single"), None)
+    assert single is not None, "应存在单期回测记录"
+    r = client.get(f"/backtest/{single['id']}?kind=single", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+    det = r.json()
+    assert det["kind"] == "single"
+    assert isinstance(det["tickets"], list) and len(det["tickets"]) >= 1
+    tk = det["tickets"][0]
+    assert "prize_name" in tk
+    assert "prize_amount" in tk
+    assert isinstance(tk["groups"], dict)
+
 
 def test_stats_and_filters(client, token):
     r = client.get("/profiles/ssq/stats")

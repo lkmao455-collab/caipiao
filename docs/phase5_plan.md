@@ -116,6 +116,12 @@ def build_engine() -> GenerationEngine:
   每期「最佳奖级 / 固定奖金 / 浮动奖数」及全局奖级分布。`save_single` 已支持的逐注
   `prize_name`/`prize_amount` 明细一并持久化。核心层零侵入。
 
+- 回测历史「单期明细钻取」：`GET /backtest/{id}?kind=single` 现在解析 `groups`/`hits`
+  JSON 并返回结构化 `tickets` 列表（`BacktestTicketOut`：ticket_index/groups/hits/
+  prize_name/prize_amount/is_first）；前端新增「详情」操作，单期展示每注号码、命中数、
+  奖级与奖金（浮动奖标“浮动”），批量为汇总（total_rounds/first_ticket_hit_count/
+  ticket_index_hits）。core 零侵入。
+
 ## 9. 风险与注意
 - **核心层零侵入**：web 包只 import 核心层，绝不动 `caipiao/ui`/`caipiao/app`；若发现核心层隐式依赖 PySide，单独隔离（已确认 core/data/persistence 不依赖 ui）。
 - **ML 层排除**：回测/预测若触发 ML 层，按既定约定排除在覆盖率统计外（torch/sklearn 环境差异）。

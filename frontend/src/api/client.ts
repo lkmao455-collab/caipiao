@@ -168,6 +168,15 @@ export interface BacktestRecord {
   kind: string;
 }
 
+export interface BacktestTicket {
+  ticket_index: number;
+  groups: Record<string, number[]>;
+  hits: Record<string, number>;
+  prize_name: string;
+  prize_amount: number | null;
+  is_first: boolean;
+}
+
 export async function runBacktest(
   token: string,
   profileKey: string,

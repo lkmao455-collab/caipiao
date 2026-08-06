@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -24,8 +26,9 @@ from ..schemas import (
     BacktestRecordOut,
     BacktestRequest,
     BacktestRoundItem,
-    BacktestRunResponse,
     BacktestRoundSummary,
+    BacktestRunResponse,
+    BacktestTicketOut,
 )
 from starlette.requests import Request
 
@@ -278,6 +281,24 @@ def get_backtest(
         single = bdb.get_single(backtest_id)
         if single is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "回测记录不存在")
+        tickets: list[BacktestTicketOut] = []
+        for tk in single.tickets:
+            groups = tk["groups"]
+            hits = tk["hits"]
+            if isinstance(groups, str):
+                groups = json.loads(groups)
+            if isinstance(hits, str):
+                hits = json.loads(hits)
+            tickets.append(
+                BacktestTicketOut(
+                    ticket_index=tk["ticket_index"],
+                    groups=groups,
+                    hits=hits,
+                    prize_name=tk["prize_name"],
+                    prize_amount=tk["prize_amount"],
+                    is_first=bool(tk["is_first"]),
+                )
+            )
         return {
             "kind": "single",
             "id": single.id,
@@ -287,9 +308,10 @@ def get_backtest(
             "issue": single.issue,
             "total_cost": single.total_cost,
             "total_fixed_prize": single.total_fixed_prize,
+            "float_prize_count": single.float_prize_count,
             "hit_count": single.hit_count,
             "profit": single.profit,
-            "tickets": single.tickets,
+            "tickets": tickets,
         }
     batch = bdb.get_batch(backtest_id)
     if batch is None:
