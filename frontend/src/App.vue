@@ -6,6 +6,7 @@ import Generate from "./views/Generate.vue";
 import Stats from "./views/Stats.vue";
 import Backtest from "./views/Backtest.vue";
 import FilterRules from "./views/FilterRules.vue";
+import Compare from "./views/Compare.vue";
 import Admin from "./views/Admin.vue";
 import { getMe, type CurrentUser } from "./api/client";
 
@@ -16,7 +17,7 @@ const selection = ref<{ profileKey: string; strategyId: string }>({
   profileKey: "",
   strategyId: "",
 });
-const tab = ref<"generate" | "stats" | "backtest" | "filters" | "admin">("generate");
+const tab = ref<"generate" | "stats" | "backtest" | "filters" | "compare" | "admin">("generate");
 const postFilters = ref<{ name: string; params: Record<string, unknown> }[]>([]);
 
 async function loadRole() {
@@ -70,6 +71,7 @@ function logout() {
       <button :class="{ active: tab === 'stats' }" @click="tab = 'stats'">统计</button>
       <button :class="{ active: tab === 'backtest' }" @click="tab = 'backtest'">回测</button>
       <button :class="{ active: tab === 'filters' }" @click="tab = 'filters'">过滤</button>
+      <button :class="{ active: tab === 'compare' }" @click="tab = 'compare'">对比</button>
       <button v-if="role === 'admin'" :class="{ active: tab === 'admin' }" @click="tab = 'admin'">管理</button>
     </div>
 
@@ -98,6 +100,12 @@ function logout() {
       :post-filters="postFilters"
     />
     <Admin v-else-if="tab === 'admin' && role === 'admin'" :token="token" />
+    <Compare
+      v-else-if="tab === 'compare'"
+      :token="token"
+      :profile-key="selection.profileKey"
+      :strategy-id="selection.strategyId"
+    />
   </template>
 </template>
 
