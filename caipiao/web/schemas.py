@@ -114,6 +114,9 @@ class BacktestRoundItem(BaseModel):
     issue: str
     matches: dict[str, int]
     hit: bool
+    best_tier: Optional[str] = None  # 该期最佳奖级（浮动奖记原名，未中奖为 None）
+    round_fixed_prize: int = 0  # 该期固定奖金合计
+    round_float_count: int = 0  # 该期命中浮动奖的注数
 
 
 class BacktestRoundSummary(BaseModel):
@@ -123,6 +126,8 @@ class BacktestRoundSummary(BaseModel):
     profit: int
     total_cost: int
     total_fixed_prize: int
+    float_prize_count: int = 0  # 命中浮动奖的总注数（一等奖等高奖等金额浮动，未计入 profit）
+    tier_breakdown: dict[str, int] = Field(default_factory=dict)  # 各奖级命中注数分布
 
 
 class BacktestRunResponse(BaseModel):
@@ -145,6 +150,7 @@ class BacktestRecordOut(BaseModel):
     tickets_count: int = 0
     total_cost: int = 0
     total_fixed_prize: int = 0
+    float_prize_count: int = 0
     hit_count: int = 0
     profit: int = 0
     kind: str  # "single" | "batch"

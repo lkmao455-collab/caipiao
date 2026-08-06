@@ -142,7 +142,19 @@ def test_backtest(client, token):
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["batch_id"]
-    assert data["summary"]["total_rounds"] >= 1
+    s = data["summary"]
+    assert s["total_rounds"] >= 1
+    # 真实奖级字段存在且类型正确
+    assert isinstance(s["total_fixed_prize"], int)
+    assert isinstance(s["float_prize_count"], int)
+    assert isinstance(s["tier_breakdown"], dict)
+    assert s["total_cost"] > 0  # 成本按注数累计
+    assert s["profit"] == s["total_fixed_prize"] - s["total_cost"]
+    # 每期回测含真实奖级信息
+    for rd in data["rounds"]:
+        assert "best_tier" in rd
+        assert isinstance(rd["round_fixed_prize"], int)
+        assert isinstance(rd["round_float_count"], int)
     # 回测记录可列出/查看
     bid = data["batch_id"]
     r = client.get("/backtest", headers={"Authorization": f"Bearer {token}"})

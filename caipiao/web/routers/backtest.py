@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ...core.prize import calculate_prize
 from ...core.profile import get_profile as _get_profile
 from ...data.repository import DrawRepository
 from ...persistence.backtest_db import BacktestDatabase
@@ -44,10 +45,19 @@ def _group_hits(ticket_groups: dict[str, list[int]], actual_groups: dict[str, li
     }
 
 
-def _is_hit(profile, ticket_groups: dict[str, list[int]], actual_groups: dict[str, list[int]]) -> bool:
-    """轻量中奖判定：主号组全部命中即记为一注命中（不引入真实奖级表，core 零侵入）。"""
-    primary = profile.primary_group.key
-    return _group_hits(ticket_groups, actual_groups).get(primary, 0) >= profile.group(primary).count
+# 浮动奖（如一/二等奖）奖金不固定，用大哨兵排在固定奖之前，便于取“最佳奖级”
+_FLOAT_RANK = 10 ** 9
+
+
+def _evaluate_ticket(profile_key: str, ticket_groups, actual_groups, details):
+    """用核心层奖级表判定单注中奖情况，返回 (奖级名, 固定奖金或None, 命中数)。"""
+    hits = _group_hits(ticket_groups, actual_groups)
+    tier, prize = calculate_prize(profile_key, hits, ticket_groups, actual_groups, details=details)
+    return tier, prize, hits
+
+
+def _is_winning_tier(tier: str) -> bool:
+    return tier not in ("未中奖", "未知彩种")
 
 
 @router.post("", response_model=BacktestRunResponse)
@@ -79,12 +89,14 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
 
     rounds: list[BacktestRoundItem] = []
     total_cost = 0
-    total_fixed_prize = 0  # 轻量回测不计算真实奖金
+    total_fixed_prize = 0
+    total_float_prize = 0
     first_ticket_hit_count = 0
     ticket_index_hits: dict[int, int] = {}
+    tier_breakdown: dict[str, int] = {}
 
     bdb = _backtest_db()
-    single_rows: list[tuple] = []  # (target, issue, actual_groups, round_hit, ticket_matches)
+    single_rows: list[tuple] = []  # (target, issue, actual_groups, round_hit, ticket_details)
 
     for t in targets:
         # 仅使用早于目标期的历史（走查式：模拟当时未知未来开奖）
@@ -101,31 +113,48 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
 
         actual = t.groups
         round_hit = False
-        ticket_matches: list[dict[str, int]] = []
+        round_fixed = 0
+        round_float = 0
+        round_best_rank = -1
+        round_best_tier: str | None = None
+        ticket_details: list[dict[str, object]] = []
         for idx, tk in enumerate(tickets):
             tg = tk.groups
-            hits = _group_hits(tg, actual)
-            ticket_matches.append(hits)
-            hit = _is_hit(profile, tg, actual)
-            if hit:
+            tier, prize, hits = _evaluate_ticket(profile.key, tg, actual, getattr(tk, "details", None))
+            ticket_details.append(
+                {"ticket": tk, "hits": hits, "prize_name": tier, "prize_amount": prize}
+            )
+            total_cost += 2  # 单注成本近似
+            if _is_winning_tier(tier):
+                round_hit = True
                 ticket_index_hits[idx] = ticket_index_hits.get(idx, 0) + 1
                 if idx == 0:
                     first_ticket_hit_count += 1
-                round_hit = True
-            total_cost += 2  # 单注成本近似
+                tier_breakdown[tier] = tier_breakdown.get(tier, 0) + 1
+                if prize is None:
+                    total_float_prize += 1
+                    round_float += 1
+                else:
+                    total_fixed_prize += prize
+                    round_fixed += prize
+                rank = _FLOAT_RANK if prize is None else prize
+                if rank > round_best_rank:
+                    round_best_rank = rank
+                    round_best_tier = tier
 
-        matches = ticket_matches[0] if ticket_matches else {}
-        if round_hit:
-            total_fixed_prize += 0  # 不计算真实奖金
+        matches = ticket_details[0]["hits"] if ticket_details else {}
         rounds.append(
             BacktestRoundItem(
                 target_date=str(t.draw_date),
                 issue=t.issue,
                 matches=matches,
                 hit=round_hit,
+                best_tier=round_best_tier,
+                round_fixed_prize=round_fixed,
+                round_float_count=round_float,
             )
         )
-        single_rows.append((t, actual, round_hit, ticket_matches))
+        single_rows.append((t, actual, round_hit, round_fixed, round_float, ticket_details))
 
     hit_count = sum(1 for r in rounds if r.hit)
     profit = total_fixed_prize - total_cost
@@ -137,6 +166,8 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
         profit=profit,
         total_cost=total_cost,
         total_fixed_prize=total_fixed_prize,
+        float_prize_count=total_float_prize,
+        tier_breakdown=tier_breakdown,
     )
 
     batch_id = bdb.save_batch(
@@ -148,15 +179,15 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
         options=options,
         total_cost=total_cost,
         total_fixed_prize=total_fixed_prize,
-        float_prize_count=0,
+        float_prize_count=total_float_prize,
         hit_count=hit_count,
         total_rounds=len(rounds),
         first_ticket_hit_count=first_ticket_hit_count,
         ticket_index_hits=ticket_index_hits,
     )
 
-    # 逐期持久化明细
-    for t, actual, round_hit, ticket_matches in single_rows:
+    # 逐期持久化明细（含每注真实奖级）
+    for t, actual, round_hit, round_fixed, round_float, ticket_details in single_rows:
         bdb.save_single(
             profile_key=req.profile_key,
             strategy_id=req.strategy_id,
@@ -166,10 +197,10 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
             options=options,
             actual_groups=actual,
             total_cost=req.count * 2,
-            total_fixed_prize=0,
-            float_prize_count=0,
+            total_fixed_prize=round_fixed,
+            float_prize_count=round_float,
             hit_count=1 if round_hit else 0,
-            tickets=[],
+            tickets=ticket_details,
         )
 
     record_usage(db, principal, "backtest", 1)

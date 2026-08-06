@@ -108,6 +108,14 @@ def build_engine() -> GenerationEngine:
 - **P5.D（完成）**：Docker 多阶段 web 目标 + compose + CI。新增 `requirements-web.txt`（剥离 PySide6/Qt/Pillow/matplotlib/openpyxl/Pygments/markdown，保留 numpy+ML 栈+web 依赖+redis——因策略模块顶层导入 `caipiao.ml`，ML 栈不可省，受核心层零侵入约束）；`Dockerfile.web` 多阶段（build 阶段装 torch CPU-only wheel，runtime 仅 venv+代码，无 Qt 库，EXPOSE 8000）；`frontend/Dockerfile`（node 构建→nginx:1.27-alpine）+ `frontend/nginx.conf`（同源托管 SPA，反向代理 `/auth /profiles /generate /backtest /stats /filters /me /apikeys /openapi /docs` 与 `/ws` 到 `web:8000`，含 SPA history 回退）；`docker-compose.yml` 编排 `web`+`frontend`+`redis`（web 经 `CAIPIAO_WEB_REDIS_URL` 启用 Redis 总线）；新增 `.dockerignore`；CI 增加 `web` job（`requirements-web.txt`+torch CPU+pytest+redis+fakeredis，跑 `tests/web`）；新增 `docs/phase5_deploy.md`。
 - **P5.E（完成）**：多用户权限分级 + 管理员后台。`User.role` 列（默认 `user`，`init_db` 对旧表做 `ALTER TABLE` 轻量迁移补齐 `role` 列）；`deps.require_admin` 依赖（非管理员 403）；注册时首个用户自动成为管理员（初始化引导）；新增 `routers/admin.py`：`GET /admin/stats`（用户数/管理员数/API Key 数/累计调用）、`GET /admin/users`、`PATCH /admin/users/{id}/role`（admin/user，正则校验）、`DELETE /admin/users/{id}`（禁止操作自身，级联删 API Key）；`UserOut` 增加 `role` 及 `RoleUpdate`/`UserAdminOut`/`AdminStats` schema；前端新增 `Admin.vue`（仅 `role==admin` 显示「管理」标签，调 `/me` 取角色）、`client.ts` 新增 `getMe/getAdminStats/listAdminUsers/setUserRole/deleteUser`；测试 `test_admin.py` 5 例全过。核心层零侵入。
 
+## 9.1 后期增强（回测接入真实奖级）
+- 原 P5.A 回测采用「轻量近似」（主号组全中即记为命中，不计算奖金）。已升级为调用核心层
+  `core.prize.calculate_prize`（双色球/大乐透/福彩3D/排列3/排列5/7星彩/快乐8/广东36选7 的真实奖级表）：
+  每注按各号组命中数判定奖级与固定奖金，浮动奖（一/二等奖等）单独计数（不计入盈亏）；
+  汇总返回 `float_prize_count` 与 `tier_breakdown`（各奖级命中注数分布）。前端回测视图展示
+  每期「最佳奖级 / 固定奖金 / 浮动奖数」及全局奖级分布。`save_single` 已支持的逐注
+  `prize_name`/`prize_amount` 明细一并持久化。核心层零侵入。
+
 ## 9. 风险与注意
 - **核心层零侵入**：web 包只 import 核心层，绝不动 `caipiao/ui`/`caipiao/app`；若发现核心层隐式依赖 PySide，单独隔离（已确认 core/data/persistence 不依赖 ui）。
 - **ML 层排除**：回测/预测若触发 ML 层，按既定约定排除在覆盖率统计外（torch/sklearn 环境差异）。

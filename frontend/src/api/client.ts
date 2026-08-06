@@ -134,6 +134,9 @@ export interface BacktestRound {
   issue: string;
   matches: Record<string, number>;
   hit: boolean;
+  best_tier: string | null;
+  round_fixed_prize: number;
+  round_float_count: number;
 }
 
 export interface BacktestSummary {
@@ -143,6 +146,8 @@ export interface BacktestSummary {
   profit: number;
   total_cost: number;
   total_fixed_prize: number;
+  float_prize_count: number;
+  tier_breakdown: Record<string, number>;
 }
 
 export interface BacktestRecord {
@@ -157,6 +162,7 @@ export interface BacktestRecord {
   tickets_count: number;
   total_cost: number;
   total_fixed_prize: number;
+  float_prize_count: number;
   hit_count: number;
   profit: number;
   kind: string;
