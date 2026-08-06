@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import {
   runBacktest,
   listBacktests,
   deleteBacktest,
   getBacktest,
+  getStats,
+  fetchProfileData,
   type BacktestRecord,
   type BacktestRound,
   type BacktestSummary,
   type BacktestTicket,
+  type ProfileStats,
+  type FetchResult,
 } from "../api/client";
 
 const props = defineProps<{ token: string; profileKey: string; strategyId: string }>();
@@ -30,6 +34,46 @@ const detail = ref<{ id: number; kind: string; data: Record<string, unknown> | n
 const detailTickets = ref<BacktestTicket[]>([]);
 const detailLoading = ref(false);
 
+// 空数据引导
+const needsBootstrap = ref(false);
+const bootstrapped = ref(false);
+const fetching = ref(false);
+const fetchMsg = ref("");
+const lastFetch = ref<FetchResult | null>(null);
+
+async function loadStats() {
+  try {
+    const s: ProfileStats = await getStats(props.token, props.profileKey);
+    needsBootstrap.value = (s.total_records ?? 0) === 0;
+    // 首次加载自动引导：本地无历史时自动拉取一次全量历史
+    if (needsBootstrap.value && !bootstrapped.value) {
+      bootstrapped.value = true;
+      await refresh("all");
+    }
+  } catch {
+    // 统计接口异常时不阻断回测，交由回测接口报错
+  }
+}
+
+async function refresh(mode: "latest" | "all" = "latest") {
+  fetching.value = true;
+  fetchMsg.value = "";
+  lastFetch.value = null;
+  try {
+    const res = await fetchProfileData(props.token, props.profileKey, mode);
+    lastFetch.value = res;
+    fetchMsg.value =
+      mode === "all"
+        ? `已拉取 ${res.fetched} 期，新增 ${res.added} 期，本地共 ${res.total} 期`
+        : `已抓取 ${res.fetched} 期，新增 ${res.added} 期，本地共 ${res.total} 期`;
+    await loadStats();
+  } catch (e) {
+    fetchMsg.value = String(e);
+  } finally {
+    fetching.value = false;
+  }
+}
+
 async function run() {
   error.value = "";
   busy.value = true;
@@ -39,7 +83,7 @@ async function run() {
     const res = await runBacktest(props.token, props.profileKey, props.strategyId, count.value, rounds.value);
     rounds_out.value = res.rounds;
     summary.value = res.summary;
-    await refresh();
+    await refreshHistory();
   } catch (e) {
     error.value = String(e);
   } finally {
@@ -47,7 +91,7 @@ async function run() {
   }
 }
 
-async function refresh() {
+async function refreshHistory() {
   history.value = await listBacktests(props.token);
   detail.value = { id: 0, kind: "", data: null };
   detailTickets.value = [];
@@ -56,7 +100,7 @@ async function refresh() {
 async function remove(id: number, kind: string) {
   try {
     await deleteBacktest(props.token, id, kind);
-    await refresh();
+    await refreshHistory();
   } catch (e) {
     error.value = String(e);
   }
@@ -83,17 +127,38 @@ function closeDetail() {
   detailTickets.value = [];
 }
 
-onMounted(refresh);
+watch(
+  () => [props.profileKey, props.strategyId],
+  () => {
+    bootstrapped.value = false;
+    needsBootstrap.value = false;
+    loadStats();
+  }
+);
+
+onMounted(loadStats);
 </script>
 
 <template>
   <div class="card">
     <h2>走查式回测 · {{ profileKey }}</h2>
+    <div v-if="needsBootstrap" class="banner">
+      <div class="banner-text">
+        本地暂无历史数据，回测前请先拉取开奖数据。
+      </div>
+      <div class="banner-actions">
+        <button :disabled="fetching" @click="refresh('all')">拉取全量历史</button>
+        <button :disabled="fetching" @click="refresh('latest')">仅拉取最新</button>
+        <span v-if="fetching" class="banner-loading">拉取中…</span>
+        <span v-else-if="fetchMsg" class="banner-msg">{{ fetchMsg }}</span>
+      </div>
+    </div>
+
     <div class="row">
       <span>策略：{{ strategyId }}</span>
       <label>每期注数<input v-model.number="count" type="number" min="1" max="100" style="width: 70px" /></label>
       <label>回测期数<input v-model.number="rounds" type="number" min="1" max="300" style="width: 70px" /></label>
-      <button :disabled="busy" @click="run">运行回测</button>
+      <button :disabled="busy || needsBootstrap" @click="run">运行回测</button>
     </div>
     <p v-if="error" class="error">{{ error }}</p>
 
@@ -194,6 +259,13 @@ onMounted(refresh);
 </template>
 
 <style scoped>
+.banner { background: #fff8e1; border: 1px solid #ffd54f; border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+.banner-text { font-size: 13px; color: #795548; margin-bottom: 8px; }
+.banner-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.banner-actions button { border: 1px solid #f9a825; background: #fff; color: #f57f17; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+.banner-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.banner-loading { font-size: 13px; color: #888; }
+.banner-msg { font-size: 13px; color: #555; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .summary { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #333; margin: 10px 0; }
 .summary .hit, td.hit { color: #388E3C; font-weight: bold; }
