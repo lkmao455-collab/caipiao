@@ -129,6 +129,29 @@ export async function getStats(token: string, profileKey: string): Promise<Profi
   return (await r.json()) as ProfileStats;
 }
 
+export interface FetchResult {
+  profile_key: string;
+  mode: string;
+  fetched: number;
+  added: number;
+  total: number;
+  latest: Record<string, unknown> | null;
+}
+
+export async function fetchProfileData(
+  token: string,
+  profileKey: string,
+  mode: "latest" | "all" = "latest",
+): Promise<FetchResult> {
+  const r = await fetch(`${BASE}/profiles/${profileKey}/fetch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify({ mode }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as FetchResult;
+}
+
 export interface BacktestRound {
   target_date: string;
   issue: string;

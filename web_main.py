@@ -23,6 +23,7 @@ from caipiao.web.routers import (
     api_keys,
     auth,
     backtest,
+    fetch,
     filters,
     generate,
     profiles,
@@ -125,6 +126,7 @@ app.include_router(filters.router, tags=["filters"])
 app.include_router(user.router, tags=["user"])
 app.include_router(api_keys.router, tags=["api_keys"])
 app.include_router(admin.router, tags=["admin"])
+app.include_router(fetch.router, tags=["fetch"])
 app.include_router(ws_router)
 
 

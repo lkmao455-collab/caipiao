@@ -122,8 +122,21 @@ def build_engine() -> GenerationEngine:
   奖级与奖金（浮动奖标“浮动”），批量为汇总（total_rounds/first_ticket_hit_count/
   ticket_index_hits）。core 零侵入。
 
+## 9.2 数据拉取端点（/fetch）
+
+- 路线图 9 节原列为「后续阶段加 /fetch 拉取」，现已实现：新增 `routers/fetch.py`，
+  提供 `POST /profiles/{key}/fetch`（单彩种，mode=latest|all）与 `POST /fetch`（遍历
+  全部彩种）。复用核心层 `LotteryDataFetcher` + `DrawRepository`，**零侵入**；
+  对真正新增的记录通过事件总线发布 `draw_update`（与后台 poller 一致，使用归一化期号）。
+  - 鉴权：需登录（`get_current_user`），限流 `10/minute`（单彩种）/ `5/minute`（全部）。
+  - 响应 `FetchResult`：profile_key / mode / fetched / added / total / latest。
+  - 前端 `Stats.vue` 新增「拉取最新开奖」按钮，`client.ts` 新增 `fetchProfileData`，
+    拉取后自动刷新统计。
+  - 测试 `tests/web/test_fetch.py` 5 例全过（monkeypatch 网络抓取，覆盖鉴权/归一化/
+    去重/事件发布/全局拉取）。
+
 ## 9. 风险与注意
 - **核心层零侵入**：web 包只 import 核心层，绝不动 `caipiao/ui`/`caipiao/app`；若发现核心层隐式依赖 PySide，单独隔离（已确认 core/data/persistence 不依赖 ui）。
 - **ML 层排除**：回测/预测若触发 ML 层，按既定约定排除在覆盖率统计外（torch/sklearn 环境差异）。
 - **安全**：JWT 密钥来自配置/环境变量，不硬编码；密码 bcrypt 哈希；所有入参经 Pydantic 校验。
-- **数据可用性**：`/generate` 依赖本地开奖数据（`.caipiao/`），无数据时策略会报错——切片阶段返回 4xx 友好提示；后续阶段加 `/fetch` 拉取。
+- **数据可用性**：`/generate` 依赖本地开奖数据（`.caipiao/`），无数据时策略会报错——切片阶段返回 4xx 友好提示；已提供 `/fetch`（单彩种 + 全局）拉取端点（见 9.2）。

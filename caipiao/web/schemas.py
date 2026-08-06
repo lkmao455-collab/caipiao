@@ -72,6 +72,27 @@ class StrategyOut(BaseModel):
     config_schema: Optional[dict[str, Any]] = None
 
 
+# --- 数据拉取（/fetch） ---
+class FetchRequest(BaseModel):
+    """触发从数据源抓取最新开奖并写入本地仓库。
+
+    mode="latest" 仅抓取最新一期；mode="all" 抓取全量历史（可能较多，谨慎使用）。
+    """
+
+    mode: str = Field(default="latest", pattern="^(latest|all)$")
+
+
+class FetchResult(BaseModel):
+    """数据拉取结果摘要。"""
+
+    profile_key: str
+    mode: str
+    fetched: int
+    added: int
+    total: int
+    latest: Optional[dict[str, Any]] = None
+
+
 # --- 生成 ---
 class PostFilter(BaseModel):
     """后过滤规则：name 应为对应彩种 key，params 为过滤函数参数。"""

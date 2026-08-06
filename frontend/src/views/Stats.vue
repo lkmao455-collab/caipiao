@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { getStats, type ProfileStats, type GroupStats } from "../api/client";
+import {
+  getStats,
+  fetchProfileData,
+  type ProfileStats,
+  type GroupStats,
+  type FetchResult,
+} from "../api/client";
 
 const props = defineProps<{ token: string; profileKey: string }>();
 
 const stats = ref<ProfileStats | null>(null);
 const error = ref("");
 const busy = ref(false);
+const fetching = ref(false);
+const fetchMsg = ref("");
+const lastFetch = ref<FetchResult | null>(null);
 
 async function load() {
   error.value = "";
@@ -17,6 +26,22 @@ async function load() {
     error.value = String(e);
   } finally {
     busy.value = false;
+  }
+}
+
+async function refresh() {
+  fetching.value = true;
+  fetchMsg.value = "";
+  lastFetch.value = null;
+  try {
+    const res = await fetchProfileData(props.token, props.profileKey, "latest");
+    lastFetch.value = res;
+    fetchMsg.value = `已抓取 ${res.fetched} 期，新增 ${res.added} 期，本地共 ${res.total} 期`;
+    await load();
+  } catch (e) {
+    fetchMsg.value = String(e);
+  } finally {
+    fetching.value = false;
   }
 }
 
@@ -31,6 +56,11 @@ function maxFreq(g: GroupStats): number {
 <template>
   <div class="card">
     <h2>统计分析 · {{ profileKey }}</h2>
+    <div class="row">
+      <button :disabled="fetching" @click="refresh">拉取最新开奖</button>
+      <span v-if="fetching">拉取中…</span>
+    </div>
+    <p v-if="fetchMsg" class="hint">{{ fetchMsg }}</p>
     <p v-if="busy">加载中…</p>
     <p v-if="error" class="error">{{ error }}</p>
     <template v-if="stats">
@@ -75,6 +105,8 @@ function maxFreq(g: GroupStats): number {
 </template>
 
 <style scoped>
+.row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.hint { color: #888; font-size: 12px; }
 .group-block { margin-bottom: 18px; }
 .bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; overflow-x: auto; }
 .bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 14px; }
