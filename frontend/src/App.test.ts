@@ -208,4 +208,33 @@ describe("App 外壳", () => {
     await clickTab(wrapper, "管理");
     expect(wrapper.text()).toContain("管理后台");
   });
+
+  it("应用后过滤后切换到生成视图（onFiltersApply）", async () => {
+    localStorage.setItem("cp_token", "tok-abc");
+    (getFilters as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile_key: "ssq",
+      available: true,
+      params: [{ name: "odd_even", type: "int", default: 0.5, min: 0, max: 1, description: "奇偶比" }],
+    });
+    const wrapper = mount(App);
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "下一步：生成")!
+      .trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await clickTab(wrapper, "过滤");
+    await wrapper
+      .findAll("button")
+      .find((b) => b.text() === "应用过滤到生成")!
+      .trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("生成号码");
+  });
 });

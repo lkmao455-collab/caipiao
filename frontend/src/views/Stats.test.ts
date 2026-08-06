@@ -196,4 +196,34 @@ describe("Stats 空数据引导", () => {
       (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls.length,
     ).toBe(0);
   });
+
+  it("点击横幅「拉取全量历史」触发 fetch('all')", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStats());
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockClear();
+    await findButton(wrapper, "拉取全量历史")!.trigger("click");
+    await flushPromises();
+
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
+    ).toEqual(["tok", "ssq", "all"]);
+  });
+
+  it("点击横幅「仅拉取最新」触发 fetch('latest')", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStats());
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockClear();
+    await findButton(wrapper, "仅拉取最新")!.trigger("click");
+    await flushPromises();
+
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
+    ).toEqual(["tok", "ssq", "latest"]);
+  });
 });

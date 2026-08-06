@@ -6,3 +6,6 @@ dist/
 # Vue/TS build cache
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# Vitest coverage output
+coverage/

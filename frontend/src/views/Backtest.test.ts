@@ -341,4 +341,23 @@ describe("Backtest 回测执行与记录", () => {
     expect(calls.length).toBe(1);
     expect(calls[0]).toEqual(["tok", "dlt", "all"]);
   });
+
+  it("修改注数/期数并点击横幅「仅拉取最新」", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStats());
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    const nums = wrapper.findAll('input[type="number"]');
+    await nums[0].setValue(7); // 每期注数
+    await nums[1].setValue(30); // 回测期数
+
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockClear();
+    await findButton(wrapper, "仅拉取最新")!.trigger("click");
+    await flushPromises();
+
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
+    ).toEqual(["tok", "ssq", "latest"]);
+  });
 });

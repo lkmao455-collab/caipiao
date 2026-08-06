@@ -215,4 +215,21 @@ describe("Generate 空数据引导", () => {
     ]);
     expect(wrapper.find(".hint").text()).toContain("已应用后过滤");
   });
+
+  it("点击横幅「仅拉取最新」触发 fetch('latest')", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStats());
+    const wrapper = mount(Generate, {
+      props: { token: "tok", profileKey: "ssq", strategyId: "balanced" },
+    });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockClear();
+    await findButton(wrapper, "仅拉取最新")!.trigger("click");
+    await flushPromises();
+
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
+    ).toEqual(["tok", "ssq", "latest"]);
+  });
 });
