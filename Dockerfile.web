@@ -1,0 +1,57 @@
+# P5.D: Web 后端多阶段镜像（剥离 PySide6 / Qt 桌面栈）
+#
+# 构建：  docker build -f Dockerfile.web -t caipiao-web .
+# 运行：  docker run -p 8000:8000 --env CAIPIAO_WEB_DATA=/data \
+#           -v caipiao_data:/data caipiao-web
+#
+# 说明：
+# - build 阶段在 venv 中安装依赖（含 torch CPU-only wheel 以减小体积）。
+# - runtime 阶段仅复制 venv 与应用代码，不含编译器与 Qt 系统库。
+# - 暴露 8000（uvicorn）。设置 CAIPIAO_WEB_REDIS_URL 可启用 Redis 事件总线。
+
+# --------------------------- build 阶段 --------------------------- #
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# 编译期系统库（部分 wheel 需要，运行时不保留）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# 先装依赖以便最大化利用层缓存
+COPY requirements-web.txt .
+
+# 创建隔离 venv；torch 单独用 CPU-only 索引安装以显著减小镜像体积
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --upgrade pip
+RUN pip install -r requirements-web.txt
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# --------------------------- runtime 阶段 ------------------------- #
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH=/app \
+    CAIPIAO_WEB_DATA=/data \
+    CAIPIAO_WEB_PULL_INTERVAL=60
+
+WORKDIR /app
+
+# 仅复制 venv 与源码，不包含编译器 / Qt 库
+COPY --from=builder /opt/venv /opt/venv
+COPY . .
+
+RUN mkdir -p /data
+
+EXPOSE 8000
+
+# 启动 Web API（不走桌面 PySide 入口 main.py）
+CMD ["uvicorn", "web_main:app", "--host", "0.0.0.0", "--port", "8000"]

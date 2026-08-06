@@ -1,0 +1,32 @@
+# 避免把本地环境/产物带进 Docker 构建上下文
+.git
+.gitignore
+.github
+.mimocode
+.superpowers
+.ruff_cache
+.pytest_cache
+__pycache__
+*.pyc
+venv
+.venv
+env
+
+# 前端本地依赖与构建产物（前端镜像自行 npm ci/build）
+frontend/node_modules
+frontend/dist
+
+# 数据与日志
+.caipiao
+*.db
+*.log
+cov_*.log
+
+# 桌面应用与一次性脚本（web 镜像无关）
+main.py
+*.exe
+python-3.12.11-amd64.exe
+backtest_*.py
+predict_*.py
+run_*.py
+catboost_info

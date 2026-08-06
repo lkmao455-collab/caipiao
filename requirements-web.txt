@@ -1,0 +1,36 @@
+# 精简的 Web 后端依赖（P5.D）。
+# 与 requirements.txt 的区别：移除桌面/UI 专用栈（PySide6 / Qt 系统库 /
+# Pillow / matplotlib / openpyxl / Pygments / markdown），保留 Web API 与
+# 核心策略所需的运行时依赖。
+#
+# 注意：核心策略（hybrid/lstm/transformer）在模块加载时会 import caipiao.ml，
+# 而 ml 在模块顶层依赖 numpy 与 ML 框架，因此 ML 栈不可省略（否则 web 服务
+# 启动时注册策略即失败）。受「核心层零侵入」约束，此处不能在策略内做懒导入。
+
+# --- 核心计算 / 数据抓取 ---
+numpy>=1.24.0
+requests>=2.28.0
+beautifulsoup4>=4.11.0
+
+# --- ML 栈（策略模块顶层导入，必须保留） ---
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+lightgbm>=4.0.0
+catboost>=1.2.0
+# torch 使用 CPU-only 轻量 wheel，在 Dockerfile.web build 阶段单独安装。
+# 本地开发若需要可取消下一行注释：
+# torch>=2.0.0
+
+# --- Web 后端依赖 ---
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+python-multipart>=0.0.9  # 表单解析（OAuth2 登录）
+python-jose[cryptography]>=3.3  # JWT
+passlib>=1.7
+bcrypt==4.0.1  # 与 passlib 1.7.x 兼容（新版 bcrypt 5.x 不兼容）
+sqlalchemy>=2.0
+aiosqlite>=0.19
+httpx>=0.27  # FastAPI TestClient 依赖（测试用）
+slowapi>=0.1.9  # 速率限制（限流）
+redis>=5.0  # P5.C Redis 事件总线（可选；不设置 CAIPIAO_WEB_REDIS_URL 时回退内存总线）

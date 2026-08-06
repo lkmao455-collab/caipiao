@@ -1,22 +1,62 @@
-version: '3.8'
+# P5.D: Web 全栈编排（web 后端 + 前端 nginx + redis 事件总线）
+#
+# 启动：  docker compose up --build
+# 访问：  http://localhost       （前端 nginx，代理 API/WS 到后端）
+#         http://localhost:8000  （后端直连，含 /docs-public、/docs-private）
+#
+# 数据目录 /data 持久化到命名卷 caipiao_data，包含开奖数据、用户/密钥库与回测库。
 
 services:
-  caipiao:
-    build: .
-    container_name: caipiao-generator
-    volumes:
-      # 持久化数据目录
-      - caipiao_data:/app/.caipiao
-      # 可选：挂载插件目录
-      - ./plugins:/app/plugins
-    environment:
-      - QT_QPA_PLATFORM=offscreen
-      - PYTHONPATH=/app
-    # 如果需要 Web 界面，取消注释
-    # ports:
-    #   - "8080:8080"
+  redis:
+    image: redis:7-alpine
+    container_name: caipiao-redis
     restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: caipiao-web
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - CAIPIAO_WEB_DATA=/data
+      - CAIPIAO_WEB_DB=sqlite:////data/web.db
+      - CAIPIAO_WEB_SECRET=${CAIPIAO_WEB_SECRET:-change-me-in-prod}
+      - CAIPIAO_WEB_PULL_INTERVAL=60
+      # 启用 Redis 事件总线（不设置则回退内存总线，仅单副本有效）
+      - CAIPIAO_WEB_REDIS_URL=redis://redis:6379
+      - CAIPIAO_WEB_RATE_LIMIT=${CAIPIAO_WEB_RATE_LIMIT:-60/minute}
+    volumes:
+      - caipiao_data:/data
+    expose:
+      - "8000"
+    # 可选：直接暴露后端端口
+    # ports:
+    #   - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: caipiao-frontend
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
 
 volumes:
   caipiao_data:
+    driver: local
+  redis_data:
     driver: local
