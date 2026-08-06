@@ -185,4 +185,34 @@ describe("Generate 空数据引导", () => {
     expect(calls.length).toBe(1);
     expect(calls[0]).toEqual(["tok", "dlt", "all"]);
   });
+
+  it("携带 postFilters 时传给 generate", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      fullStats(),
+    );
+    (generate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+      filtered_count: 1,
+      tickets: [{ red: [1, 2, 3] }],
+    });
+    const postFilters = [{ name: "odd_even", params: { ratio: 0.5 } }];
+    const wrapper = mount(Generate, {
+      props: { token: "tok", profileKey: "ssq", strategyId: "balanced", postFilters },
+    });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "生成")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect((generate as unknown as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([
+      "tok",
+      "ssq",
+      "balanced",
+      5,
+      postFilters,
+    ]);
+    expect(wrapper.find(".hint").text()).toContain("已应用后过滤");
+  });
 });

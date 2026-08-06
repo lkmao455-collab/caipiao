@@ -145,4 +145,55 @@ describe("Stats 空数据引导", () => {
     expect(calls.length).toBe(1);
     expect(calls[0]).toEqual(["tok", "dlt", "all"]);
   });
+
+  it("含分组频率时渲染条形图并调用 maxFreq", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile_key: "ssq",
+      total_records: 10,
+      groups: {
+        red: {
+          key: "red",
+          name: "红",
+          lo: 1,
+          hi: 3,
+          count: 3,
+          color: "#f00",
+          frequency: { "1": 5, "2": 3, "3": 0 },
+          hot: [1],
+          cold: [3],
+          missing: [],
+        },
+      },
+      summary: {},
+      odd_even_ratio: [0, 0],
+      high_low_ratio: [0, 0],
+      sum_statistics: {},
+      span: {},
+      zone_distribution: {},
+      common_pairs: [],
+      primary_group: "red",
+    });
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".bars").exists()).toBe(true);
+    expect(wrapper.findAll(".bar").length).toBe(3);
+    expect(wrapper.text()).toContain("热号：1");
+    expect(wrapper.text()).toContain("冷号：3");
+  });
+
+  it("getStats 失败时显示错误且不自动拉取", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("统计服务不可用"),
+    );
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("统计服务不可用");
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBe(0);
+  });
 });
