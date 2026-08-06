@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import {
   getStats,
   fetchProfileData,
@@ -16,12 +16,21 @@ const busy = ref(false);
 const fetching = ref(false);
 const fetchMsg = ref("");
 const lastFetch = ref<FetchResult | null>(null);
+const needsBootstrap = ref(false);
+// 每个组件实例仅自动引导一次，避免重复触发网络请求
+const bootstrapped = ref(false);
 
 async function load() {
   error.value = "";
   busy.value = true;
   try {
     stats.value = await getStats(props.token, props.profileKey);
+    needsBootstrap.value = (stats.value?.total_records ?? 0) === 0;
+    // 首次加载自动引导：本地无数据时自动拉取一次全量历史
+    if (needsBootstrap.value && !bootstrapped.value) {
+      bootstrapped.value = true;
+      await refresh("all");
+    }
   } catch (e) {
     error.value = String(e);
   } finally {
@@ -29,14 +38,17 @@ async function load() {
   }
 }
 
-async function refresh() {
+async function refresh(mode: "latest" | "all" = "latest") {
   fetching.value = true;
   fetchMsg.value = "";
   lastFetch.value = null;
   try {
-    const res = await fetchProfileData(props.token, props.profileKey, "latest");
+    const res = await fetchProfileData(props.token, props.profileKey, mode);
     lastFetch.value = res;
-    fetchMsg.value = `已抓取 ${res.fetched} 期，新增 ${res.added} 期，本地共 ${res.total} 期`;
+    fetchMsg.value =
+      mode === "all"
+        ? `已拉取 ${res.fetched} 期，新增 ${res.added} 期，本地共 ${res.total} 期`
+        : `已抓取 ${res.fetched} 期，新增 ${res.added} 期，本地共 ${res.total} 期`;
     await load();
   } catch (e) {
     fetchMsg.value = String(e);
@@ -46,6 +58,16 @@ async function refresh() {
 }
 
 onMounted(load);
+
+// 切换彩种时重置引导状态，新彩种若为空同样会自动引导一次
+watch(
+  () => props.profileKey,
+  () => {
+    bootstrapped.value = false;
+    needsBootstrap.value = false;
+    load();
+  },
+);
 
 function maxFreq(g: GroupStats): number {
   const vals = Object.values(g.frequency);
@@ -57,9 +79,18 @@ function maxFreq(g: GroupStats): number {
   <div class="card">
     <h2>统计分析 · {{ profileKey }}</h2>
     <div class="row">
-      <button :disabled="fetching" @click="refresh">拉取最新开奖</button>
+      <button :disabled="fetching" @click="refresh('latest')">拉取最新开奖</button>
       <span v-if="fetching">拉取中…</span>
     </div>
+
+    <div v-if="needsBootstrap" class="banner">
+      <p>本地暂无该彩种历史数据，已为您自动拉取全量历史；若失败可手动重试：</p>
+      <div class="row">
+        <button :disabled="fetching" @click="refresh('all')">拉取全量历史</button>
+        <button :disabled="fetching" @click="refresh('latest')">仅拉取最新</button>
+      </div>
+    </div>
+
     <p v-if="fetchMsg" class="hint">{{ fetchMsg }}</p>
     <p v-if="busy">加载中…</p>
     <p v-if="error" class="error">{{ error }}</p>
@@ -107,6 +138,11 @@ function maxFreq(g: GroupStats): number {
 <style scoped>
 .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .hint { color: #888; font-size: 12px; }
+.banner {
+  background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px;
+  padding: 10px 12px; margin: 8px 0; font-size: 13px; color: #6d4c00;
+}
+.banner .row { margin-top: 6px; }
 .group-block { margin-bottom: 18px; }
 .bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; overflow-x: auto; }
 .bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 14px; }

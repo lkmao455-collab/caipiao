@@ -132,6 +132,9 @@ def build_engine() -> GenerationEngine:
   - 响应 `FetchResult`：profile_key / mode / fetched / added / total / latest。
   - 前端 `Stats.vue` 新增「拉取最新开奖」按钮，`client.ts` 新增 `fetchProfileData`，
     拉取后自动刷新统计。
+  - **首次加载自动引导**：`Stats.vue` 检测到本地该彩种历史为 0 期时，自动拉取一次全量
+    历史（`refresh("all")`，每实例仅触发一次，切换彩种重置），并展示引导横幅供手动
+    重试（全量/仅最新）。
   - 测试 `tests/web/test_fetch.py` 5 例全过（monkeypatch 网络抓取，覆盖鉴权/归一化/
     去重/事件发布/全局拉取）。
 
