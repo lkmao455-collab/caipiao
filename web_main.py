@@ -19,6 +19,7 @@ from caipiao.web.db import init_db
 from caipiao.web.eventbus import bus
 from caipiao.web.ratelimit import limiter
 from caipiao.web.routers import (
+    admin,
     api_keys,
     auth,
     backtest,
@@ -123,6 +124,7 @@ app.include_router(stats.router, tags=["stats"])
 app.include_router(filters.router, tags=["filters"])
 app.include_router(user.router, tags=["user"])
 app.include_router(api_keys.router, tags=["api_keys"])
+app.include_router(admin.router, tags=["admin"])
 app.include_router(ws_router)
 
 

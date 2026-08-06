@@ -6,20 +6,35 @@ import Generate from "./views/Generate.vue";
 import Stats from "./views/Stats.vue";
 import Backtest from "./views/Backtest.vue";
 import FilterRules from "./views/FilterRules.vue";
+import Admin from "./views/Admin.vue";
+import { getMe, type CurrentUser } from "./api/client";
 
 const token = ref<string>(localStorage.getItem("cp_token") ?? "");
 const step = ref<"login" | "workspace">(token.value ? "workspace" : "login");
+const role = ref<string>(localStorage.getItem("cp_role") ?? "");
 const selection = ref<{ profileKey: string; strategyId: string }>({
   profileKey: "",
   strategyId: "",
 });
-const tab = ref<"generate" | "stats" | "backtest" | "filters">("generate");
+const tab = ref<"generate" | "stats" | "backtest" | "filters" | "admin">("generate");
 const postFilters = ref<{ name: string; params: Record<string, unknown> }[]>([]);
 
-function onAuthed(t: string) {
+async function loadRole() {
+  if (!token.value) return;
+  try {
+    const me: CurrentUser = await getMe(token.value);
+    role.value = me.role;
+    localStorage.setItem("cp_role", me.role);
+  } catch {
+    role.value = "";
+  }
+}
+
+async function onAuthed(t: string) {
   token.value = t;
   localStorage.setItem("cp_token", t);
   step.value = "workspace";
+  await loadRole();
 }
 
 function onSelected(profileKey: string, strategyId: string) {
@@ -35,7 +50,9 @@ function onFiltersApply(filters: { name: string; params: Record<string, unknown>
 
 function logout() {
   token.value = "";
+  role.value = "";
   localStorage.removeItem("cp_token");
+  localStorage.removeItem("cp_role");
   step.value = "login";
 }
 </script>
@@ -53,6 +70,7 @@ function logout() {
       <button :class="{ active: tab === 'stats' }" @click="tab = 'stats'">统计</button>
       <button :class="{ active: tab === 'backtest' }" @click="tab = 'backtest'">回测</button>
       <button :class="{ active: tab === 'filters' }" @click="tab = 'filters'">过滤</button>
+      <button v-if="role === 'admin'" :class="{ active: tab === 'admin' }" @click="tab = 'admin'">管理</button>
     </div>
 
     <Stats
@@ -73,12 +91,13 @@ function logout() {
       @apply="onFiltersApply"
     />
     <Generate
-      v-else
+      v-else-if="tab === 'generate'"
       :token="token"
       :profile-key="selection.profileKey"
       :strategy-id="selection.strategyId"
       :post-filters="postFilters"
     />
+    <Admin v-else-if="tab === 'admin' && role === 'admin'" :token="token" />
   </template>
 </template>
 

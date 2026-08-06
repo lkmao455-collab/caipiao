@@ -21,7 +21,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def register(request: Request, payload: UserCreate, db: Session = Depends(get_db)) -> User:
     if db.query(User).filter_by(username=payload.username).first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "用户名已存在")
-    user = User(username=payload.username, hashed_password=hash_password(payload.password))
+    # P5.E：首个注册用户自动成为管理员（便于初始化）；其余为普通用户
+    role = "admin" if db.query(User).first() is None else "user"
+    user = User(
+        username=payload.username,
+        hashed_password=hash_password(payload.password),
+        role=role,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

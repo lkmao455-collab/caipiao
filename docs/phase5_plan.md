@@ -1,6 +1,6 @@
 # Phase 5 规划：企业级（Web / 多用户 / 开放 API / 实时推送）
 
-> 状态：规划已批准。**P5.0 垂直切片已完成（commit 9379f9c）；P5.A 已完成（commit 2085e4b）；P5.B 已完成；P5.C 已完成；P5.D 已完成**。P5.E 待实施。本文件为完整架构设计 + 分阶段路线图。
+> 状态：规划已批准。**P5.0 垂直切片已完成（commit 9379f9c）；P5.A 已完成（commit 2085e4b）；P5.B 已完成；P5.C 已完成；P5.D 已完成；P5.E 已完成**。全阶段路线图已交付。本文件为完整架构设计 + 分阶段路线图。
 
 ## 1. 目标与原则
 - **复用核心层**：`caipiao/core`、`caipiao/data`、`caipiao/persistence`、`caipiao/ml`、`caipiao/calendar`、`caipiao/divination`、`caipiao/utils`、`caipiao/plugins` 已与 UI 解耦，**零侵入**复用，不修改其核心逻辑。
@@ -74,6 +74,11 @@ frontend/                     # 新增：Vue 3 + Vite + TS
 | GET/PUT | `/me` | 当前用户参数组/设置（按 user 命名空间隔离） | JWT |
 | GET/POST/DELETE | `/me/apikeys` | API Key 签发/列表/吊销 | JWT |
 | WS | `/ws/draws` | 实时推送开奖/生成事件 | JWT |
+| GET | `/me` | 当前用户信息（含 `role`） | JWT |
+| GET | `/admin/stats` | 管理概览统计 | 管理员 |
+| GET | `/admin/users` | 用户列表 | 管理员 |
+| PATCH | `/admin/users/{id}/role` | 修改用户角色（admin/user） | 管理员 |
+| DELETE | `/admin/users/{id}` | 删除用户（禁止操作自身） | 管理员 |
 
 `build_engine()` 实现（参考 `factory.build_strategies` + 桌面注册方式）：
 ```python
@@ -101,7 +106,7 @@ def build_engine() -> GenerationEngine:
 - **P5.B（完成）**：开放平台限流（slowapi，按 Token/API Key/IP 限流；重接口 /generate 60/min、/backtest 30/min，其余动态默认 600/min）、用量计量（`UsageRecord` + `GET /me/usage`）、Swagger 公开/私有分层（默认关闭 `/docs`，提供 `/docs-public` 子集与 `/docs-private` 完整 schema）。
 - **P5.C（完成）**：实时推送生产化。`eventbus.py` 提供 `EventBus` 协议 + `InMemoryEventBus`（开发回退）与 `RedisEventBus`（Redis pub/sub，设置 `CAIPIAO_WEB_REDIS_URL` 时启用）；同步 `redis.Redis` 发布端 + 异步 `redis.asyncio` 监听端分离，livespan 启动监听任务。`web_main.py` 新增 `_draw_poller` 后台定时拉取各彩种最新开奖并 `bus.publish` 到 `draw_update`（间隔由 `CAIPIAO_WEB_PULL_INTERVAL` 控制，0 则禁用）。`ws.py` 增加 30s 心跳保活并清理全部任务。测试 `test_eventbus_ws.py`：内存总线 `test_ws_receives_draw_update` 与 fakeredis 共享 `FakeServer` 的 `test_redis_eventbus_pubsub` 均通过。
 - **P5.D（完成）**：Docker 多阶段 web 目标 + compose + CI。新增 `requirements-web.txt`（剥离 PySide6/Qt/Pillow/matplotlib/openpyxl/Pygments/markdown，保留 numpy+ML 栈+web 依赖+redis——因策略模块顶层导入 `caipiao.ml`，ML 栈不可省，受核心层零侵入约束）；`Dockerfile.web` 多阶段（build 阶段装 torch CPU-only wheel，runtime 仅 venv+代码，无 Qt 库，EXPOSE 8000）；`frontend/Dockerfile`（node 构建→nginx:1.27-alpine）+ `frontend/nginx.conf`（同源托管 SPA，反向代理 `/auth /profiles /generate /backtest /stats /filters /me /apikeys /openapi /docs` 与 `/ws` 到 `web:8000`，含 SPA history 回退）；`docker-compose.yml` 编排 `web`+`frontend`+`redis`（web 经 `CAIPIAO_WEB_REDIS_URL` 启用 Redis 总线）；新增 `.dockerignore`；CI 增加 `web` job（`requirements-web.txt`+torch CPU+pytest+redis+fakeredis，跑 `tests/web`）；新增 `docs/phase5_deploy.md`。
-- **P5.E（待实施）**：多用户权限分级、管理员后台。
+- **P5.E（完成）**：多用户权限分级 + 管理员后台。`User.role` 列（默认 `user`，`init_db` 对旧表做 `ALTER TABLE` 轻量迁移补齐 `role` 列）；`deps.require_admin` 依赖（非管理员 403）；注册时首个用户自动成为管理员（初始化引导）；新增 `routers/admin.py`：`GET /admin/stats`（用户数/管理员数/API Key 数/累计调用）、`GET /admin/users`、`PATCH /admin/users/{id}/role`（admin/user，正则校验）、`DELETE /admin/users/{id}`（禁止操作自身，级联删 API Key）；`UserOut` 增加 `role` 及 `RoleUpdate`/`UserAdminOut`/`AdminStats` schema；前端新增 `Admin.vue`（仅 `role==admin` 显示「管理」标签，调 `/me` 取角色）、`client.ts` 新增 `getMe/getAdminStats/listAdminUsers/setUserRole/deleteUser`；测试 `test_admin.py` 5 例全过。核心层零侵入。
 
 ## 9. 风险与注意
 - **核心层零侵入**：web 包只 import 核心层，绝不动 `caipiao/ui`/`caipiao/app`；若发现核心层隐式依赖 PySide，单独隔离（已确认 core/data/persistence 不依赖 ui）。

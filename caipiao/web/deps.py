@@ -58,3 +58,16 @@ def get_current_principal(
             db.commit()
             return key.owner
     raise _CREDENTIALS_EXC
+
+
+_FORBIDDEN_EXC = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="需要管理员权限",
+)
+
+
+def require_admin(current: User = Depends(get_current_user)) -> User:
+    """仅管理员可访问的依赖（P5.E 权限分级）。"""
+    if not current.is_admin:
+        raise _FORBIDDEN_EXC
+    return current

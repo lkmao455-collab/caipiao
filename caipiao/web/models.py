@@ -24,6 +24,8 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # 角色：admin（管理员）/ user（普通用户）。P5.E 多用户权限分级。
+    role: Mapped[str] = mapped_column(String(16), default="user", nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
@@ -31,6 +33,10 @@ class User(Base):
     api_keys: Mapped[list["ApiKey"]] = relationship(
         "ApiKey", back_populates="owner", cascade="all, delete-orphan"
     )
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
 
 
 class ApiKey(Base):

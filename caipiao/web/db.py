@@ -29,8 +29,24 @@ def get_db() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """创建所有表（幂等）。"""
+    """创建所有表（幂等），并对已存在表做轻量迁移。"""
     # 导入模型以确保它们注册到 Base.metadata
     from . import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    # P5.E：为已存在的 users 表补充 role 列（create_all 不会为旧表新增列）
+    _migrate_add_role_column()
+
+
+def _migrate_add_role_column() -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("users")}
+    if "role" not in cols:
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN role VARCHAR(16) NOT NULL DEFAULT 'user'")
+            )

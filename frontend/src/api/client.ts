@@ -209,3 +209,62 @@ export async function deleteBacktest(token: string, id: number, kind: string): P
   if (!r.ok) throw new Error(await r.text());
 }
 
+// --- 管理后台（P5.E） ---
+export interface CurrentUser {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+}
+
+export interface AdminStats {
+  user_count: number;
+  admin_count: number;
+  api_key_count: number;
+  total_usage: number;
+}
+
+export async function getMe(token: string): Promise<CurrentUser> {
+  const r = await fetch(`${BASE}/me`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as CurrentUser;
+}
+
+export async function getAdminStats(token: string): Promise<AdminStats> {
+  const r = await fetch(`${BASE}/admin/stats`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as AdminStats;
+}
+
+export async function listAdminUsers(token: string): Promise<AdminUser[]> {
+  const r = await fetch(`${BASE}/admin/users`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as AdminUser[];
+}
+
+export async function setUserRole(token: string, id: string, role: string): Promise<AdminUser> {
+  const r = await fetch(`${BASE}/admin/users/${id}/role`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeader(token) },
+    body: JSON.stringify({ role }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as AdminUser;
+}
+
+export async function deleteUser(token: string, id: string): Promise<void> {
+  const r = await fetch(`${BASE}/admin/users/${id}`, {
+    method: "DELETE",
+    headers: authHeader(token),
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+

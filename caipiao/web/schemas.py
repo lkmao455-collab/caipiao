@@ -19,7 +19,35 @@ class UserOut(BaseModel):
 
     id: str
     username: str
+    role: str = "user"
     created_at: datetime.datetime
+
+
+# --- 管理后台（P5.E） ---
+class RoleUpdate(BaseModel):
+    """管理员修改用户角色。"""
+
+    role: str = Field(pattern="^(admin|user)$", description="admin 或 user")
+
+
+class UserAdminOut(BaseModel):
+    """管理员视角的用户摘要。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    username: str
+    role: str
+    created_at: datetime.datetime
+
+
+class AdminStats(BaseModel):
+    """管理后台概览统计。"""
+
+    user_count: int
+    admin_count: int
+    api_key_count: int
+    total_usage: int
 
 
 class Token(BaseModel):
