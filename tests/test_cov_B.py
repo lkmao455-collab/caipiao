@@ -436,6 +436,16 @@ class TestFC3DBalancedStrategy:
         tickets = s.generate(count=2, options={"history": recs, "dedup": False})
         assert len(tickets) == 2
 
+    def test_generate_uniform_dedup_overflow_no_infinite_loop(self):
+        # 回归：去重时唯一多重集最多 220 个，count 超过该值不得陷入死循环。
+        s = fc3d_balanced.FC3DBalancedStrategy()
+        recs = _fc3d_records(40, mode="uniform")
+        tickets = s.generate(count=300, options={"history": recs, "dedup": True})
+        assert len(tickets) == 300
+        # 前 220 个应为互不相同的多重集
+        keys = {tuple(sorted(t.groups["pos"])) for t in tickets[:220]}
+        assert len(keys) == 220
+
     def test_generate_nonuniform_enumeration_with_seed(self):
         s = fc3d_balanced.FC3DBalancedStrategy()
         recs = _fc3d_records(40, mode="skew0")

@@ -655,17 +655,18 @@ class TestFetcher:
         assert LotteryDataFetcher._decode_response(R()) == "hi"
 
     def test_decode_gbk(self):
+        # gb18030 是 gbk 的严格超集；修复后优先尝试 gb18030 而非单独的 gbk。
         class FakeContent:
             def decode(self, enc, *args, **kwargs):
-                if enc == "gbk":
-                    return "gbk-ok"
+                if enc in ("gbk", "gb18030"):
+                    return "gb18030-ok"
                 raise UnicodeDecodeError(enc, b"x", 0, 1, "e")
 
         class R:
             content = FakeContent()
             apparent_encoding = "utf-8"
 
-        assert LotteryDataFetcher._decode_response(R()) == "gbk-ok"
+        assert LotteryDataFetcher._decode_response(R()) == "gb18030-ok"
 
     def test_decode_fallback(self):
         class FakeContent:
@@ -1111,8 +1112,8 @@ class TestBacktestDB:
         )
         rec = db.get_batch(bid)
         assert isinstance(rec, BatchBacktestRecord)
-        # JSON 反序列化后键变为字符串
-        assert rec.ticket_index_hits == {"0": 2, "1": 1}
+        # 修复后：整型键被正确还原为 int（此前被 JSON 反序列化为字符串键）
+        assert rec.ticket_index_hits == {0: 2, 1: 1}
         db.delete_batch(bid)
         assert db.get_batch(bid) is None
 

@@ -21,6 +21,26 @@ def _db_path() -> Path:
     return app_data_dir() / "backtests.db"
 
 
+def _parse_int_keys_json(text: str) -> dict[int, int]:
+    """解析 JSON 对象，将数值字符串键还原为整数键。
+
+    ``json.dumps`` 会把 ``dict[int, int]`` 的整型键序列化为字符串，
+    标准 ``json.loads`` 还原后键仍是字符串。此函数把可解析为整数的键
+    还原为 ``int``，使 ``ticket_index_hits`` 等字段保持 ``dict[int, int]`` 类型。
+    """
+    raw = json.loads(text)
+    if not isinstance(raw, dict):
+        return raw
+    result: dict[int, int] = {}
+    for k, v in raw.items():
+        try:
+            key: int | str = int(k)
+        except (TypeError, ValueError):
+            key = k
+        result[key] = v
+    return result
+
+
 @dataclass
 class SingleBacktestRecord:
     """单期回测记录."""
@@ -379,7 +399,7 @@ class BacktestDatabase:
                 total_rounds=row["total_rounds"],
                 first_ticket_hit_count=row["first_ticket_hit_count"],
                 profit=row["profit"],
-                ticket_index_hits=json.loads(row["ticket_index_hits"]),
+                ticket_index_hits=_parse_int_keys_json(row["ticket_index_hits"]),
             )
 
     def list_batch(
@@ -433,7 +453,7 @@ class BacktestDatabase:
                     total_rounds=r["total_rounds"],
                     first_ticket_hit_count=r["first_ticket_hit_count"],
                     profit=r["profit"],
-                    ticket_index_hits=json.loads(r["ticket_index_hits"]),
+                    ticket_index_hits=_parse_int_keys_json(r["ticket_index_hits"]),
                 )
                 for r in rows
             ]

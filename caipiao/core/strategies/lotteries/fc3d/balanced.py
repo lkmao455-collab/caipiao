@@ -248,25 +248,38 @@ class FC3DBalancedStrategy(GenerationStrategy):
             # 数据均匀：退化为均匀随机采样
             def sample_uniform() -> list[int]:
                 return [rng.randint(0, 9) for _ in range(3)]
-            
-            seen: set = set()
-            tickets: list[Ticket] = []
-            for _ in range(count):
-                candidate = sample_uniform()
-                if dedup:
-                    key = tuple(sorted(candidate))
-                    while key in seen:
+
+            if dedup:
+                # 排序后的唯一多重集最多 C(10+3-1,3)=220 个。
+                # 直接从该集合不放回采样，避免 “while key in seen” 在
+                # count 超过唯一组合数时陷入死循环。
+                uniques = list(itertools.combinations_with_replacement(range(10), 3))
+                rng.shuffle(uniques)
+                tickets = []
+                for i in range(count):
+                    if i < len(uniques):
+                        candidate = list(uniques[i])
+                    else:
+                        # 超出唯一组合数，剩余部分退化为允许重复的均匀采样
                         candidate = sample_uniform()
-                        key = tuple(sorted(candidate))
-                    seen.add(key)
-                tickets.append(
+                    tickets.append(
+                        Ticket(
+                            profile=FC3D_PROFILE,
+                            groups={"pos": candidate},
+                            strategy_name=self.metadata.name,
+                            basis=basis,
+                        )
+                    )
+            else:
+                tickets = [
                     Ticket(
                         profile=FC3D_PROFILE,
-                        groups={"pos": candidate},
+                        groups={"pos": sample_uniform()},
                         strategy_name=self.metadata.name,
                         basis=basis,
                     )
-                )
+                    for _ in range(count)
+                ]
         else:
             # 数据不均匀：使用评分函数
             def sample_one() -> list[int]:

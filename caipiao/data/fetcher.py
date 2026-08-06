@@ -205,11 +205,18 @@ class LotteryDataFetcher:
     # ------------------------------------------------------------------ #
     @staticmethod
     def _decode_response(response) -> str:
-        """尝试多种编码解码响应体，避免中文乱码或解码异常。"""
+        """尝试多种编码解码响应体，避免中文乱码或解码异常。
+
+        优先尝试 utf-8，其次 gb18030（GBK 的超集，覆盖 gb18030/gbk/big5 等），
+        最后才回退到 requests 推测的 ``apparent_encoding``——该值基于内容嗅探，
+        对短文本或混合编码容易误判为 gb2312 之类而导致乱码，故不作为首选。
+        """
         content = response.content
-        for enc in (response.apparent_encoding, "utf-8", "gb18030", "gbk"):
-            if not enc:
-                continue
+        candidates = ["utf-8", "gb18030"]
+        apparent = (response.apparent_encoding or "").strip().lower()
+        if apparent and apparent not in ("utf-8", "utf-8-sig", "gb18030", "gbk", "gb2312"):
+            candidates.append(apparent)
+        for enc in candidates:
             try:
                 return content.decode(enc)
             except UnicodeDecodeError:
