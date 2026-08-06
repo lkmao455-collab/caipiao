@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+/// <reference types="vitest/config" />
+import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 
 // 开发时前端运行在 5173，后端在 8000；用 proxy 避免 CORS 配置。
@@ -17,5 +18,9 @@ export default defineConfig({
       "/stats": "http://localhost:8000",
       "/filters": "http://localhost:8000",
     },
+  },
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.ts"],
   },
 });
