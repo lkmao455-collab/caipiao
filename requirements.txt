@@ -23,4 +23,5 @@ bcrypt==4.0.1  # 与 passlib 1.7.x 兼容（新版 bcrypt 5.x 不兼容）
 sqlalchemy>=2.0  # ORM
 aiosqlite>=0.19  # 异步 SQLite 驱动
 httpx>=0.27  # FastAPI TestClient 依赖（测试用）
+slowapi>=0.1.9  # 速率限制（限流）
 

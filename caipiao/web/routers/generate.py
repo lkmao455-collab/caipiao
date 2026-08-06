@@ -15,7 +15,10 @@ from ..deps import get_current_principal
 from ..engine import get_profile_engine
 from ..eventbus import bus
 from ..filters_registry import apply_filters
+from ..metering import record_usage
+from ..ratelimit import limiter
 from ..schemas import GenerateRequest, GenerateResponse
+from starlette.requests import Request
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
@@ -28,7 +31,8 @@ def _load_history(profile, limit: int = 300) -> list:
 
 
 @router.post("", response_model=GenerateResponse)
-def generate(req: GenerateRequest, principal=Depends(get_current_principal), db: Session = Depends(get_db)) -> GenerateResponse:
+@limiter.limit("60/minute")
+def generate(request: Request, req: GenerateRequest, principal=Depends(get_current_principal), db: Session = Depends(get_db)) -> GenerateResponse:
     try:
         profile = _get_profile(req.profile_key)
     except KeyError as exc:
@@ -58,6 +62,8 @@ def generate(req: GenerateRequest, principal=Depends(get_current_principal), db:
             "filtered_count": len(filtered),
         }
     )
+
+    record_usage(db, principal, "generate", 1)
 
     return GenerateResponse(
         profile_key=req.profile_key,

@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from ...core.profile import get_profile as _get_profile
 from ..db import get_db
 from ..filters_registry import FilterParam, get_profile_filter
+from ..ratelimit import default_limit, limiter
 
 router = APIRouter(prefix="/profiles", tags=["filters"])
 
 
 @router.get("/{key}/filters")
-def list_filters(key: str, db: Session = Depends(get_db)) -> dict:
+@limiter.limit(default_limit)
+def list_filters(request: Request, key: str, db: Session = Depends(get_db)) -> dict:
     """返回某彩种可用后过滤函数名与参数 schema（前端用于动态渲染编辑器）。"""
     try:
         _get_profile(key)

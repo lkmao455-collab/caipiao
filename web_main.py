@@ -10,9 +10,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from caipiao.web.config import CORS_ORIGINS
 from caipiao.web.db import init_db
+from caipiao.web.ratelimit import limiter
 from caipiao.web.routers import (
     api_keys,
     auth,
@@ -28,11 +31,28 @@ from caipiao.web.ws import router as ws_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()  # 创建用户 / API Key 表（幂等）
+    init_db()  # 创建用户 / API Key / 用量表（幂等）
     yield
 
 
-app = FastAPI(title="彩票号码生成器 Web API", version="0.1.0", lifespan=lifespan)
+# Swagger 分层：默认关闭公开文档，提供 /docs-private 展示完整 schema（见下方路由）
+app = FastAPI(
+    title="彩票号码生成器 Web API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+app.add_exception_handler(
+    RateLimitExceeded,
+    lambda request, exc: __import__("starlette").responses.JSONResponse(
+        status_code=429, content={"detail": "请求过于频繁，请稍后再试"}
+    ),
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +76,46 @@ app.include_router(ws_router)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# --------------------------------------------------------------------------- #
+# Swagger 分层：公开子集（无需鉴权）+ 私有完整文档（需 Bearer）
+# --------------------------------------------------------------------------- #
+_PUBLIC_PATHS = {"/health", "/profiles", "/auth/register", "/auth/login"}
+
+
+@app.get("/openapi-public.json", include_in_schema=False)
+def openapi_public():
+    """公开 OpenAPI 子集：仅暴露无需鉴权的端点（健康检查 / 彩种 / 认证）。"""
+    full = app.openapi()
+    paths = {
+        p: methods
+        for p, methods in full["paths"].items()
+        if any(p == pub or p.startswith(pub + "/") for pub in _PUBLIC_PATHS)
+    }
+    return {**full, "paths": paths}
+
+
+@app.get("/docs-public", include_in_schema=False)
+def docs_public():
+    """公开文档页（Swagger UI，仅含公开端点）。"""
+    from fastapi.openapi.docs import get_swagger_ui_html
+
+    return get_swagger_ui_html("/openapi-public.json", title="公开 API 文档")
+
+
+@app.get("/openapi-private.json", include_in_schema=False)
+def openapi_private():
+    """完整 OpenAPI 文档（含全部端点，供已登录用户/管理员查看）。"""
+    return app.openapi()
+
+
+@app.get("/docs-private", include_in_schema=False)
+def docs_private():
+    """完整文档页（Swagger UI，需鉴权后访问，含全部端点）。"""
+    from fastapi.openapi.docs import get_swagger_ui_html
+
+    return get_swagger_ui_html("/openapi-private.json", title="完整 API 文档（需登录）")
 
 
 if __name__ == "__main__":

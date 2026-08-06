@@ -50,3 +50,17 @@ class ApiKey(Base):
     last_used_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
 
     owner: Mapped[User] = relationship("User", back_populates="api_keys")
+
+
+class UsageRecord(Base):
+    """按用户/端点累计的用量计量（用于开放平台配额与统计）。"""
+
+    __tablename__ = "usage_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    count: Mapped[int] = mapped_column(default=1, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )

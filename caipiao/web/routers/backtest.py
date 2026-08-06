@@ -17,6 +17,8 @@ from ..db import get_db
 from ..deps import get_current_principal
 from ..engine import get_profile_engine
 from ..filters_registry import apply_filters
+from ..metering import record_usage
+from ..ratelimit import limiter
 from ..schemas import (
     BacktestRecordOut,
     BacktestRequest,
@@ -24,6 +26,7 @@ from ..schemas import (
     BacktestRunResponse,
     BacktestRoundSummary,
 )
+from starlette.requests import Request
 
 router = APIRouter(prefix="/backtest", tags=["backtest"])
 
@@ -48,7 +51,8 @@ def _is_hit(profile, ticket_groups: dict[str, list[int]], actual_groups: dict[st
 
 
 @router.post("", response_model=BacktestRunResponse)
-def backtest(req: BacktestRequest, principal=Depends(get_current_principal), db: Session = Depends(get_db)) -> BacktestRunResponse:
+@limiter.limit("30/minute")
+def backtest(request: Request, req: BacktestRequest, principal=Depends(get_current_principal), db: Session = Depends(get_db)) -> BacktestRunResponse:
     try:
         profile = _get_profile(req.profile_key)
     except KeyError as exc:
@@ -167,6 +171,8 @@ def backtest(req: BacktestRequest, principal=Depends(get_current_principal), db:
             hit_count=1 if round_hit else 0,
             tickets=[],
         )
+
+    record_usage(db, principal, "backtest", 1)
 
     return BacktestRunResponse(
         profile_key=req.profile_key,

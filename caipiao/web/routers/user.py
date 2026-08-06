@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from ...core.parameter_group import (
     parameter_group_from_dict,
@@ -12,15 +13,27 @@ from ...core.parameter_group import (
 )
 from ...persistence.parameter_group_store import ParameterGroupStore
 from ..config import user_data_dir
+from ..db import get_db
 from ..deps import get_current_user
+from ..metering import get_usage
+from ..ratelimit import default_limit, limiter
 from ..schemas import UserOut
+from starlette.requests import Request
 
 router = APIRouter(tags=["user"])
 
 
 @router.get("/me", response_model=UserOut)
-def me(user=Depends(get_current_user)) -> UserOut:
+@limiter.limit(default_limit)
+def me(request: Request, user=Depends(get_current_user)) -> UserOut:
     return user
+
+
+@router.get("/me/usage")
+@limiter.limit(default_limit)
+def usage(request: Request, user=Depends(get_current_user), db=Depends(get_db)) -> list[dict]:
+    """返回当前用户的端点调用用量明细。"""
+    return get_usage(db, user)
 
 
 @router.get("/me/param-groups/{profile_key}")

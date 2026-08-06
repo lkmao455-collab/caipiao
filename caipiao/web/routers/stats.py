@@ -4,18 +4,21 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from ...core.profile import get_profile as _get_profile
 from ...data.analyzer import DrawAnalyzer
 from ...data.repository import DrawRepository
 from ..config import DATA_ROOT
 from ..db import get_db
+from ..ratelimit import default_limit, limiter
 
 router = APIRouter(prefix="/profiles", tags=["stats"])
 
 
 @router.get("/{key}/stats")
-def profile_stats(key: str, db: Session = Depends(get_db)) -> dict:
+@limiter.limit(default_limit)
+def profile_stats(request: Request, key: str, db: Session = Depends(get_db)) -> dict:
     """返回某彩种开奖数据的统计摘要（频率/热冷/遗漏/奇偶/大小/和值/跨度等）。
 
     复用核心层 ``DrawAnalyzer``，不修改核心代码。未知彩种回落到默认（与 get_profile 一致）。

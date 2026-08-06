@@ -4,17 +4,20 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from ...core.profile import get_profile as _get_profile
 from ..db import get_db
 from ..engine import available_profiles, list_profile_strategies
+from ..ratelimit import default_limit, limiter
 from ..schemas import ProfileOut, StrategyOut
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
 @router.get("", response_model=list[ProfileOut])
-def list_profiles() -> list[ProfileOut]:
+@limiter.limit(default_limit)
+def list_profiles(request: Request) -> list[ProfileOut]:
     return [
         ProfileOut(
             key=p.key,
