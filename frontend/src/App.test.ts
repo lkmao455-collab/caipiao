@@ -237,4 +237,24 @@ describe("App 外壳", () => {
 
     expect(wrapper.text()).toContain("生成号码");
   });
+
+  it("登录后 getMe 失败时 catch 分支将 role 置空且不报错", async () => {
+    (getMe as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("鉴权失败"),
+    );
+    const wrapper = mount(App);
+    await flushPromises();
+    await wrapper.find('input[placeholder="用户名"]').setValue("alice");
+    await wrapper.find('input[placeholder="密码"]').setValue("pw");
+    await wrapper.findAll("button").find((b) => b.text() === "登录")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // 进入工作区（onAuthed 已设置 token），但 getMe 失败 → role 为空
+    expect(wrapper.text()).toContain("选择彩种与策略");
+    // role 为空 → 不应出现「管理」Tab 按钮
+    expect(
+      wrapper.findAll("button").some((b) => b.text() === "管理"),
+    ).toBe(false);
+  });
 });

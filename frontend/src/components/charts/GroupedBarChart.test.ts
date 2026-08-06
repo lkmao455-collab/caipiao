@@ -50,4 +50,21 @@ describe("GroupedBarChart 几何与渲染", () => {
     expect(Number(rect.attributes("height"))).toBeCloseTo(0, 5);
     expect(Number(rect.attributes("y"))).toBeCloseTo(160, 5);
   });
+
+  it("values 长度不足时缺失项回退为 0（?? 分支）", () => {
+    // categories 有 3 项，但 series 的 values 只有 1 项 → s.values[ci] 在 ci>0 时为 undefined
+    const wrapper = mount(GroupedBarChart, {
+      props: {
+        categories: [1, 2, 3],
+        series: [{ name: "A", color: "#111", values: [10] }],
+        height: 160,
+        pad: 10,
+      },
+    });
+    const rects = wrapper.findAll("rect");
+    // 第 1 个（ci=0）有值，后两个（ci=1,2）走 ?? 0 分支
+    expect(rects.length).toBe(3);
+    expect(Number(rects[1].attributes("height"))).toBeCloseTo(0, 5);
+    expect(Number(rects[2].attributes("height"))).toBeCloseTo(0, 5);
+  });
 });

@@ -43,6 +43,27 @@ function fullStats() {
   return { ...emptyStats(), total_records: 10 };
 }
 
+function backtestRecord(over: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 1,
+    created_at: "2024",
+    profile_key: "ssq",
+    strategy_id: "balanced",
+    target_date: "2024-01-01",
+    start_date: "2024-01-01",
+    end_date: "2024-01-31",
+    total_rounds: 5,
+    tickets_count: 5,
+    total_cost: 10,
+    total_fixed_prize: 0,
+    float_prize_count: 0,
+    hit_count: 1,
+    profit: -10,
+    kind: "single",
+    ...over,
+  };
+}
+
 beforeEach(() => {
   (getStats as unknown as ReturnType<typeof vi.fn>).mockReset();
   (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockReset();
@@ -134,27 +155,6 @@ describe("Backtest 空数据引导", () => {
 });
 
 describe("Backtest 回测执行与记录", () => {
-  function backtestRecord(over: Partial<Record<string, unknown>> = {}) {
-    return {
-      id: 1,
-      created_at: "2024",
-      profile_key: "ssq",
-      strategy_id: "balanced",
-      target_date: "2024-01-01",
-      start_date: "2024-01-01",
-      end_date: "2024-01-31",
-      total_rounds: 5,
-      tickets_count: 5,
-      total_cost: 10,
-      total_fixed_prize: 0,
-      float_prize_count: 0,
-      hit_count: 1,
-      profit: -10,
-      kind: "single",
-      ...over,
-    };
-  }
-
   it("运行回测：调用 runBacktest 并展示汇总", async () => {
     (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
     (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -187,6 +187,66 @@ describe("Backtest 回测执行与记录", () => {
       20,
     ]);
     expect(wrapper.text()).toContain("盈亏");
+  });
+
+  it("运行回测含未命中回合时命中列渲染「—」（三元 else 分支）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      batch_id: 1,
+      rounds: [
+        { target_date: "2024-01-01", issue: "1", matches: {}, hit: true, best_tier: null, round_fixed_prize: 0, round_float_count: 0 },
+        { target_date: "2024-01-02", issue: "2", matches: {}, hit: false, best_tier: null, round_fixed_prize: 0, round_float_count: 0 },
+      ],
+      summary: {
+        total_rounds: 2,
+        hit_count: 1,
+        first_ticket_hit_count: 1,
+        profit: 0,
+        total_cost: 2,
+        total_fixed_prize: 0,
+        float_prize_count: 0,
+        tier_breakdown: {},
+      },
+    });
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "运行回测")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // 命中回合显示「中」，未命中回合显示「—」
+    expect(wrapper.text()).toContain("中");
+    expect(wrapper.text()).toContain("—");
+  });
+
+  it("展开详情时 getBacktest 失败显示错误（openDetail catch 分支）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (listBacktests as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([backtestRecord()]);
+    (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      batch_id: 1,
+      rounds: [],
+      summary: {
+        total_rounds: 0, hit_count: 0, first_ticket_hit_count: 0, profit: 0,
+        total_cost: 0, total_fixed_prize: 0, float_prize_count: 0, tier_breakdown: {},
+      },
+    });
+    (getBacktest as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("详情拉取失败"));
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // 先运行一次回测以填充历史记录，历史表格才会出现「详情」按钮
+    await findButton(wrapper, "运行回测")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "详情")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("详情拉取失败");
   });
 
   it("回测失败显示错误", async () => {
@@ -359,5 +419,197 @@ describe("Backtest 回测执行与记录", () => {
     expect(
       (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
     ).toEqual(["tok", "ssq", "latest"]);
+  });
+});
+
+describe("Backtest 边界分支", () => {
+  it("getStats 缺 total_records 时回退为 0（?? 分支）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...fullStats(),
+      total_records: undefined,
+    });
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // (s.total_records ?? 0) === 0 为真 -> 触发引导横幅
+    expect(wrapper.text()).toContain("本地暂无历史数据");
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2],
+    ).toBe("all");
+  });
+
+  it("getStats 失败时进入 catch 且不自动拉取", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("统计失败"));
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBe(0);
+  });
+
+  it("拉取失败进入 refresh 的 catch", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStats());
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("拉取失败"),
+    );
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("拉取失败");
+  });
+
+  it("删除失败进入 remove 的 catch", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (listBacktests as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([backtestRecord()]);
+    (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      batch_id: 1,
+      rounds: [],
+      summary: {
+        total_rounds: 0, hit_count: 0, first_ticket_hit_count: 0, profit: 0,
+        total_cost: 0, total_fixed_prize: 0, float_prize_count: 0, tier_breakdown: {},
+      },
+    });
+    (deleteBacktest as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("删除失败"));
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "运行回测")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+    await findButton(wrapper, "删除")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("删除失败");
+  });
+
+  it("详情加载中展示 loading，且 ticket 缺 is_first / prize_amount 为数值时走对应分支", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (listBacktests as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([backtestRecord()]);
+    (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      batch_id: 1,
+      rounds: [],
+      summary: {
+        total_rounds: 0, hit_count: 0, first_ticket_hit_count: 0, profit: 0,
+        total_cost: 0, total_fixed_prize: 0, float_prize_count: 0, tier_breakdown: {},
+      },
+    });
+    (getBacktest as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      () =>
+        new Promise((res) =>
+          setTimeout(
+            () =>
+              res({
+                issue: "1",
+                total_cost: 2,
+                total_fixed_prize: 0,
+                float_prize_count: 0,
+                profit: -2,
+                tickets: [
+                  {
+                    ticket_index: 0,
+                    groups: { red: [1, 2, 3] },
+                    hits: { red: 1 },
+                    prize_name: "二等奖",
+                    prize_amount: 50,
+                    is_first: false,
+                  },
+                  {
+                    ticket_index: 1,
+                    groups: { red: [4, 5, 6] },
+                    hits: { red: 0 },
+                    prize_name: "未中奖",
+                    prize_amount: null,
+                    is_first: true,
+                  },
+                ],
+              }),
+            10,
+          ),
+        ),
+    );
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "运行回测")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // 点击详情，等待 getBacktest 的延迟 mock 返回（10ms）
+    await findButton(wrapper, "详情")!.trigger("click");
+    await new Promise((r) => setTimeout(r, 20));
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    const rows = wrapper.findAll(".tickets tbody tr");
+    expect(rows.length).toBe(2);
+    // 首条 ticket：is_first 为 false → 不渲染「（首注）」；prize_amount 为数值 → 直接展示
+    const firstCells = rows[0].findAll("td");
+    expect(firstCells[0].text()).not.toContain("（首注）");
+    // 第 5 列（奖金）分支：prize_amount 非 null 时走 else 分支
+    expect(firstCells[4].text()).toBe("50");
+    // 第二条 ticket：is_first 为 true → 渲染「（首注）」；prize_amount 为 null → 走 '浮动' 分支
+    const secondCells = rows[1].findAll("td");
+    expect(secondCells[0].text()).toContain("（首注）");
+    expect(secondCells[4].text()).toBe("浮动");
+  });
+
+  it("详情数据缺 tickets 时回退为空数组（|| 分支）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (listBacktests as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([backtestRecord()]);
+    (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      batch_id: 1,
+      rounds: [],
+      summary: {
+        total_rounds: 0, hit_count: 0, first_ticket_hit_count: 0, profit: 0,
+        total_cost: 0, total_fixed_prize: 0, float_prize_count: 0, tier_breakdown: {},
+      },
+    });
+    (getBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      issue: "1",
+      total_cost: 2,
+    });
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "运行回测")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+    await findButton(wrapper, "详情")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".detail").exists()).toBe(true);
+  });
+
+  it("batch 类型历史记录展示起止日期区间", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (listBacktests as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      backtestRecord({ kind: "batch" }),
+    ]);
+    (runBacktest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      batch_id: 1,
+      rounds: [],
+      summary: {
+        total_rounds: 0, hit_count: 0, first_ticket_hit_count: 0, profit: 0,
+        total_cost: 0, total_fixed_prize: 0, float_prize_count: 0, tier_breakdown: {},
+      },
+    });
+    const wrapper = mount(Backtest, { props });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "运行回测")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("2024-01-01 ~ 2024-01-31");
   });
 });

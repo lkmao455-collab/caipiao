@@ -232,4 +232,56 @@ describe("Generate 空数据引导", () => {
       (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
     ).toEqual(["tok", "ssq", "latest"]);
   });
+
+  it("total_records 为 undefined 时 ?? 0 走空分支，仍触发引导", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...emptyStats(),
+      total_records: undefined,
+    });
+    const wrapper = mount(Generate, {
+      props: { token: "tok", profileKey: "ssq", strategyId: "balanced" },
+    });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("本地暂无该彩种历史数据");
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls
+        .length,
+    ).toBe(1);
+  });
+
+  it("getStats 失败时 catch 分支不阻断（不自动拉取）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("统计异常"),
+    );
+    const wrapper = mount(Generate, {
+      props: { token: "tok", profileKey: "ssq", strategyId: "balanced" },
+    });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // catch 不抛错；无引导（needsBootstrap 未置 true）→ 不会自动拉取
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBe(0);
+  });
+
+  it("拉取失败时在 fetchMsg 显示错误（refresh catch 分支）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(emptyStats());
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("拉取失败"),
+    );
+    const wrapper = mount(Generate, {
+      props: { token: "tok", profileKey: "ssq", strategyId: "balanced" },
+    });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "拉取全量历史")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".hint").text()).toContain("拉取失败");
+  });
 });

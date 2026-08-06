@@ -226,4 +226,71 @@ describe("Stats 空数据引导", () => {
       (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls[0],
     ).toEqual(["tok", "ssq", "latest"]);
   });
+
+  it("total_records 为 undefined 时 ?? 0 走空分支并触发引导", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...emptyStats(),
+      total_records: undefined,
+    });
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("本地暂无该彩种历史数据");
+    expect(
+      (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mock.calls
+        .length,
+    ).toBe(1);
+  });
+
+  it("拉取失败时 fetchMsg 显示错误（refresh catch 分支）", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fullStats());
+    (fetchProfileData as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("拉取失败"),
+    );
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    await findButton(wrapper, "拉取最新开奖")!.trigger("click");
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".hint").text()).toContain("拉取失败");
+  });
+
+  it("分组频率为 {} 时 maxFreq 走 length?0 的 else 分支", async () => {
+    (getStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile_key: "ssq",
+      total_records: 10,
+      groups: {
+        red: {
+          key: "red",
+          name: "红",
+          lo: 1,
+          hi: 3,
+          count: 3,
+          color: "#f00",
+          frequency: {}, // 空频率 → vals.length === 0 → 返回 1
+          hot: [],
+          cold: [],
+          missing: [],
+        },
+      },
+      summary: {},
+      odd_even_ratio: [0, 0],
+      high_low_ratio: [0, 0],
+      sum_statistics: {},
+      span: {},
+      zone_distribution: {},
+      common_pairs: [],
+      primary_group: "red",
+    });
+    const wrapper = mount(Stats, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // bars 仍渲染（高度为 0），且未抛错
+    expect(wrapper.findAll(".bar").length).toBe(3);
+  });
 });

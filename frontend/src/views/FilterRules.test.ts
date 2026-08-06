@@ -98,4 +98,31 @@ describe("FilterRules", () => {
       params: { odd_even: 0.7, only_even: true },
     });
   });
+
+  it("int 参数 min/max 为 null 时 ?? 回退，且非 int/bool 类型不渲染输入框", async () => {
+    (getFilters as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile_key: "ssq",
+      available: true,
+      params: [
+        // min/max 为 null → `p.min ?? undefined` / `p.max ?? undefined` 走 null 分支
+        { name: "odd_even", type: "int", default: 0.5, min: null, max: null, description: "奇偶比" },
+        // 非 int 也非 bool → v-else-if="type==='bool'" 的 else 分支（不渲染输入框）
+        { name: "tag", type: "string", default: "", min: null, max: null, description: "标签" },
+      ],
+    });
+    const wrapper = mount(FilterRules, { props: { token: "tok", profileKey: "ssq" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // 仅 odd_even 渲染 number 输入框；tag 不渲染任何输入框
+    expect(wrapper.findAll('input[type="number"]').length).toBe(1);
+    // 启用 odd_even 并应用
+    const checkbox = wrapper.find('input[type="checkbox"]');
+    await checkbox.setValue(true);
+    await wrapper.findAll("button").find((b) => b.text() === "应用过滤到生成")!.trigger("click");
+    expect(wrapper.emitted("apply")![0][0][0]).toEqual({
+      name: "ssq",
+      params: { odd_even: 0.5 },
+    });
+  });
 });

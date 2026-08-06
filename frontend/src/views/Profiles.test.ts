@@ -71,4 +71,17 @@ describe("Profiles", () => {
       "fc3d",
     ]);
   });
+
+  it("策略列表为空时不设默认 strategyId（if 长度分支）", async () => {
+    (listStrategies as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    const wrapper = mount(Profiles, { props: { token: "tok" } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // 没有可选策略，「下一步」按钮应被禁用
+    const nextBtn = wrapper
+      .findAll("button")
+      .find((b) => b.text() === "下一步：生成")!;
+    expect(nextBtn.attributes("disabled")).toBeDefined();
+  });
 });

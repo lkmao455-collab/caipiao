@@ -137,4 +137,51 @@ describe("runBacktest", () => {
       "Bearer tok",
     );
   });
+
+  it("非 2xx 时把响应体作为错误信息抛出", async () => {
+    getFetch().mockResolvedValue(makeResponse(false, 500, "backtest-boom"));
+    await expect(runBacktest("tok", "ssq", "hot", 5, 10)).rejects.toThrow(
+      "backtest-boom",
+    );
+  });
+});
+
+describe("authHeader / token 缺省", () => {
+  it("token 为 null 时不带 Authorization 头", async () => {
+    const stats = {
+      profile_key: "ssq",
+      total_records: 1,
+      groups: {},
+      summary: {},
+      odd_even_ratio: [0, 0],
+      high_low_ratio: [0, 0],
+      sum_statistics: {},
+      span: {},
+      zone_distribution: {},
+      common_pairs: [],
+      primary_group: "red",
+    };
+    getFetch().mockResolvedValue(makeResponse(true, 200, stats));
+    await getStats(null, "ssq");
+    const [, init] = getFetch().mock.calls[0];
+    expect((init.headers as Record<string, string>)["Authorization"]).toBeUndefined();
+  });
+});
+
+describe("generate 失败", () => {
+  it("非 2xx 时把响应体作为错误信息抛出", async () => {
+    getFetch().mockResolvedValue(makeResponse(false, 500, "gen-boom"));
+    await expect(
+      generate("tok", "fc3d", "balanced", 2, []),
+    ).rejects.toThrow("gen-boom");
+  });
+});
+
+describe("fetchProfileData 失败", () => {
+  it("非 2xx 时把响应体作为错误信息抛出", async () => {
+    getFetch().mockResolvedValue(makeResponse(false, 500, "fetch-boom"));
+    await expect(fetchProfileData("tok", "ssq", "all")).rejects.toThrow(
+      "fetch-boom",
+    );
+  });
 });
