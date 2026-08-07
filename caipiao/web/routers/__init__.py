@@ -4,4 +4,4 @@ from __future__ import annotations
 
 from . import api_keys, auth, backtest, generate, profiles, user
 
-__all__ = ["auth", "profiles", "generate", "backtest", "user", "api_keys"]
+__all__ = ["api_keys", "auth", "backtest", "generate", "profiles", "user"]

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-from typing import Optional
 
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
@@ -24,7 +23,7 @@ _CREDENTIALS_EXC = HTTPException(
 
 
 def get_current_user(
-    token: Optional[str] = Depends(_oauth2_scheme),
+    token: str | None = Depends(_oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """仅支持 JWT 的当前用户依赖。"""
@@ -40,8 +39,8 @@ def get_current_user(
 
 
 def get_current_principal(
-    token: Optional[str] = Depends(_oauth2_scheme),
-    api_key: Optional[str] = Security(_api_key_header),
+    token: str | None = Depends(_oauth2_scheme),
+    api_key: str | None = Security(_api_key_header),
     db: Session = Depends(get_db),
 ) -> User:
     """支持 JWT 或 API Key 的当前用户依赖（用于开放接口，如 /generate）。"""

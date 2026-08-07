@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from ...core.parameter_group import (
     parameter_group_from_dict,
@@ -18,7 +18,6 @@ from ..deps import get_current_user
 from ..metering import get_usage
 from ..ratelimit import default_limit, limiter
 from ..schemas import UserOut
-from starlette.requests import Request
 
 router = APIRouter(tags=["user"])
 

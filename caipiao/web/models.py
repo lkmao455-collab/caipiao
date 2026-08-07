@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 import uuid
-from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,12 +24,12 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     # 角色：admin（管理员）/ user（普通用户）。P5.E 多用户权限分级。
-    role: Mapped[str] = mapped_column(String(16), default="user", nullable=False)
+    role: Mapped[str] = mapped_column(String(16), default="user", nullable=False, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
 
-    api_keys: Mapped[list["ApiKey"]] = relationship(
+    api_keys: Mapped[list[ApiKey]] = relationship(
         "ApiKey", back_populates="owner", cascade="all, delete-orphan"
     )
 
@@ -53,7 +52,7 @@ class ApiKey(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
-    last_used_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    last_used_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
 
     owner: Mapped[User] = relationship("User", back_populates="api_keys")
 

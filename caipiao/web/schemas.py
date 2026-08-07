@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -69,7 +69,7 @@ class StrategyOut(BaseModel):
     name: str
     description: str
     configurable: bool = False
-    config_schema: Optional[dict[str, Any]] = None
+    config_schema: dict[str, Any] | None = None
 
 
 # --- 数据拉取（/fetch） ---
@@ -90,7 +90,7 @@ class FetchResult(BaseModel):
     fetched: int
     added: int
     total: int
-    latest: Optional[dict[str, Any]] = None
+    latest: dict[str, Any] | None = None
 
 
 # --- 生成 ---
@@ -124,8 +124,8 @@ class BacktestRequest(BaseModel):
     count: int = Field(default=1, ge=1, le=100)
     rounds: int = Field(default=30, ge=1, le=300)
     history_window: int = Field(default=100, ge=1, le=500)
-    start_date: Optional[str] = None  # YYYY-MM-DD，限定回测起点
-    end_date: Optional[str] = None  # YYYY-MM-DD，限定回测终点
+    start_date: str | None = None  # YYYY-MM-DD，限定回测起点
+    end_date: str | None = None  # YYYY-MM-DD，限定回测终点
     options: dict[str, Any] = Field(default_factory=dict)
     post_filters: list[PostFilter] = Field(default_factory=list)
 
@@ -135,7 +135,7 @@ class BacktestRoundItem(BaseModel):
     issue: str
     matches: dict[str, int]
     hit: bool
-    best_tier: Optional[str] = None  # 该期最佳奖级（浮动奖记原名，未中奖为 None）
+    best_tier: str | None = None  # 该期最佳奖级（浮动奖记原名，未中奖为 None）
     round_fixed_prize: int = 0  # 该期固定奖金合计
     round_float_count: int = 0  # 该期命中浮动奖的注数
 
@@ -161,7 +161,7 @@ class BacktestRunResponse(BaseModel):
 
 class BacktestRecordOut(BaseModel):
     id: int
-    created_at: Optional[str] = None
+    created_at: str | None = None
     profile_key: str
     strategy_id: str
     target_date: str = ""
@@ -184,7 +184,7 @@ class BacktestTicketOut(BaseModel):
     groups: dict[str, list[int]]
     hits: dict[str, int]
     prize_name: str
-    prize_amount: Optional[int] = None
+    prize_amount: int | None = None
     is_first: bool = False
 
 
@@ -199,5 +199,13 @@ class ApiKeyOut(BaseModel):
     id: str
     name: str
     created_at: datetime.datetime
-    last_used_at: Optional[datetime.datetime] = None
-    key: Optional[str] = None  # 仅创建时返回一次
+    last_used_at: datetime.datetime | None = None
+    key: str | None = None  # 仅创建时返回一次
+
+
+# --- 缓存管理 ---
+class CacheStats(BaseModel):
+    """缓存统计信息。"""
+    memory_cache_count: int
+    engine_cache_count: int
+    redis_available: bool

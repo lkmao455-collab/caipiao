@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status
 from starlette.requests import Request
 
 from ...core.profile import get_profile as _get_profile
-from ..db import get_db
 from ..engine import available_profiles, list_profile_strategies
 from ..ratelimit import default_limit, limiter
 from ..schemas import ProfileOut, StrategyOut

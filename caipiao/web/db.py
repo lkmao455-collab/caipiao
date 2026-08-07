@@ -15,8 +15,21 @@ class Base(DeclarativeBase):
 
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=_connect_args,
+    future=True,
+    pool_pre_ping=True,  # 连接前检查有效性，避免使用断开的连接
+    pool_size=5,  # 连接池大小（SQLite 会忽略）
+    max_overflow=10,  # 最大溢出连接数（SQLite 会忽略）
+)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    future=True,
+    expire_on_commit=False,  # 避免访问已提交对象时触发额外查询
+)
 
 
 def get_db() -> Iterator[Session]:

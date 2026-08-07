@@ -9,12 +9,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
 
-from ...core.profile import get_profile as _get_profile, list_profiles
+from ...core.profile import get_profile as _get_profile
+from ...core.profile import list_profiles
 from ...data.fetcher import LotteryDataFetcher
 from ...data.models import DrawRecord
 from ...data.repository import DrawRepository
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["fetch"])
 
 
-def _fetch_one(profile, mode: str) -> tuple[list[DrawRecord], int, int, Optional[dict]]:
+def _fetch_one(profile, mode: str) -> tuple[list[DrawRecord], int, int, dict | None]:
     """抓取并写入单彩种数据，返回 (记录列表, 新增数, 总数, 最新记录 dict)。"""
     fetcher = LotteryDataFetcher(profile)
     if mode == "latest":
@@ -76,7 +75,7 @@ def _fetch_one(profile, mode: str) -> tuple[list[DrawRecord], int, int, Optional
 def fetch_profile(
     request: Request,
     key: str,
-    body: Optional[FetchRequest] = None,
+    body: FetchRequest | None = None,
     current: User = Depends(get_current_user),
 ) -> FetchResult:
     """拉取指定彩种最新开奖（或全量）并写入本地仓库。"""
@@ -105,7 +104,7 @@ def fetch_profile(
 @limiter.limit("5/minute")
 def fetch_all(
     request: Request,
-    body: Optional[FetchRequest] = None,
+    body: FetchRequest | None = None,
     current: User = Depends(get_current_user),
 ) -> list[FetchResult]:
     """遍历全部彩种拉取数据（单彩种失败不影响其余）。"""

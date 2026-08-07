@@ -10,6 +10,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from starlette.requests import Request
 
 from ...core.prize import calculate_prize
 from ...core.profile import get_profile as _get_profile
@@ -30,7 +31,6 @@ from ..schemas import (
     BacktestRunResponse,
     BacktestTicketOut,
 )
-from starlette.requests import Request
 
 router = APIRouter(prefix="/backtest", tags=["backtest"])
 
@@ -101,9 +101,15 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
     bdb = _backtest_db()
     single_rows: list[tuple] = []  # (target, issue, actual_groups, round_hit, ticket_details)
 
+    # 预计算：按日期排序的所有记录，用于快速查找历史窗口
+    sorted_records = sorted(all_records, key=lambda r: r.draw_date)
+    record_dates = [r.draw_date for r in sorted_records]
+
     for t in targets:
-        # 仅使用早于目标期的历史（走查式：模拟当时未知未来开奖）
-        history = [r for r in all_records if r.draw_date < t.draw_date][-req.history_window:]
+        # 使用二分查找快速获取历史窗口，避免每次遍历全部记录
+        import bisect
+        cut_idx = bisect.bisect_left(record_dates, t.draw_date)
+        history = sorted_records[max(0, cut_idx - req.history_window):cut_idx]
         if not history:
             continue
         run_options = dict(options)

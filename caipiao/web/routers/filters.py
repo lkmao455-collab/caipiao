@@ -8,7 +8,7 @@ from starlette.requests import Request
 
 from ...core.profile import get_profile as _get_profile
 from ..db import get_db
-from ..filters_registry import FilterParam, get_profile_filter
+from ..filters_registry import get_profile_filter
 from ..ratelimit import default_limit, limiter
 
 router = APIRouter(prefix="/profiles", tags=["filters"])

@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import hashlib
 import secrets
-from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -50,7 +49,7 @@ def create_access_token(subject: str, expires_minutes: int = ACCESS_TOKEN_EXPIRE
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str) -> Optional[str]:
+def decode_access_token(token: str) -> str | None:
     """解码 JWT，成功返回 subject（用户 id），失败返回 None。"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

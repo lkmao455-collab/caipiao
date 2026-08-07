@@ -8,9 +8,11 @@ vi.mock("../api/client", () => ({
   getMe: vi.fn(),
   setUserRole: vi.fn(),
   deleteUser: vi.fn(),
+  getCacheStats: vi.fn(),
+  clearCache: vi.fn(),
 }));
 
-import { getAdminStats, listAdminUsers, getMe, setUserRole, deleteUser } from "../api/client";
+import { getAdminStats, listAdminUsers, getMe, setUserRole, deleteUser, getCacheStats, clearCache } from "../api/client";
 
 const me = { id: "1", username: "me", role: "admin", created_at: "2024" };
 const users = [
@@ -25,6 +27,8 @@ beforeEach(() => {
   (getMe as unknown as ReturnType<typeof vi.fn>).mockReset();
   (setUserRole as unknown as ReturnType<typeof vi.fn>).mockReset();
   (deleteUser as unknown as ReturnType<typeof vi.fn>).mockReset();
+  (getCacheStats as unknown as ReturnType<typeof vi.fn>).mockReset();
+  (clearCache as unknown as ReturnType<typeof vi.fn>).mockReset();
   (getAdminStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
     user_count: 5,
     admin_count: 1,
@@ -33,6 +37,11 @@ beforeEach(() => {
   });
   (listAdminUsers as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(users);
   (getMe as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(me);
+  (getCacheStats as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+    memory_cache_count: 0,
+    engine_cache_count: 0,
+    redis_available: false,
+  });
 });
 
 describe("Admin", () => {

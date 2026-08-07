@@ -10,11 +10,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
+from ..cache import _memory_cache, clear_all_cache
 from ..db import get_db
 from ..deps import require_admin
+from ..engine import _ENGINES, invalidate_engine_cache
 from ..models import ApiKey, UsageRecord, User
 from ..ratelimit import default_limit, limiter
-from ..schemas import AdminStats, RoleUpdate, UserAdminOut
+from ..schemas import AdminStats, CacheStats, RoleUpdate, UserAdminOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -85,3 +87,32 @@ def delete_user(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "用户不存在")
     db.delete(user)
     db.commit()
+
+
+@router.get("/cache/stats", response_model=CacheStats)
+@limiter.limit(default_limit)
+def cache_stats(request: Request, _: User = Depends(require_admin)) -> CacheStats:
+    """获取缓存统计信息。"""
+    from ..cache import redis_cache
+    return CacheStats(
+        memory_cache_count=len(_memory_cache) if '_memory_cache' in globals() else 0,
+        engine_cache_count=len(_ENGINES) if '_ENGINES' in globals() else 0,
+        redis_available=redis_cache is not None,
+    )
+
+
+@router.post("/cache/clear")
+@limiter.limit(default_limit)
+def clear_cache(
+    request: Request,
+    pattern: str = "",
+    _: User = Depends(require_admin),
+) -> dict:
+    """清除缓存。pattern 为空时清除所有缓存。"""
+    memory_count = clear_all_cache()
+    engine_count = invalidate_engine_cache()
+    return {
+        "memory_cache_cleared": memory_count,
+        "engine_cache_cleared": engine_count,
+        "message": "缓存已清除",
+    }

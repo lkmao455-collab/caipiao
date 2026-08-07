@@ -305,4 +305,26 @@ export async function deleteUser(token: string, id: string): Promise<void> {
   if (!r.ok) throw new Error(await r.text());
 }
 
+// --- 缓存管理 ---
+export interface CacheStats {
+  memory_cache_count: number;
+  engine_cache_count: number;
+  redis_available: boolean;
+}
+
+export async function getCacheStats(token: string): Promise<CacheStats> {
+  const r = await fetch(`${BASE}/admin/cache/stats`, { headers: authHeader(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as CacheStats;
+}
+
+export async function clearCache(token: string, pattern: string = ""): Promise<{ memory_cache_cleared: number; engine_cache_cleared: number; message: string }> {
+  const r = await fetch(`${BASE}/admin/cache/clear?pattern=${encodeURIComponent(pattern)}`, {
+    method: "POST",
+    headers: authHeader(token),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as { memory_cache_cleared: number; engine_cache_cleared: number; message: string };
+}
+
 
