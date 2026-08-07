@@ -177,8 +177,8 @@ describe("Stats 空数据引导", () => {
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find(".bars").exists()).toBe(true);
-    expect(wrapper.findAll(".bar").length).toBe(3);
+    expect(wrapper.find(".group-block").exists()).toBe(true);
+    expect(wrapper.find("svg.barchart").exists()).toBe(true);
     expect(wrapper.text()).toContain("热号：1");
     expect(wrapper.text()).toContain("冷号：3");
   });
@@ -290,7 +290,7 @@ describe("Stats 空数据引导", () => {
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    // bars 仍渲染（高度为 0），且未抛错
-    expect(wrapper.findAll(".bar").length).toBe(3);
+    // BarChart 仍渲染（频率为空时显示空图表），且未抛错
+    expect(wrapper.find("svg.barchart").exists()).toBe(true);
   });
 });

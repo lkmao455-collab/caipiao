@@ -27,8 +27,10 @@
 - [x] 数据导出 Excel
 - [x] Transformer/TabNet 模型
 
-## Phase 5: Enterprise (远期)
-- [ ] Web 版本（FastAPI + Vue）
-- [ ] 多用户支持
-- [ ] API 开放平台
-- [ ] 实时数据推送
+## Phase 5: Enterprise (已完成)
+- [x] Web 版本（FastAPI + Vue）
+- [x] 多用户支持
+- [x] API 开放平台
+- [x] 实时数据推送
+- [x] 性能优化（缓存/索引/二分查找）
+- [x] 代码质量优化（Web 层 Ruff 清理）
