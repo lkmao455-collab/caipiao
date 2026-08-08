@@ -2,14 +2,72 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
 from ..log import get_logger
+from . import db as _webdb
 
 logger = get_logger(__name__)
+
+
+def _dashboard_to_dict(d: Dashboard) -> dict[str, Any]:
+    return {
+        "id": d.id,
+        "name": d.name,
+        "description": d.description,
+        "charts": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "chart_type": c.chart_type,
+                "data_source": c.data_source,
+                "query": c.query,
+                "options": c.options,
+                "position": c.position,
+                "refresh_interval": c.refresh_interval,
+                "created_at": c.created_at,
+            }
+            for c in d.charts
+        ],
+        "layout": d.layout,
+        "theme": d.theme,
+        "is_public": d.is_public,
+        "owner_id": d.owner_id,
+        "created_at": d.created_at,
+        "updated_at": d.updated_at,
+    }
+
+
+def _dict_to_dashboard(data: dict[str, Any]) -> Dashboard:
+    return Dashboard(
+        id=data["id"],
+        name=data["name"],
+        description=data.get("description", ""),
+        charts=[
+            ChartConfig(
+                id=c["id"],
+                name=c["name"],
+                chart_type=c["chart_type"],
+                data_source=c.get("data_source", ""),
+                query=c.get("query", ""),
+                options=c.get("options", {}),
+                position=c.get("position", {}),
+                refresh_interval=c.get("refresh_interval", 0),
+                created_at=c.get("created_at", time.time),
+            )
+            for c in data.get("charts", [])
+        ],
+        layout=data.get("layout", "grid"),
+        theme=data.get("theme", "light"),
+        is_public=data.get("is_public", False),
+        owner_id=data.get("owner_id", ""),
+        created_at=data.get("created_at", time.time),
+        updated_at=data.get("updated_at", time.time),
+    )
 
 
 @dataclass
@@ -55,7 +113,59 @@ class VisualizationPlatform:
     def __init__(self):
         self._dashboards: dict[str, Dashboard] = {}
         self._templates: dict[str, VisualizationTemplate] = {}
+        self._loaded = False
+        self._loaded_db_url: str | None = None
         self._register_default_templates()
+
+    def _ensure_loaded(self) -> None:
+        _webdb._ensure_engine()
+        url = _webdb._db_url()
+        if self._loaded and self._loaded_db_url == url:
+            return
+        self._dashboards = {}
+        from .models import DashboardRow
+
+        with _webdb._SessionLocal() as session:
+            for row in session.query(DashboardRow).all():
+                try:
+                    self._dashboards[row.id] = _dict_to_dashboard(
+                        json.loads(row.data_json)
+                    )
+                except Exception as exc:
+                    logger.error("加载仪表盘 %s 失败: %s", row.id, exc)
+        self._loaded = True
+        self._loaded_db_url = url
+
+    def _persist_dashboard(self, dashboard_id: str) -> None:
+        from .models import DashboardRow
+
+        d = self._dashboards.get(dashboard_id)
+        with _webdb._SessionLocal() as session:
+            row = session.get(DashboardRow, dashboard_id)
+            if d is None:
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
+                return
+            data = json.dumps(_dashboard_to_dict(d), ensure_ascii=False)
+            if row is None:
+                session.add(
+                    DashboardRow(
+                        id=dashboard_id,
+                        name=d.name,
+                        description=d.description,
+                        owner_id=d.owner_id or None,
+                        data_json=data,
+                        updated_at=d.updated_at,
+                    )
+                )
+            else:
+                row.data_json = data
+                row.name = d.name
+                row.description = d.description
+                row.owner_id = d.owner_id or None
+                row.updated_at = d.updated_at
+            session.commit()
 
     def _register_default_templates(self):
         templates = [
@@ -120,37 +230,47 @@ class VisualizationPlatform:
             self._templates[t.id] = t
 
     def create_dashboard(self, dashboard: Dashboard) -> Dashboard:
+        self._ensure_loaded()
         self._dashboards[dashboard.id] = dashboard
+        self._persist_dashboard(dashboard.id)
         return dashboard
 
     def get_dashboard(self, dashboard_id: str) -> Dashboard | None:
+        self._ensure_loaded()
         return self._dashboards.get(dashboard_id)
 
     def list_dashboards(self, owner_id: str | None = None) -> list[Dashboard]:
+        self._ensure_loaded()
         dashboards = list(self._dashboards.values())
         if owner_id:
             dashboards = [d for d in dashboards if d.owner_id == owner_id or d.is_public]
         return dashboards
 
     def delete_dashboard(self, dashboard_id: str) -> bool:
+        self._ensure_loaded()
         if dashboard_id in self._dashboards:
             del self._dashboards[dashboard_id]
+            self._persist_dashboard(dashboard_id)
             return True
         return False
 
     def add_chart(self, dashboard_id: str, chart: ChartConfig) -> bool:
+        self._ensure_loaded()
         dashboard = self._dashboards.get(dashboard_id)
         if dashboard:
             dashboard.charts.append(chart)
             dashboard.updated_at = time.time()
+            self._persist_dashboard(dashboard_id)
             return True
         return False
 
     def remove_chart(self, dashboard_id: str, chart_id: str) -> bool:
+        self._ensure_loaded()
         dashboard = self._dashboards.get(dashboard_id)
         if dashboard:
             dashboard.charts = [c for c in dashboard.charts if c.id != chart_id]
             dashboard.updated_at = time.time()
+            self._persist_dashboard(dashboard_id)
             return True
         return False
 

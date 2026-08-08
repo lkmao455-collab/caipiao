@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from collections import defaultdict
@@ -9,8 +10,75 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..log import get_logger
+from . import db as _webdb
 
 logger = get_logger(__name__)
+
+
+def _funnel_to_dict(f: FunnelDefinition) -> dict[str, Any]:
+    return {
+        "id": f.id,
+        "name": f.name,
+        "steps": [
+            {"name": s.name, "event_type": s.event_type, "event_name": s.event_name}
+            for s in f.steps
+        ],
+        "time_window_minutes": f.time_window_minutes,
+        "created_at": f.created_at,
+    }
+
+
+def _dict_to_funnel(d: dict[str, Any]) -> FunnelDefinition:
+    return FunnelDefinition(
+        id=d["id"],
+        name=d["name"],
+        steps=[
+            FunnelStep(name=s["name"], event_type=s["event_type"], event_name=s["event_name"])
+            for s in d.get("steps", [])
+        ],
+        time_window_minutes=d.get("time_window_minutes", 60),
+        created_at=d.get("created_at", time.time),
+    )
+
+
+def _ab_test_to_dict(t: ABTest) -> dict[str, Any]:
+    return {
+        "id": t.id,
+        "name": t.name,
+        "variants": [
+            {
+                "name": v.name,
+                "weight": v.weight,
+                "assigned_users": v.assigned_users,
+                "conversions": v.conversions,
+            }
+            for v in t.variants
+        ],
+        "start_time": t.start_time,
+        "end_time": t.end_time,
+        "status": t.status,
+        "target_metric": t.target_metric,
+    }
+
+
+def _dict_to_ab_test(d: dict[str, Any]) -> ABTest:
+    return ABTest(
+        id=d["id"],
+        name=d["name"],
+        variants=[
+            ABTestVariant(
+                name=v["name"],
+                weight=v.get("weight", 1),
+                assigned_users=v.get("assigned_users", 0),
+                conversions=v.get("conversions", 0),
+            )
+            for v in d.get("variants", [])
+        ],
+        start_time=d.get("start_time", time.time),
+        end_time=d.get("end_time"),
+        status=d.get("status", "running"),
+        target_metric=d.get("target_metric", ""),
+    )
 
 
 @dataclass
@@ -78,6 +146,83 @@ class AnalyticsPlatform:
         self._funnels: dict[str, FunnelDefinition] = {}
         self._ab_tests: dict[str, ABTest] = {}
         self._user_sessions: dict[str, list[UserEvent]] = defaultdict(list)
+        self._loaded = False
+        self._loaded_db_url: str | None = None
+
+    def _ensure_loaded(self) -> None:
+        _webdb._ensure_engine()
+        url = _webdb._db_url()
+        if self._loaded and self._loaded_db_url == url:
+            return
+        self._funnels = {}
+        self._ab_tests = {}
+        from .models import ABTestRow, FunnelRow
+
+        with _webdb._SessionLocal() as session:
+            for row in session.query(FunnelRow).all():
+                try:
+                    self._funnels[row.id] = _dict_to_funnel(json.loads(row.data_json))
+                except Exception as exc:
+                    logger.error("加载漏斗 %s 失败: %s", row.id, exc)
+            for row in session.query(ABTestRow).all():
+                try:
+                    self._ab_tests[row.id] = _dict_to_ab_test(json.loads(row.data_json))
+                except Exception as exc:
+                    logger.error("加载 A/B 测试 %s 失败: %s", row.id, exc)
+        self._loaded = True
+        self._loaded_db_url = url
+
+    def _persist_funnel(self, funnel_id: str) -> None:
+        from .models import FunnelRow
+
+        f = self._funnels.get(funnel_id)
+        with _webdb._SessionLocal() as session:
+            row = session.get(FunnelRow, funnel_id)
+            if f is None:
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
+                return
+            data = json.dumps(_funnel_to_dict(f), ensure_ascii=False)
+            if row is None:
+                session.add(
+                    FunnelRow(
+                        id=funnel_id,
+                        name=f.name,
+                        data_json=data,
+                        updated_at=time.time(),
+                    )
+                )
+            else:
+                row.data_json = data
+                row.name = f.name
+            session.commit()
+
+    def _persist_ab_test(self, test_id: str) -> None:
+        from .models import ABTestRow
+
+        t = self._ab_tests.get(test_id)
+        with _webdb._SessionLocal() as session:
+            row = session.get(ABTestRow, test_id)
+            if t is None:
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
+                return
+            data = json.dumps(_ab_test_to_dict(t), ensure_ascii=False)
+            if row is None:
+                session.add(
+                    ABTestRow(
+                        id=test_id,
+                        name=t.name,
+                        data_json=data,
+                        updated_at=time.time(),
+                    )
+                )
+            else:
+                row.data_json = data
+                row.name = t.name
+            session.commit()
 
     def track_event(self, event: UserEvent):
         """追踪用户事件。"""
@@ -124,11 +269,14 @@ class AnalyticsPlatform:
     # 漏斗分析
     def create_funnel(self, definition: FunnelDefinition) -> FunnelDefinition:
         """创建漏斗定义。"""
+        self._ensure_loaded()
         self._funnels[definition.id] = definition
+        self._persist_funnel(definition.id)
         return definition
 
     def analyze_funnel(self, funnel_id: str, minutes: int = 60) -> FunnelResult | None:
         """分析漏斗转化。"""
+        self._ensure_loaded()
         definition = self._funnels.get(funnel_id)
         if not definition:
             return None
@@ -182,11 +330,14 @@ class AnalyticsPlatform:
     # A/B 测试
     def create_ab_test(self, test: ABTest) -> ABTest:
         """创建 A/B 测试。"""
+        self._ensure_loaded()
         self._ab_tests[test.id] = test
+        self._persist_ab_test(test.id)
         return test
 
     def assign_variant(self, test_id: str, user_id: str) -> str | None:
         """为用户分配变体。"""
+        self._ensure_loaded()
         test = self._ab_tests.get(test_id)
         if not test or test.status != "running":
             return None
@@ -198,21 +349,28 @@ class AnalyticsPlatform:
             cumulative += variant.weight * 100
             if hash_val < cumulative:
                 variant.assigned_users += 1
+                self._persist_ab_test(test_id)
                 return variant.name
 
-        return test.variants[0].name if test.variants else None
+        result = test.variants[0].name if test.variants else None
+        if result is not None:
+            self._persist_ab_test(test_id)
+        return result
 
     def record_conversion(self, test_id: str, variant_name: str):
         """记录转化。"""
+        self._ensure_loaded()
         test = self._ab_tests.get(test_id)
         if test:
             for v in test.variants:
                 if v.name == variant_name:
                     v.conversions += 1
                     break
+            self._persist_ab_test(test_id)
 
     def get_ab_test_results(self, test_id: str) -> dict | None:
         """获取 A/B 测试结果。"""
+        self._ensure_loaded()
         test = self._ab_tests.get(test_id)
         if not test:
             return None
@@ -237,6 +395,7 @@ class AnalyticsPlatform:
 
     def get_overview(self, minutes: int = 60) -> dict:
         """获取分析概览。"""
+        self._ensure_loaded()
         activity = self.get_user_activity(minutes)
         event_counts = self.get_event_counts("action", minutes)
 

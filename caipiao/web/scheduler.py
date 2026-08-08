@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Coroutine
 import logging
+
+from . import db as _webdb
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,40 @@ class TaskResult:
     error: str | None = None
 
 
+def _sched_task_to_dict(t: ScheduledTask) -> dict[str, Any]:
+    return {
+        "id": t.id,
+        "name": t.name,
+        "task_type": t.task_type.value,
+        "profile_key": t.profile_key,
+        "strategy_id": t.strategy_id,
+        "interval_minutes": t.interval_minutes,
+        "params": t.params,
+        "enabled": t.enabled,
+        "last_run": t.last_run,
+        "next_run": t.next_run,
+        "status": t.status.value,
+        "result": t.result,
+    }
+
+
+def _dict_to_sched_task(d: dict[str, Any]) -> ScheduledTask:
+    return ScheduledTask(
+        id=d["id"],
+        name=d["name"],
+        task_type=TaskType(d["task_type"]),
+        profile_key=d.get("profile_key", ""),
+        strategy_id=d.get("strategy_id"),
+        interval_minutes=d.get("interval_minutes", 60),
+        params=d.get("params", {}),
+        enabled=d.get("enabled", True),
+        last_run=d.get("last_run"),
+        next_run=d.get("next_run"),
+        status=TaskStatus(d.get("status", "pending")),
+        result=d.get("result"),
+    )
+
+
 class TaskScheduler:
     """任务调度器。"""
 
@@ -63,6 +101,62 @@ class TaskScheduler:
         self._results: list[TaskResult] = []
         self._running = False
         self._task_counter = 0
+        self._loaded = False
+        self._loaded_db_url: str | None = None
+
+    def _ensure_loaded(self) -> None:
+        _webdb._ensure_engine()
+        url = _webdb._db_url()
+        if self._loaded and self._loaded_db_url == url:
+            return
+        self._tasks = {}
+        from .models import ScheduledTaskRow
+
+        max_counter = 0
+        with _webdb._SessionLocal() as session:
+            for row in session.query(ScheduledTaskRow).all():
+                try:
+                    task = _dict_to_sched_task(json.loads(row.data_json))
+                    self._tasks[task.id] = task
+                    if task.id.startswith("task_") and task.id[5:].isdigit():
+                        max_counter = max(max_counter, int(task.id[5:]))
+                except Exception as exc:
+                    logger.error("加载自动化任务 %s 失败: %s", row.id, exc)
+        self._task_counter = max_counter
+        self._loaded = True
+        self._loaded_db_url = url
+
+    def _persist_task(self, task_id: str) -> None:
+        from .models import ScheduledTaskRow
+
+        task = self._tasks.get(task_id)
+        with _webdb._SessionLocal() as session:
+            row = session.get(ScheduledTaskRow, task_id)
+            if task is None:
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
+                return
+            data = json.dumps(_sched_task_to_dict(task), ensure_ascii=False)
+            if row is None:
+                session.add(
+                    ScheduledTaskRow(
+                        id=task_id,
+                        name=task.name,
+                        task_type=task.task_type.value,
+                        profile_key=task.profile_key,
+                        enabled=task.enabled,
+                        data_json=data,
+                        updated_at=time.time(),
+                    )
+                )
+            else:
+                row.data_json = data
+                row.name = task.name
+                row.task_type = task.task_type.value
+                row.profile_key = task.profile_key
+                row.enabled = task.enabled
+            session.commit()
 
     def add_task(
         self,
@@ -74,6 +168,7 @@ class TaskScheduler:
         params: dict[str, Any] | None = None,
     ) -> ScheduledTask:
         """添加定时任务。"""
+        self._ensure_loaded()
         self._task_counter += 1
         task_id = f"task_{self._task_counter}"
         now = datetime.now()
@@ -90,28 +185,35 @@ class TaskScheduler:
             next_run=next_run.isoformat(),
         )
         self._tasks[task_id] = task
+        self._persist_task(task_id)
         return task
 
     def remove_task(self, task_id: str) -> bool:
         """移除任务。"""
+        self._ensure_loaded()
         if task_id in self._tasks:
             del self._tasks[task_id]
+            self._persist_task(task_id)
             return True
         return False
 
     def list_tasks(self) -> list[ScheduledTask]:
         """列出所有任务。"""
+        self._ensure_loaded()
         return list(self._tasks.values())
 
     def get_task(self, task_id: str) -> ScheduledTask | None:
         """获取任务详情。"""
+        self._ensure_loaded()
         return self._tasks.get(task_id)
 
     def toggle_task(self, task_id: str, enabled: bool) -> bool:
         """启用/禁用任务。"""
+        self._ensure_loaded()
         task = self._tasks.get(task_id)
         if task:
             task.enabled = enabled
+            self._persist_task(task_id)
             return True
         return False
 
@@ -123,6 +225,7 @@ class TaskScheduler:
 
     async def run_task(self, task_id: str) -> TaskResult:
         """立即执行任务。"""
+        self._ensure_loaded()
         task = self._tasks.get(task_id)
         if not task:
             raise ValueError(f"任务 {task_id} 不存在")
@@ -164,6 +267,8 @@ class TaskScheduler:
 
         result.finished_at = datetime.now().isoformat()
         self._results.append(result)
+        # 持久化任务调度状态（last_run/next_run/status）
+        self._persist_task(task_id)
         return result
 
     async def _execute_fetch(self, task: ScheduledTask) -> dict[str, Any]:

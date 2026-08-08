@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import heapq
+import json
 import time
 import uuid
 from collections import defaultdict
@@ -12,8 +13,41 @@ from enum import Enum
 from typing import Any, Awaitable, Callable
 
 from ..log import get_logger
+from . import db as _webdb
 
 logger = get_logger(__name__)
+
+
+def _taskdef_to_dict(t: TaskDefinition) -> dict[str, Any]:
+    return {
+        "id": t.id,
+        "name": t.name,
+        "task_type": t.task_type,
+        "payload": t.payload,
+        "priority": t.priority.value,
+        "max_retries": t.max_retries,
+        "retry_delay": t.retry_delay,
+        "timeout": t.timeout,
+        "schedule": t.schedule,
+        "enabled": t.enabled,
+        "created_at": t.created_at,
+    }
+
+
+def _dict_to_taskdef(d: dict[str, Any]) -> TaskDefinition:
+    return TaskDefinition(
+        id=d["id"],
+        name=d["name"],
+        task_type=d["task_type"],
+        payload=d.get("payload", {}),
+        priority=TaskPriority(d.get("priority", 1)),
+        max_retries=d.get("max_retries", 3),
+        retry_delay=d.get("retry_delay", 60),
+        timeout=d.get("timeout", 300),
+        schedule=d.get("schedule", ""),
+        enabled=d.get("enabled", True),
+        created_at=d.get("created_at", time.time),
+    )
 
 
 class TaskStatus(str, Enum):
@@ -90,27 +124,83 @@ class TaskScheduler:
         self._running = False
         self._task: asyncio.Task | None = None
         self._max_queue_size = max_queue_size
+        self._loaded = False
+        self._loaded_db_url: str | None = None
+
+    def _ensure_loaded(self) -> None:
+        _webdb._ensure_engine()
+        url = _webdb._db_url()
+        if self._loaded and self._loaded_db_url == url:
+            return
+        self._definitions = {}
+        from .models import TaskDefinitionRow
+
+        with _webdb._SessionLocal() as session:
+            for row in session.query(TaskDefinitionRow).all():
+                try:
+                    self._definitions[row.id] = _dict_to_taskdef(
+                        json.loads(row.definition_json)
+                    )
+                except Exception as exc:
+                    logger.error("加载任务定义 %s 失败: %s", row.id, exc)
+        self._loaded = True
+        self._loaded_db_url = url
+
+    def _persist_task(self, task_id: str) -> None:
+        from .models import TaskDefinitionRow
+
+        t = self._definitions.get(task_id)
+        with _webdb._SessionLocal() as session:
+            row = session.get(TaskDefinitionRow, task_id)
+            if t is None:
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
+                return
+            data = json.dumps(_taskdef_to_dict(t), ensure_ascii=False)
+            if row is None:
+                session.add(
+                    TaskDefinitionRow(
+                        id=task_id,
+                        name=t.name,
+                        enabled=t.enabled,
+                        definition_json=data,
+                        created_at=t.created_at,
+                    )
+                )
+            else:
+                row.data_json = data
+                row.name = t.name
+                row.enabled = t.enabled
+            session.commit()
 
     def register_handler(self, task_type: str, handler: TaskHandler):
         self._handlers[task_type] = handler
 
     def create_task(self, definition: TaskDefinition) -> TaskDefinition:
+        self._ensure_loaded()
         self._definitions[definition.id] = definition
+        self._persist_task(definition.id)
         return definition
 
     def get_task(self, task_id: str) -> TaskDefinition | None:
+        self._ensure_loaded()
         return self._definitions.get(task_id)
 
     def list_tasks(self) -> list[TaskDefinition]:
+        self._ensure_loaded()
         return list(self._definitions.values())
 
     def delete_task(self, task_id: str) -> bool:
+        self._ensure_loaded()
         if task_id in self._definitions:
             del self._definitions[task_id]
+            self._persist_task(task_id)
             return True
         return False
 
     def submit_task(self, task_id: str, payload: dict | None = None) -> TaskRun | None:
+        self._ensure_loaded()
         definition = self._definitions.get(task_id)
         if not definition or not definition.enabled:
             return None
@@ -182,6 +272,7 @@ class TaskScheduler:
                 logger.error(f"Dispatch error: {e}")
 
     async def _execute_run(self, run: TaskRun):
+        self._ensure_loaded()
         definition = self._definitions.get(run.task_id)
         if not definition:
             run.status = TaskStatus.FAILED
@@ -225,6 +316,7 @@ class TaskScheduler:
         return len(self._queue)
 
     def get_stats(self) -> dict:
+        self._ensure_loaded()
         status_counts = defaultdict(int)
         for run in self._runs.values():
             status_counts[run.status] += 1
