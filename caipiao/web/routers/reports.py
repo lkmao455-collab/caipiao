@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -27,7 +29,7 @@ class ColumnSchema(BaseModel):
 class FilterSchema(BaseModel):
     field: str
     operator: str
-    value: any
+    value: Any
 
 
 class ReportCreate(BaseModel):

@@ -43,7 +43,7 @@ _COUNTER = {"n": 0}
 @pytest.fixture
 def token(client):
     _COUNTER["n"] += 1
-    username = f"chatbot_tester_{_COUNTER['n']}"
+    username = f"root_chatbot_tester_{_COUNTER['n']}"
     password = "pw123456"
     r = client.post("/auth/register", json={"username": username, "password": password})
     assert r.status_code == 201, r.text

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -15,9 +17,13 @@ from ..security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# 鉴权网关的限流默认值；测试环境可通过 CAIPIAO_WEB_AUTH_RATE_LIMIT 调高，
+# 避免大量注册/登录请求触发 429。生产默认值保持 30/minute。
+_AUTH_RATE_LIMIT = os.getenv("CAIPIAO_WEB_AUTH_RATE_LIMIT", "30/minute")
+
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-@limiter.limit("30/minute")
+@limiter.limit(_AUTH_RATE_LIMIT)
 def register(request: Request, payload: UserCreate, db: Session = Depends(get_db)) -> User:
     if db.query(User).filter_by(username=payload.username).first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "用户名已存在")
@@ -35,7 +41,7 @@ def register(request: Request, payload: UserCreate, db: Session = Depends(get_db
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("30/minute")
+@limiter.limit(_AUTH_RATE_LIMIT)
 def login(
     request: Request,
     form: OAuth2PasswordRequestForm = Depends(),

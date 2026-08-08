@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -13,7 +15,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 class ConfigSet(BaseModel):
     key: str
-    value: any
+    value: Any
     value_type: str = "string"
     description: str = ""
     category: str = "general"
@@ -21,7 +23,7 @@ class ConfigSet(BaseModel):
 
 
 class ConfigBulkUpdate(BaseModel):
-    configs: dict[str, any]
+    configs: dict[str, Any]
 
 
 @router.get("")
