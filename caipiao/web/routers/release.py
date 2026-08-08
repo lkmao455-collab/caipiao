@@ -71,7 +71,7 @@ def update_flag(
     principal=Depends(get_current_principal),
 ):
     mgr = get_release_manager()
-    kwargs = {k: v for k, v in req.dict().items() if v is not None}
+    kwargs = {k: v for k, v in req.model_dump().items() if v is not None}
     if mgr.update_flag(key, **kwargs):
         return {"status": "ok"}
     return {"error": "Not found"}

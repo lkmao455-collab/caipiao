@@ -66,6 +66,18 @@ def list_datasets(
     ]
 
 
+# 注意：静态路径 /datasets/search 必须声明在 /datasets/{dataset_id} 之前，
+# 否则会被动态段抢先匹配（dataset_id="search"）。
+@router.get("/datasets/search")
+def search_datasets(
+    q: str,
+    principal=Depends(get_current_principal),
+):
+    platform = get_data_governance_platform()
+    datasets = platform.search_datasets(q)
+    return [{"id": d.id, "name": d.name} for d in datasets]
+
+
 @router.get("/datasets/{dataset_id}")
 def get_dataset(
     dataset_id: str,
@@ -80,16 +92,6 @@ def get_dataset(
         "schema": [{"name": f.name, "type": f.type} for f in d.schema],
         "quality_score": d.quality_score, "tags": d.tags,
     }
-
-
-@router.get("/datasets/search")
-def search_datasets(
-    q: str,
-    principal=Depends(get_current_principal),
-):
-    platform = get_data_governance_platform()
-    datasets = platform.search_datasets(q)
-    return [{"id": d.id, "name": d.name} for d in datasets]
 
 
 @router.post("/lineage")
