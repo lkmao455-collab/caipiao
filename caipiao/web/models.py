@@ -6,7 +6,7 @@ import datetime
 import time
 import uuid
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -228,3 +228,170 @@ class UsageRecord(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
+
+
+class AuditLogRow(Base):
+    """持久化的安全审计日志条目（合规关键，重启不丢失）。"""
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    timestamp: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    resource: Mapped[str] = mapped_column(String(128), default="")
+    details_json: Mapped[str] = mapped_column(Text, default="{}")
+    ip_address: Mapped[str] = mapped_column(String(64), default="")
+    success: Mapped[bool] = mapped_column(Boolean, default=True)
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+# --- 发布管理 (release_manager) ---
+
+
+class FeatureFlagRow(Base):
+    """持久化的功能开关定义。"""
+
+    __tablename__ = "feature_flags"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # flag key
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    rollout_percentage: Mapped[float] = mapped_column(Float, default=0)
+    target_rules_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    updated_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class ReleaseVersionRow(Base):
+    """持久化的发布版本定义。"""
+
+    __tablename__ = "release_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    version: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="draft")
+    rollout_percentage: Mapped[float] = mapped_column(Float, default=0)
+    target_audience: Mapped[str] = mapped_column(String(32), default="all")
+    features_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    released_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class DeploymentRow(Base):
+    """持久化的部署记录（append-only）。"""
+
+    __tablename__ = "deployments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    version_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    environment: Mapped[str] = mapped_column(String(32), default="production")
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    started_at: Mapped[float] = mapped_column(Float, default=time.time)
+    completed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rollback_version: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+# --- 数据治理 (data_governance) ---
+
+
+class DatasetRow(Base):
+    """持久化的数据集元数据定义。"""
+
+    __tablename__ = "datasets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(256), default="")
+    schema_json: Mapped[str] = mapped_column(Text, default="[]")
+    owner: Mapped[str] = mapped_column(String(64), default="")
+    quality_score: Mapped[float] = mapped_column(Float, default=0)
+    row_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_updated: Mapped[float] = mapped_column(Float, default=time.time)
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class DataLineageRow(Base):
+    """持久化的数据血缘关系（append-only）。"""
+
+    __tablename__ = "data_lineage"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source_dataset: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    target_dataset: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    transform_type: Mapped[str] = mapped_column(String(32), default="copy")
+    transform_logic: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class QualityRuleRow(Base):
+    """持久化的数据质量规则定义。"""
+
+    __tablename__ = "quality_rules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    rule_type: Mapped[str] = mapped_column(String(32), default="not_null")
+    field_name: Mapped[str] = mapped_column(String(128), default="")
+    expression: Mapped[str] = mapped_column(Text, default="")
+    threshold: Mapped[float] = mapped_column(Float, default=100)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+# --- 备份管理 (backup_manager) ---
+
+
+class BackupConfigRow(Base):
+    """持久化的备份配置定义。"""
+
+    __tablename__ = "backup_configs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    backup_type: Mapped[str] = mapped_column(String(32), default="full")
+    source_paths_json: Mapped[str] = mapped_column(Text, default="[]")
+    destination: Mapped[str] = mapped_column(String(512), default="")
+    schedule: Mapped[str] = mapped_column(String(128), default="")
+    retention_days: Mapped[int] = mapped_column(Integer, default=30)
+    compression: Mapped[bool] = mapped_column(Boolean, default=True)
+    encryption: Mapped[bool] = mapped_column(Boolean, default=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class BackupRecordRow(Base):
+    """持久化的备份执行记录（append-only，引用磁盘上的备份文件）。"""
+
+    __tablename__ = "backup_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    config_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    backup_type: Mapped[str] = mapped_column(String(32), default="full")
+    file_path: Mapped[str] = mapped_column(String(512), default="")
+    file_size: Mapped[int] = mapped_column(Integer, default=0)
+    compressed_size: Mapped[int] = mapped_column(Integer, default=0)
+    duration: Mapped[float] = mapped_column(Float, default=0)
+    error: Mapped[str] = mapped_column(Text, default="")
+    started_at: Mapped[float] = mapped_column(Float, default=time.time)
+    completed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class RestorePointRow(Base):
+    """持久化的恢复点定义。"""
+
+    __tablename__ = "restore_points"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    backup_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)

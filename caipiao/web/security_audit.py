@@ -1,4 +1,9 @@
-"""安全审计模块：操作日志、数据加密、敏感信息脱敏。"""
+"""安全审计模块：操作日志、数据加密、敏感信息脱敏。
+
+持久化：审计日志条目写入 web 数据库（合规关键，重启不丢失）。运行时仅保留
+内存缓存（受 _max_logs 限制），实例会在每次调用时按需从数据库水合
+（URL 感知，支持测试隔离与进程重启持久化）。
+"""
 
 from __future__ import annotations
 
@@ -11,6 +16,8 @@ from datetime import datetime
 from typing import Any
 from functools import wraps
 import base64
+
+from . import db as _webdb
 
 logger = logging.getLogger("caipiao.audit")
 
@@ -35,6 +42,42 @@ class AuditLogger:
     def __init__(self):
         self._logs: list[AuditLog] = []
         self._max_logs = 10000
+        self._loaded = False
+        self._loaded_db_url: str | None = None
+
+    def _ensure_loaded(self) -> None:
+        _webdb._ensure_engine()
+        url = _webdb._db_url()
+        if self._loaded and self._loaded_db_url == url:
+            return
+        self._logs = []
+        from .models import AuditLogRow
+
+        with _webdb._SessionLocal() as session:
+            rows = (
+                session.query(AuditLogRow)
+                .order_by(AuditLogRow.id.desc())
+                .limit(self._max_logs)
+                .all()
+            )
+            for row in reversed(rows):
+                try:
+                    self._logs.append(
+                        AuditLog(
+                            timestamp=row.timestamp,
+                            user_id=row.user_id,
+                            action=row.action,
+                            resource=row.resource,
+                            details=json.loads(row.details_json) if row.details_json else {},
+                            ip_address=row.ip_address,
+                            success=row.success,
+                            error_message=row.error_message,
+                        )
+                    )
+                except Exception as exc:
+                    logger.error("加载审计日志 %s 失败: %s", row.id, exc)
+        self._loaded = True
+        self._loaded_db_url = url
 
     def log(
         self,
@@ -46,7 +89,8 @@ class AuditLogger:
         success: bool = True,
         error_message: str = "",
     ) -> None:
-        """记录审计日志。"""
+        """记录审计日志（写透到数据库）。"""
+        self._ensure_loaded()
         log_entry = AuditLog(
             timestamp=datetime.now().isoformat(),
             user_id=user_id,
@@ -59,9 +103,27 @@ class AuditLogger:
         )
         self._logs.append(log_entry)
 
-        # 限制日志数量
+        # 限制内存日志数量
         if len(self._logs) > self._max_logs:
             self._logs = self._logs[-self._max_logs:]
+
+        # 写透到数据库
+        from .models import AuditLogRow
+
+        with _webdb._SessionLocal() as session:
+            session.add(
+                AuditLogRow(
+                    timestamp=log_entry.timestamp,
+                    user_id=log_entry.user_id,
+                    action=log_entry.action,
+                    resource=log_entry.resource,
+                    details_json=json.dumps(log_entry.details, ensure_ascii=False),
+                    ip_address=log_entry.ip_address,
+                    success=log_entry.success,
+                    error_message=log_entry.error_message,
+                )
+            )
+            session.commit()
 
         # 同时输出到标准日志
         level = logging.INFO if success else logging.WARNING
@@ -77,6 +139,7 @@ class AuditLogger:
         limit: int = 100,
     ) -> list[AuditLog]:
         """查询审计日志。"""
+        self._ensure_loaded()
         filtered = self._logs
         if user_id:
             filtered = [l for l in filtered if l.user_id == user_id]
@@ -87,6 +150,8 @@ class AuditLogger:
     def get_stats(self) -> dict[str, Any]:
         """获取审计统计。"""
         from collections import Counter
+
+        self._ensure_loaded()
         action_counts = Counter(l.action for l in self._logs)
         user_counts = Counter(l.user_id for l in self._logs)
         return {
