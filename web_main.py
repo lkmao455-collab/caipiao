@@ -20,15 +20,46 @@ from caipiao.web.eventbus import bus
 from caipiao.web.ratelimit import limiter
 from caipiao.web.routers import (
     admin,
+    ai_analysis,
+    ai_predict,
+    analytics,
     api_keys,
+    audit,
     auth,
     backtest,
+    behavior,
+    backup,
+    chatbot,
+    collaboration,
+    community,
+    config,
+    developer,
+    devops,
+    distributed,
+    favorites,
     fetch,
     filters,
     generate,
+    governance,
+    i18n,
+    logs,
+    message_queue,
+    monitoring,
+    plugins,
     profiles,
+    qa,
+    realtime,
+    release,
+    reports,
+    scheduler,
+    services,
     stats,
+    tasks,
+    tenants,
     user,
+    user_profile,
+    visualization,
+    workflows,
 )
 from caipiao.web.ws import router as ws_router
 
@@ -123,6 +154,37 @@ app.include_router(generate.router, tags=["generate"])
 app.include_router(backtest.router, tags=["backtest"])
 app.include_router(stats.router, tags=["stats"])
 app.include_router(filters.router, tags=["filters"])
+app.include_router(favorites.router, tags=["favorites"])
+app.include_router(tasks.router, tags=["tasks"])
+app.include_router(audit.router, tags=["audit"])
+app.include_router(community.router, tags=["community"])
+app.include_router(ai_analysis.router, tags=["ai_analysis"])
+app.include_router(monitoring.router, tags=["monitoring"])
+app.include_router(chatbot.router, tags=["chatbot"])
+app.include_router(plugins.router, tags=["plugins"])
+app.include_router(realtime.router, tags=["realtime"])
+app.include_router(collaboration.router, tags=["collaboration"])
+app.include_router(reports.router, tags=["reports"])
+app.include_router(analytics.router, tags=["analytics"])
+app.include_router(ai_predict.router, tags=["ai_predict"])
+app.include_router(workflows.router, tags=["workflows"])
+app.include_router(visualization.router, tags=["visualization"])
+app.include_router(scheduler.router, tags=["scheduler"])
+app.include_router(developer.router, tags=["developer"])
+app.include_router(behavior.router, tags=["behavior"])
+app.include_router(i18n.router, tags=["i18n"])
+app.include_router(message_queue.router, tags=["message_queue"])
+app.include_router(config.router, tags=["config"])
+app.include_router(user_profile.router, tags=["user_profile"])
+app.include_router(backup.router, tags=["backup"])
+app.include_router(tenants.router, tags=["tenants"])
+app.include_router(logs.router, tags=["logs"])
+app.include_router(services.router, tags=["services"])
+app.include_router(distributed.router, tags=["distributed"])
+app.include_router(release.router, tags=["release"])
+app.include_router(governance.router, tags=["governance"])
+app.include_router(qa.router, tags=["qa"])
+app.include_router(devops.router, tags=["devops"])
 app.include_router(user.router, tags=["user"])
 app.include_router(api_keys.router, tags=["api_keys"])
 app.include_router(admin.router, tags=["admin"])

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import {
   getStats,
   fetchProfileData,
+  exportData,
   type ProfileStats,
   type GroupStats,
   type FetchResult,
@@ -10,6 +11,8 @@ import {
 import BarChart from "../components/charts/BarChart.vue";
 import DonutChart from "../components/charts/DonutChart.vue";
 import Heatmap from "../components/charts/Heatmap.vue";
+import MissingAnalysis from "./MissingAnalysis.vue";
+import TrendAnalysis from "./TrendAnalysis.vue";
 
 const props = defineProps<{ token: string; profileKey: string }>();
 
@@ -17,6 +20,7 @@ const stats = ref<ProfileStats | null>(null);
 const error = ref("");
 const busy = ref(false);
 const fetching = ref(false);
+const exportBusy = ref(false);
 const fetchMsg = ref("");
 const lastFetch = ref<FetchResult | null>(null);
 const needsBootstrap = ref(false);
@@ -55,6 +59,23 @@ async function refresh(mode: "latest" | "all" = "latest") {
     fetchMsg.value = String(e);
   } finally {
     fetching.value = false;
+  }
+}
+
+async function handleExport() {
+  exportBusy.value = true;
+  try {
+    const blob = await exportData(props.token, props.profileKey, "csv");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${props.profileKey}_data.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    exportBusy.value = false;
   }
 }
 
@@ -122,6 +143,7 @@ const missingData = computed(() => {
     <h2>统计分析 · {{ profileKey }}</h2>
     <div class="row">
       <button :disabled="fetching" @click="refresh('latest')">拉取最新开奖</button>
+      <button :disabled="exportBusy" @click="handleExport">导出 CSV</button>
       <span v-if="fetching">拉取中…</span>
     </div>
 
@@ -195,6 +217,12 @@ const missingData = computed(() => {
         <li>和值：均值 {{ (stats.sum_statistics.mean ?? 0).toFixed(1) }} / 跨度 {{ (stats.sum_statistics.span ?? 0).toFixed(1) }}</li>
         <li>最大跨度：{{ (stats.span.max ?? 0).toFixed(1) }}</li>
       </ul>
+
+      <!-- 遗漏值深度分析 -->
+      <MissingAnalysis :token="token" :profile-key="profileKey" />
+
+      <!-- 号码趋势分析 -->
+      <TrendAnalysis :token="token" :profile-key="profileKey" />
     </template>
   </div>
 </template>

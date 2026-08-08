@@ -146,7 +146,7 @@ describe("App 外壳", () => {
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    await wrapper.findAll("button").find((b) => b.text() === "退出")!.trigger("click");
+    await wrapper.findAll("button").find((b) => b.text().includes("退出"))!.trigger("click");
     await wrapper.vm.$nextTick();
 
     expect(localStorage.getItem("cp_token")).toBeNull();

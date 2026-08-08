@@ -188,6 +188,69 @@ class BacktestTicketOut(BaseModel):
     is_first: bool = False
 
 
+# --- 批量回测对比 ---
+class StrategyCompareRequest(BaseModel):
+    """批量回测对比请求：对多个策略运行相同回测参数并比较结果。"""
+
+    profile_key: str
+    strategy_ids: list[str] = Field(min_length=1, max_length=10)
+    count: int = Field(default=1, ge=1, le=100)
+    rounds: int = Field(default=30, ge=1, le=300)
+    history_window: int = Field(default=100, ge=1, le=500)
+    start_date: str | None = None
+    end_date: str | None = None
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategyCompareResult(BaseModel):
+    """单个策略的回测对比结果。"""
+
+    strategy_id: str
+    strategy_name: str
+    total_rounds: int
+    hit_count: int
+    hit_rate: float  # 命中率 0-1
+    first_ticket_hit_count: int
+    profit: int
+    total_cost: int
+    total_fixed_prize: int
+    float_prize_count: int
+    tier_breakdown: dict[str, int] = Field(default_factory=dict)
+    # 风险调整指标
+    profit_per_round: float = 0.0  # 平均每期利润
+    roi: float = 0.0  # 投资回报率 = profit / total_cost
+    max_drawdown: float = 0.0  # 最大回撤（累计利润最低点）
+
+
+class StrategyCompareResponse(BaseModel):
+    """批量回测对比响应。"""
+
+    profile_key: str
+    rounds_run: int
+    strategies: list[StrategyCompareResult]
+    ranking: list[str]  # 按 hit_rate 降序排列的 strategy_id 列表
+
+
+class ParameterSuggestion(BaseModel):
+    """参数优化建议。"""
+
+    strategy_id: str
+    strategy_name: str
+    current_params: dict[str, Any] = Field(default_factory=dict)
+    suggested_params: dict[str, Any] = Field(default_factory=dict)
+    reason: str
+    expected_improvement: float = 0.0  # 预期提升幅度（百分比）
+
+
+class ParameterSuggestionResponse(BaseModel):
+    """参数优化建议响应。"""
+
+    profile_key: str
+    strategy_id: str
+    suggestions: list[ParameterSuggestion]
+    based_on_rounds: int
+
+
 # --- API Key ---
 class ApiKeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64)

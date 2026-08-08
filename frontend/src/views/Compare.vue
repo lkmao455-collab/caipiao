@@ -4,9 +4,13 @@ import {
   listStrategies,
   getStats,
   generate,
+  compareStrategies,
+  suggestParameters,
   type Strategy,
   type ProfileStats,
   type Ticket,
+  type StrategyCompareResult,
+  type ParameterSuggestionResponse,
 } from "../api/client";
 import BarChart from "../components/charts/BarChart.vue";
 import GroupedBarChart from "../components/charts/GroupedBarChart.vue";
@@ -35,6 +39,12 @@ const count = ref(10);
 const error = ref("");
 const busy = ref(false);
 const results = ref<StrategyResult[]>([]);
+const compareBusy = ref(false);
+const compareResults = ref<StrategyCompareResult[]>([]);
+const compareRanking = ref<string[]>([]);
+const backtestRounds = ref(30);
+const suggestBusy = ref(false);
+const suggestions = ref<ParameterSuggestionResponse | null>(null);
 
 interface StrategyResult {
   strategyId: string;
@@ -226,6 +236,87 @@ async function run() {
     busy.value = false;
   }
 }
+
+async function runCompare() {
+  error.value = "";
+  if (!selected.value.length) {
+    error.value = "请至少选择一个策略";
+    return;
+  }
+  compareBusy.value = true;
+  compareResults.value = [];
+  compareRanking.value = [];
+  try {
+    const res = await compareStrategies(props.token, {
+      profile_key: props.profileKey,
+      strategy_ids: selected.value,
+      count: count.value,
+      rounds: backtestRounds.value,
+    });
+    compareResults.value = res.strategies;
+    compareRanking.value = res.ranking;
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    compareBusy.value = false;
+  }
+}
+
+function getRankBadge(idx: number): string {
+  if (idx === 0) return "🥇";
+  if (idx === 1) return "🥈";
+  if (idx === 2) return "🥉";
+  return `#${idx + 1}`;
+}
+
+function getRoiClass(roi: number): string {
+  if (roi > 0) return "positive";
+  if (roi < 0) return "negative";
+  return "";
+}
+
+const rankingData = computed(() => {
+  return compareRanking.value.map((sid) => {
+    return compareResults.value.find((r) => r.strategy_id === sid);
+  }).filter(Boolean) as StrategyCompareResult[];
+});
+
+const profitChartData = computed(() => {
+  return compareResults.value.map((r) => ({
+    label: r.strategy_name,
+    value: r.profit,
+  }));
+});
+
+const hitRateChartData = computed(() => {
+  return compareResults.value.map((r) => ({
+    label: r.strategy_name,
+    value: +(r.hit_rate * 100).toFixed(1),
+  }));
+});
+
+async function runSuggest() {
+  error.value = "";
+  if (!selected.value.length) {
+    error.value = "请至少选择一个策略";
+    return;
+  }
+  suggestBusy.value = true;
+  suggestions.value = null;
+  try {
+    const res = await suggestParameters(
+      props.token,
+      props.profileKey,
+      selected.value[0],
+      backtestRounds.value,
+    );
+    suggestions.value = res;
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    suggestBusy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -250,7 +341,11 @@ async function run() {
       <div class="row">
         <span>每策略注数：</span>
         <input v-model.number="count" type="number" min="1" max="100" style="width: 80px" />
+        <span>回测期数：</span>
+        <input v-model.number="backtestRounds" type="number" min="5" max="100" style="width: 80px" />
         <button :disabled="busy" @click="run">比较生成</button>
+        <button :disabled="compareBusy" @click="runCompare">策略对比回测</button>
+        <button :disabled="suggestBusy" @click="runSuggest">参数优化建议</button>
       </div>
     </div>
 
@@ -301,6 +396,103 @@ async function run() {
         </table>
       </template>
     </template>
+
+    <!-- 策略对比回测结果 -->
+    <template v-if="compareResults.length">
+      <h2>策略对比回测分析</h2>
+      <p class="hint">基于最近 {{ backtestRounds }} 期历史数据的回测结果对比。</p>
+
+      <!-- 排名表 -->
+      <h3>综合排名</h3>
+      <table class="rank-table">
+        <thead>
+          <tr>
+            <th>排名</th>
+            <th>策略</th>
+            <th>命中率</th>
+            <th>命中次数</th>
+            <th>利润</th>
+            <th>ROI</th>
+            <th>平均每期利润</th>
+            <th>最大回撤</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(r, i) in rankingData" :key="r.strategy_id" :class="{ 'top-rank': i < 3 }">
+            <td class="rank-badge">{{ getRankBadge(i) }}</td>
+            <td>{{ r.strategy_name }}</td>
+            <td>{{ (r.hit_rate * 100).toFixed(1) }}%</td>
+            <td>{{ r.hit_count }} / {{ r.total_rounds }}</td>
+            <td :class="getRoiClass(r.profit)">{{ r.profit >= 0 ? '+' : '' }}{{ r.profit }} 元</td>
+            <td :class="getRoiClass(r.roi)">{{ (r.roi * 100).toFixed(1) }}%</td>
+            <td :class="getRoiClass(r.profit_per_round)">{{ r.profit_per_round >= 0 ? '+' : '' }}{{ r.profit_per_round.toFixed(1) }}</td>
+            <td>{{ (r.max_drawdown * 100).toFixed(1) }}%</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 图表对比 -->
+      <div class="compare-charts">
+        <div class="chart-card">
+          <h4>命中率对比（%）</h4>
+          <BarChart :items="hitRateChartData" color="#1976D2" />
+        </div>
+        <div class="chart-card">
+          <h4>利润对比（元）</h4>
+          <BarChart :items="profitChartData" color="#43A047" />
+        </div>
+      </div>
+
+      <!-- 详细指标 -->
+      <h3>详细指标</h3>
+      <div class="detail-grid">
+        <div v-for="r in rankingData" :key="r.strategy_id" class="detail-card">
+          <h4 :style="{ color: PALETTE[compareRanking.indexOf(r.strategy_id) % PALETTE.length] }">
+            {{ r.strategy_name }}
+          </h4>
+          <ul class="detail-list">
+            <li><span class="label">总轮数：</span>{{ r.total_rounds }}</li>
+            <li><span class="label">中奖次数：</span>{{ r.hit_count }}</li>
+            <li><span class="label">首注命中：</span>{{ r.first_ticket_hit_count }}</li>
+            <li><span class="label">总成本：</span>{{ r.total_cost }} 元</li>
+            <li><span class="label">固定奖金：</span>{{ r.total_fixed_prize }} 元</li>
+            <li><span class="label">浮动奖注数：</span>{{ r.float_prize_count }}</li>
+            <li>
+              <span class="label">奖级分布：</span>
+              <span v-for="(count, tier) in r.tier_breakdown" :key="tier" class="tier-badge">
+                {{ tier }}: {{ count }}
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </template>
+
+    <!-- 参数优化建议 -->
+    <template v-if="suggestions">
+      <h2>参数优化建议</h2>
+      <p class="hint">基于最近 {{ suggestions.based_on_rounds }} 期回测数据的参数优化建议。</p>
+      <div class="suggestion-list">
+        <div v-for="(s, i) in suggestions.suggestions" :key="i" class="suggestion-card">
+          <h4>{{ s.strategy_name }} · {{ i + 1 }}</h4>
+          <p class="reason">{{ s.reason }}</p>
+          <div class="params-compare">
+            <div class="param-box current">
+              <span class="label">当前参数</span>
+              <pre>{{ JSON.stringify(s.current_params, null, 2) }}</pre>
+            </div>
+            <div class="arrow">→</div>
+            <div class="param-box suggested">
+              <span class="label">建议参数</span>
+              <pre>{{ JSON.stringify(s.suggested_params, null, 2) }}</pre>
+            </div>
+          </div>
+          <div v-if="s.expected_improvement > 0" class="improvement">
+            预期提升：<span class="positive">+{{ s.expected_improvement }}%</span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -321,4 +513,38 @@ async function run() {
 .ov-table { border-collapse: collapse; font-size: 13px; margin-top: 6px; }
 .ov-table th, .ov-table td { border: 1px solid #ddd; padding: 4px 10px; text-align: left; }
 .hint { color: #888; font-size: 12px; }
+.rank-table { border-collapse: collapse; font-size: 13px; margin: 12px 0; width: 100%; }
+.rank-table th, .rank-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+.rank-table th { background: #f5f5f5; font-weight: 600; }
+.top-rank { background: #f0f7ff; }
+.rank-badge { font-size: 16px; text-align: center; }
+.positive { color: #43A047; font-weight: 600; }
+.negative { color: #E53935; font-weight: 600; }
+.compare-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.chart-card { border: 1px solid #eee; border-radius: 6px; padding: 12px; }
+.chart-card h4 { margin: 0 0 8px; font-size: 14px; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.detail-card { border: 1px solid #eee; border-radius: 6px; padding: 12px; }
+.detail-list { font-size: 12px; color: #444; list-style: none; padding: 0; margin: 8px 0 0; }
+.detail-list li { margin: 4px 0; }
+.detail-list .label { color: #888; }
+.tier-badge {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1976D2;
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin: 2px;
+  font-size: 11px;
+}
+.suggestion-list { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
+.suggestion-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; }
+.suggestion-card h4 { margin: 0 0 8px; color: #1976D2; }
+.reason { font-size: 13px; color: #555; margin: 0 0 10px; }
+.params-compare { display: flex; align-items: center; gap: 12px; }
+.param-box { flex: 1; background: #f9f9f9; border: 1px solid #eee; border-radius: 4px; padding: 8px; }
+.param-box .label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; }
+.param-box pre { margin: 0; font-size: 12px; white-space: pre-wrap; }
+.arrow { font-size: 20px; color: #43A047; }
+.improvement { margin-top: 8px; font-size: 13px; color: #666; }
 </style>

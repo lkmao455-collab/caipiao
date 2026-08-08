@@ -64,3 +64,90 @@ select {
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* 移动端响应式 */
+@media (max-width: 768px) {
+  #app {
+    padding: 12px;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 8px;
+  }
+
+  h1 {
+    font-size: 20px;
+    text-align: center;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  h3 {
+    font-size: 16px;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row > * {
+    width: 100%;
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+  }
+
+  input, select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  table {
+    font-size: 12px;
+    display: block;
+    overflow-x: auto;
+  }
+
+  th, td {
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  #app {
+    padding: 8px;
+  }
+
+  .card {
+    padding: 10px;
+  }
+
+  h1 {
+    font-size: 18px;
+  }
+
+  h2 {
+    font-size: 16px;
+  }
+
+  h3 {
+    font-size: 14px;
+  }
+
+  button {
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  input, select {
+    font-size: 13px;
+    padding: 6px;
+  }
+}

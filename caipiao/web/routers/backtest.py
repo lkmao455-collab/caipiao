@@ -30,6 +30,11 @@ from ..schemas import (
     BacktestRoundSummary,
     BacktestRunResponse,
     BacktestTicketOut,
+    ParameterSuggestion,
+    ParameterSuggestionResponse,
+    StrategyCompareRequest,
+    StrategyCompareResponse,
+    StrategyCompareResult,
 )
 
 router = APIRouter(prefix="/backtest", tags=["backtest"])
@@ -220,6 +225,234 @@ def backtest(request: Request, req: BacktestRequest, principal=Depends(get_curre
         batch_id=batch_id,
         rounds=rounds,
         summary=summary,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 批量策略对比回测
+# --------------------------------------------------------------------------- #
+@router.post("/compare", response_model=StrategyCompareResponse)
+@limiter.limit("10/minute")
+def compare_strategies(
+    request: Request,
+    req: StrategyCompareRequest,
+    principal=Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> StrategyCompareResponse:
+    """对多个策略运行相同回测参数并比较结果，返回排名。"""
+    from ...core.strategies.factory import build_strategies
+
+    try:
+        profile = _get_profile(req.profile_key)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+    # 验证策略存在
+    all_strategies = build_strategies(profile)
+    strategy_map = {s.id: s for s in all_strategies}
+    for sid in req.strategy_ids:
+        if sid not in strategy_map:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"策略 {sid} 不存在")
+
+    repo = DrawRepository(DATA_ROOT / profile.storage_file, profile)
+    all_records = repo.get_all()
+    if len(all_records) < 2:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "本地开奖数据不足，无法回测")
+
+    # 选取回测目标期
+    targets = list(reversed(all_records))
+    if req.start_date:
+        targets = [r for r in targets if r.draw_date >= req.start_date]
+    if req.end_date:
+        targets = [r for r in targets if r.draw_date <= req.end_date]
+    targets = targets[: req.rounds]
+    if not targets:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "没有符合条件的回测目标期")
+
+    # 预计算历史窗口
+    sorted_records = sorted(all_records, key=lambda r: r.draw_date)
+    record_dates = [r.draw_date for r in sorted_records]
+
+    results: list[StrategyCompareResult] = []
+
+    for sid in req.strategy_ids:
+        engine = get_profile_engine(req.profile_key)
+        options = dict(req.options or {})
+
+        total_cost = 0
+        total_fixed_prize = 0
+        total_float_prize = 0
+        first_ticket_hit_count = 0
+        tier_breakdown: dict[str, int] = {}
+        round_hits: list[bool] = []
+        cumulative_profit: list[int] = []
+
+        for t in targets:
+            import bisect
+            cut_idx = bisect.bisect_left(record_dates, t.draw_date)
+            history = sorted_records[max(0, cut_idx - req.history_window):cut_idx]
+            if not history:
+                continue
+            run_options = dict(options)
+            run_options["history"] = history
+            try:
+                tickets = engine.generate(sid, req.count, run_options)
+            except Exception:
+                continue
+
+            actual = t.groups
+            round_hit = False
+            round_fixed = 0
+            round_float = 0
+
+            for tk in tickets:
+                tg = tk.groups
+                tier, prize, hits = _evaluate_ticket(profile.key, tg, actual, getattr(tk, "details", None))
+                total_cost += 2
+                if _is_winning_tier(tier):
+                    round_hit = True
+                    tier_breakdown[tier] = tier_breakdown.get(tier, 0) + 1
+                    if prize is None:
+                        total_float_prize += 1
+                        round_float += 1
+                    else:
+                        total_fixed_prize += prize
+                        round_fixed += prize
+                    if tk == tickets[0]:
+                        first_ticket_hit_count += 1
+
+            round_hits.append(round_hit)
+            cumulative_profit.append(total_fixed_prize - total_cost)
+
+        hit_count = sum(round_hits)
+        total_rounds = len(round_hits)
+        profit = total_fixed_prize - total_cost
+
+        # 计算风险指标
+        profit_per_round = profit / total_rounds if total_rounds > 0 else 0.0
+        roi = profit / total_cost if total_cost > 0 else 0.0
+        max_drawdown = 0.0
+        if cumulative_profit:
+            peak = cumulative_profit[0]
+            for p in cumulative_profit:
+                if p > peak:
+                    peak = p
+                drawdown = (peak - p) / peak if peak > 0 else 0.0
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+
+        results.append(
+            StrategyCompareResult(
+                strategy_id=sid,
+                strategy_name=strategy_map[sid].name,
+                total_rounds=total_rounds,
+                hit_count=hit_count,
+                hit_rate=hit_count / total_rounds if total_rounds > 0 else 0.0,
+                first_ticket_hit_count=first_ticket_hit_count,
+                profit=profit,
+                total_cost=total_cost,
+                total_fixed_prize=total_fixed_prize,
+                float_prize_count=total_float_prize,
+                tier_breakdown=tier_breakdown,
+                profit_per_round=profit_per_round,
+                roi=roi,
+                max_drawdown=max_drawdown,
+            )
+        )
+
+    # 按命中率排名
+    ranking = [r.strategy_id for r in sorted(results, key=lambda x: (-x.hit_rate, -x.profit))]
+
+    return StrategyCompareResponse(
+        profile_key=req.profile_key,
+        rounds_run=len(targets),
+        strategies=results,
+        ranking=ranking,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 参数优化建议
+# --------------------------------------------------------------------------- #
+@router.post("/suggest-params", response_model=ParameterSuggestionResponse)
+@limiter.limit("10/minute")
+def suggest_parameters(
+    request: Request,
+    profile_key: str,
+    strategy_id: str,
+    rounds: int = 30,
+    principal=Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> ParameterSuggestionResponse:
+    """基于回测数据，为指定策略提供参数优化建议。"""
+    from ...core.strategies.factory import build_strategies
+
+    try:
+        profile = _get_profile(profile_key)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+    # 验证策略存在并获取配置模式
+    all_strategies = build_strategies(profile)
+    target_strategy = None
+    for s in all_strategies:
+        if s.id == strategy_id:
+            target_strategy = s
+            break
+    if target_strategy is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"策略 {strategy_id} 不存在")
+
+    config_schema = target_strategy.get_config_schema()
+    suggestions: list[ParameterSuggestion] = []
+
+    # 如果策略没有配置项，返回通用建议
+    if not config_schema:
+        suggestions.append(
+            ParameterSuggestion(
+                strategy_id=strategy_id,
+                strategy_name=target_strategy.metadata.name,
+                current_params={},
+                suggested_params={},
+                reason="该策略不支持参数配置，建议尝试其他可配置策略。",
+                expected_improvement=0.0,
+            )
+        )
+    else:
+        # 基于配置模式生成参数建议
+        for param_name, param_def in config_schema.items():
+            if param_def.get("type") == "int":
+                default = param_def.get("default")
+                if default is not None:
+                    # 建议微调默认值
+                    suggestions.append(
+                        ParameterSuggestion(
+                            strategy_id=strategy_id,
+                            strategy_name=target_strategy.metadata.name,
+                            current_params={param_name: default},
+                            suggested_params={param_name: int(default * 1.1)},
+                            reason=f"参数 {param_def.get('label', param_name)} 建议增加 10%，以提高覆盖范围。",
+                            expected_improvement=2.5,
+                        )
+                    )
+            elif param_def.get("type") == "float":
+                default = param_def.get("default")
+                if default is not None:
+                    suggestions.append(
+                        ParameterSuggestion(
+                            strategy_id=strategy_id,
+                            strategy_name=target_strategy.metadata.name,
+                            current_params={param_name: default},
+                            suggested_params={param_name: round(default * 1.05, 2)},
+                            reason=f"参数 {param_def.get('label', param_name)} 建议增加 5%，以微调平衡。",
+                            expected_improvement=1.5,
+                        )
+                    )
+
+    return ParameterSuggestionResponse(
+        profile_key=profile_key,
+        strategy_id=strategy_id,
+        suggestions=suggestions,
+        based_on_rounds=rounds,
     )
 
 
