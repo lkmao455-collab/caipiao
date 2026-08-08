@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import datetime
+import time
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -55,6 +56,22 @@ class ApiKey(Base):
     last_used_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
 
     owner: Mapped[User] = relationship("User", back_populates="api_keys")
+
+
+class WorkflowDefinitionRow(Base):
+    """持久化的工作流定义（节点/边以 JSON 存储，执行态仍在内存）。"""
+
+    __tablename__ = "workflow_definitions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(String(512), default="")
+    owner_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    version: Mapped[int] = mapped_column(default=1, nullable=False)
+    enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
+    definition_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    updated_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 
 class UsageRecord(Base):
