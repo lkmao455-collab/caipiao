@@ -17,7 +17,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from caipiao.web.config import CORS_ORIGINS, DATA_ROOT
 from caipiao.web.db import init_db
 from caipiao.web.eventbus import bus
+from caipiao.web.monitoring import MonitoringMiddleware
 from caipiao.web.ratelimit import limiter
+from caipiao.web.realtime_monitor import get_monitor
 from caipiao.web.routers import (
     admin,
     ai_analysis,
@@ -105,7 +107,7 @@ async def _draw_poller() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()  # 创建用户 / API Key / 用量表（幂等）
-    # 启动实时推送：Redis 总线监听（若有）+ 后台开奖拉取
+    # 启动实时推送：Redis 总线监听（若有）+ 后台开奖拉取 + 实时指标采集
     bg_tasks: list[asyncio.Task] = []
     start_fn = getattr(bus, "start", None)
     if callable(start_fn):
@@ -114,9 +116,18 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
     bg_tasks.append(asyncio.create_task(_draw_poller()))
+    rt = get_monitor()
+    try:
+        await rt.start()
+    except Exception:
+        pass
     try:
         yield
     finally:
+        try:
+            await rt.stop()
+        except Exception:
+            pass
         for t in bg_tasks:
             t.cancel()
 
@@ -147,6 +158,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 监控中间件：统计每个 HTTP 请求的耗时 / 状态码 / 5xx 错误（需在路由器注册前挂载）
+app.add_middleware(MonitoringMiddleware)
 
 app.include_router(auth.router, tags=["auth"])
 app.include_router(profiles.router, tags=["profiles"])

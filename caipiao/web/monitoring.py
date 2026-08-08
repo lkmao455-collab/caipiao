@@ -11,6 +11,22 @@ from typing import Any
 import threading
 
 
+def _extract_user_id(scope: dict) -> str:
+    """从 ASGI scope 的 Authorization 头中解析 JWT subject（失败返回空）。"""
+    try:
+        from .security import decode_access_token
+
+        for key, value in scope.get("headers") or []:
+            if key == b"authorization":
+                raw = value.decode("latin-1", "ignore")
+                if raw.startswith("Bearer "):
+                    token = raw[len("Bearer ") :].strip()
+                    return decode_access_token(token) or ""
+    except Exception:
+        pass
+    return ""
+
+
 @dataclass
 class APICallRecord:
     """API 调用记录。"""
@@ -188,3 +204,49 @@ class PerformanceMonitor:
 
 # 全局监控实例
 monitor = PerformanceMonitor()
+
+
+class MonitoringMiddleware:
+    """ASGI 中间件：记录每个 HTTP 请求的耗时、状态码与（5xx）错误。
+
+    实现为原生 ASGI 中间件（非 BaseHTTPMiddleware），以最小开销包裹整条
+    请求链路，同时兼容 Starlette TestClient。WebSocket 与 lifespan 事件直接
+    透传，不参与统计。
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        start = time.time()
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+        user_id = _extract_user_id(scope)
+        status_code = 500
+        error = ""
+
+        async def _send(message):
+            nonlocal status_code
+            if message.get("type") == "http.response.start":
+                status_code = message.get("status", status_code)
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except Exception as exc:  # noqa: BLE001
+            error = str(exc)[:500]
+            monitor.record_error(path, type(exc).__name__, error, user_id=user_id)
+            raise
+        finally:
+            duration_ms = (time.time() - start) * 1000
+            if status_code >= 500 and not error:
+                error = f"HTTP {status_code}"
+            if status_code >= 500:
+                monitor.record_error(path, "HTTPError", error, user_id=user_id)
+            monitor.record_api_call(
+                method, path, status_code, duration_ms, user_id=user_id, error=error
+            )
