@@ -155,6 +155,10 @@ class PredictionEngine:
     def add_history(self, profile_key: str, numbers: list[int]):
         self._history[profile_key].append(numbers)
 
+    def set_history(self, profile_key: str, draws: list[list[int]]) -> None:
+        """用某彩种的完整开奖历史替换缓存（避免跨请求累积）。"""
+        self._history[profile_key] = [list(d) for d in draws]
+
     def predict(
         self,
         profile_key: str,
