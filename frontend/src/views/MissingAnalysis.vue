@@ -87,7 +87,7 @@ const pairData = computed(() => {
 const tripleData = computed(() => {
   if (!combo.value) return [];
   return combo.value.common_triples.slice(0, 8).map((t) => ({
-    label: t.list.join("-"),
+    label: t.triple.join("-"),
     value: t.count,
   }));
 });

@@ -26,7 +26,7 @@ const selection = ref<{ profileKey: string; strategyId: string }>({
   profileKey: "",
   strategyId: "",
 });
-const tab = ref<"generate" | "stats" | "backtest" | "filters" | "compare" | "plugins" | "admin">("generate");
+const tab = ref<"generate" | "stats" | "backtest" | "filters" | "compare" | "plugins" | "admin" | "favorites" | "recommend" | "dashboard" | "multi" | "tasks">("generate");
 const postFilters = ref<{ name: string; params: Record<string, unknown> }[]>([]);
 
 async function loadRole() {
@@ -135,7 +135,7 @@ function logout() {
       v-else-if="tab === 'recommend'"
       :token="token"
       :profile-key="selection.profileKey"
-      @select="onSelected"
+      @select="(sid) => onSelected(selection.profileKey, sid)"
     />
     <Dashboard
       v-else-if="tab === 'dashboard'"

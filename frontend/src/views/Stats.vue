@@ -113,12 +113,16 @@ const highLowSlices = computed(() => {
   ];
 });
 
-const heatmapCells = computed(() => {
-  if (!stats.value) return [];
+const heatmapCells = computed<{
+  cells: { row: number; col: number; value: number; label: string }[];
+  rows: number;
+  cols: number;
+}>(() => {
+  if (!stats.value) return { cells: [], rows: 0, cols: 0 };
   const cells: { row: number; col: number; value: number; label: string }[] = [];
   const primary = stats.value.primary_group;
   const g = stats.value.groups[primary];
-  if (!g) return [];
+  if (!g) return { cells: [], rows: 0, cols: 0 };
   const vals = Object.entries(g.frequency);
   const rows = Math.ceil(vals.length / 10);
   for (let i = 0; i < vals.length; i++) {
@@ -162,20 +166,20 @@ const missingData = computed(() => {
       <p>共 {{ stats.total_records }} 期 · 主号组：{{ stats.primary_group }}</p>
 
       <div v-for="(_g, key) in stats.groups" :key="key" class="group-block">
-        <h3 :style="{ color: stats.groups[key as string].color }">
-          {{ stats.groups[key as string].name }}（{{ stats.groups[key as string].lo }}-{{ stats.groups[key as string].hi }}）
+        <h3 :style="{ color: _g.color }">
+          {{ _g.name }}（{{ _g.lo }}-{{ _g.hi }}）
         </h3>
         <BarChart
-          :items="Object.entries(stats.groups[key as string].frequency).map(([n, v]) => ({
+          :items="Object.entries(_g.frequency).map(([n, v]) => ({
             label: n,
             value: v,
-            color: stats.groups[key as string].color,
+            color: _g.color,
           }))"
           :height="100"
         />
         <div class="meta">
-          <span>热号：{{ stats.groups[key as string].hot.join(", ") }}</span>
-          <span>冷号：{{ stats.groups[key as string].cold.join(", ") }}</span>
+          <span>热号：{{ _g.hot.join(", ") }}</span>
+          <span>冷号：{{ _g.cold.join(", ") }}</span>
         </div>
       </div>
 
