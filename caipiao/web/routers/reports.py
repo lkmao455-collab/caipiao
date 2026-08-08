@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from urllib.parse import quote
 
 from ..deps import get_current_principal
 from ..report_engine import (
@@ -17,6 +18,15 @@ from ..report_engine import (
 )
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _content_disposition(name: str, ext: str) -> str:
+    """构造 Content-Disposition 头，兼容含非 ASCII（中文）文件名的下载。"""
+    ascii_name = name.encode("ascii", "ignore").decode().strip() or "report"
+    return (
+        f"attachment; filename=\"{ascii_name}.{ext}\"; "
+        f"filename*=UTF-8''{quote(f'{name}.{ext}')}"
+    )
 
 
 class ColumnSchema(BaseModel):
@@ -116,6 +126,15 @@ def list_reports(
     ]
 
 
+@router.get("/data-sources")
+def list_data_sources(
+    principal=Depends(get_current_principal),
+):
+    """列出可用数据源（彩种开奖历史），供生成/导出报表时选择。"""
+    engine = get_report_engine()
+    return {"data_sources": engine.list_data_sources()}
+
+
 @router.get("/{report_id}", response_model=ReportOut)
 def get_report(
     report_id: str,
@@ -190,7 +209,7 @@ def export_csv(
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={result.config.name}.csv"},
+        headers={"Content-Disposition": _content_disposition(result.config.name, "csv")},
     )
 
 
@@ -210,5 +229,5 @@ def export_json(
     return StreamingResponse(
         iter([json_content]),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={result.config.name}.json"},
+        headers={"Content-Disposition": _content_disposition(result.config.name, "json")},
     )

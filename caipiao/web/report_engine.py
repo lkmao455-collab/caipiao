@@ -65,6 +65,57 @@ class ReportEngine:
         """注册数据源。"""
         self._data_sources[name] = data
 
+    def _draw_to_row(self, record) -> dict[str, Any]:
+        """将一条开奖记录扁平化为报表行（兼容任意彩种号码组）。"""
+        row: dict[str, Any] = {
+            "issue": record.issue,
+            "draw_date": record.draw_date.strftime("%Y-%m-%d"),
+            "profile": record.profile.key,
+        }
+        total = 0
+        for gname, nums in record.groups.items():
+            row[gname] = ",".join(str(n) for n in nums)
+            row[f"{gname}_count"] = len(nums)
+            for i, n in enumerate(nums, 1):
+                row[f"{gname}_{i}"] = n
+                total += n
+        row["number_sum"] = total
+        return row
+
+    def ensure_data_sources(self) -> None:
+        """惰性加载真实开奖历史作为数据源（按彩种 key 注册，外加 default 别名）。
+
+        仅在数据源为空时执行一次；复用核心层 DrawRepository 读取历史，
+        不修改核心层。若数据目录无文件则保持为空（生成报表时返回 404）。
+        """
+        if self._data_sources:
+            return
+        try:
+            from caipiao.core.profile import list_profiles
+            from caipiao.data.repository import DrawRepository
+
+            from .config import DATA_ROOT
+
+            for profile in list_profiles():
+                repo = DrawRepository(DATA_ROOT / profile.storage_file, profile)
+                rows = [self._draw_to_row(d) for d in repo.get_all()]
+                if rows:
+                    self._data_sources[profile.key] = rows
+            # default 别名指向首个有数据的彩种，保持向后兼容
+            if "default" not in self._data_sources and self._data_sources:
+                first_key = next(iter(self._data_sources))
+                self._data_sources["default"] = self._data_sources[first_key]
+        except Exception as exc:  # noqa: BLE001
+            logger.error("加载报表数据源失败: %s", exc)
+
+    def list_data_sources(self) -> list[dict[str, Any]]:
+        """列出已注册数据源（名称 + 行数），供前端选择。"""
+        self.ensure_data_sources()
+        return [
+            {"name": name, "row_count": len(data)}
+            for name, data in self._data_sources.items()
+        ]
+
     def create_config(self, config: ReportConfig) -> ReportConfig:
         """创建报表配置。"""
         self._configs[config.id] = config
@@ -88,6 +139,7 @@ class ReportEngine:
         if not config:
             return None
 
+        self.ensure_data_sources()
         data = self._data_sources.get(data_source, [])
         if not data:
             return None
