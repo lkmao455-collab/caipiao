@@ -275,7 +275,7 @@ def get_recommendations(
     all_strategies = build_strategies(profile)
     strategy_list = [
         {
-            "id": s.id,
+            "id": s.metadata.id,
             "name": s.metadata.name,
             "configurable": s.metadata.configurable,
             "is_ml": getattr(s, "is_ml", False),

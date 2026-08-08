@@ -50,6 +50,16 @@ def list_configs(
     ]
 
 
+@router.get("/export")
+def export_configs(
+    principal=Depends(get_current_principal),
+):
+    mgr = get_config_manager()
+    return mgr.export_configs()
+
+
+# 注意：静态路径（如 /config/export）必须声明在 /config/{key} 之前，
+# 否则会被动态段抢先匹配（key="export"）。
 @router.get("/{key}")
 def get_config(
     key: str,
@@ -131,14 +141,6 @@ def rollback(
     if not mgr.rollback(version):
         return {"error": "Version not found"}
     return {"status": "ok"}
-
-
-@router.get("/export")
-def export_configs(
-    principal=Depends(get_current_principal),
-):
-    mgr = get_config_manager()
-    return mgr.export_configs()
 
 
 @router.post("/import")

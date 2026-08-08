@@ -163,10 +163,12 @@ app.add_middleware(
 app.add_middleware(MonitoringMiddleware)
 
 app.include_router(auth.router, tags=["auth"])
+# stats 必须先于 profiles 注册：stats 里的静态路径 /profiles/compare-lotteries
+# 否则会被 profiles 的动态段 /profiles/{key} 抢先匹配（FastAPI 按注册顺序匹配）。
+app.include_router(stats.router, tags=["stats"])
 app.include_router(profiles.router, tags=["profiles"])
 app.include_router(generate.router, tags=["generate"])
 app.include_router(backtest.router, tags=["backtest"])
-app.include_router(stats.router, tags=["stats"])
 app.include_router(filters.router, tags=["filters"])
 app.include_router(favorites.router, tags=["favorites"])
 app.include_router(tasks.router, tags=["tasks"])
